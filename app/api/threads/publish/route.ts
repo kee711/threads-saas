@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ThreadsAPI } from 'threads-api';
 import { threadsManager } from "../auth/route";
 
 // app/api/threads/auth/route.ts에서 초기화한 클라이언트를 사용하기 위한 참조
