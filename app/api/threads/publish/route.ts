@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ThreadsAPI } from 'threads-api';
+import { threadsManager } from "../auth/route";
 
 // app/api/threads/auth/route.ts에서 초기화한 클라이언트를 사용하기 위한 참조
 // 실제로는 상태 관리나 DB를 사용하는 것이 좋습니다
@@ -19,7 +19,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!global.threadsClient) {
+    const client = threadsManager.getClient();
+    if (!client) {
       return NextResponse.json(
         { error: "스레드 클라이언트가 초기화되지 않았습니다. 먼저 로그인하세요." },
         { status: 401 }
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     }
 
     // 스레드 게시
-    await global.threadsClient.publish({
+    await client.publish({
       text: content,
     });
 
