@@ -3,6 +3,7 @@ import { ThreadsAPI } from 'threads-api';
 
 // 글로벌 스코프에 클라이언트 저장
 declare global {
+  // eslint-disable-next-line no-var
   var threadsClient: ThreadsAPI | null;
 }
 

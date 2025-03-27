@@ -4,6 +4,7 @@ import { ThreadsAPI } from 'threads-api';
 // app/api/threads/auth/route.ts에서 초기화한 클라이언트를 사용하기 위한 참조
 // 실제로는 상태 관리나 DB를 사용하는 것이 좋습니다
 declare global {
+  // eslint-disable-next-line no-var
   var threadsClient: ThreadsAPI | null;
 }
 
