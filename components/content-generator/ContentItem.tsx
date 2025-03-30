@@ -1,91 +1,101 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../ui/card";
-import { Button } from "../ui/button";
-import { Textarea } from "../ui/textarea";
-import { Separator } from "../ui/separator";
+import { useState } from "react";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Content } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { CheckIcon, EditIcon, XIcon } from "lucide-react";
 
 interface ContentItemProps {
-  id: number;
-  content: string;
+  content: Content;
   onEdit: (id: number, updatedContent: string) => void;
   onConfirm: (id: number) => void;
-  isConfirmed: boolean;
-  isScheduled: boolean;
-  publishDate?: string;
 }
 
-export const ContentItem: React.FC<ContentItemProps> = ({
-  id,
-  content,
-  onEdit,
-  onConfirm,
-  isConfirmed,
-  isScheduled,
-  publishDate,
-}) => {
+export function ContentItem({ content, onEdit, onConfirm }: ContentItemProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(content);
+  const [editedContent, setEditedContent] = useState(content.content);
 
-  const handleSave = () => {
-    onEdit(id, editedContent);
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // 편집 완료
+      onEdit(content.id, editedContent);
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleCancel = () => {
+    setEditedContent(content.content);
     setIsEditing(false);
   };
 
+  const handleConfirm = () => {
+    onConfirm(content.id);
+  };
+
   return (
-    <Card className={`w-full ${isConfirmed ? "border-green-500" : ""}`}>
-      <CardHeader>
-        <CardTitle className="text-lg flex justify-between items-center">
-          <div>콘텐츠 #{id}</div>
-          {isScheduled && (
-            <div className="text-sm text-gray-500">예약됨: {publishDate}</div>
-          )}
-        </CardTitle>
-        {isConfirmed && (
-          <div className="text-green-500 text-sm font-medium">확정됨</div>
-        )}
-      </CardHeader>
-      <Separator />
-      <CardContent className="pt-4">
+    <Card className={cn("transition-all", {
+      "border-green-500 bg-green-50": content.isConfirmed,
+      "border-blue-500 bg-blue-50": content.isScheduled,
+    })}>
+      <CardContent className="pt-6">
         {isEditing ? (
-          <Textarea
+          <textarea
+            className="w-full min-h-[150px] p-3 border rounded-md"
             value={editedContent}
             onChange={(e) => setEditedContent(e.target.value)}
-            className="min-h-[150px]"
           />
         ) : (
-          <div className="whitespace-pre-line">{content}</div>
+          <div className="whitespace-pre-wrap">{content.content}</div>
+        )}
+        
+        {content.isScheduled && content.publishDate && (
+          <div className="mt-4 text-sm text-blue-600">
+            예약 발행: {content.publishDate}
+          </div>
         )}
       </CardContent>
-      <CardFooter className="justify-between">
-        {isEditing ? (
-          <>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              취소
-            </Button>
-            <Button onClick={handleSave}>저장</Button>
-          </>
-        ) : (
-          <>
+      
+      <CardFooter className="flex justify-between">
+        <div>
+          {isEditing ? (
             <Button
               variant="outline"
-              onClick={() => {
-                setEditedContent(content);
-                setIsEditing(true);
-              }}
-              disabled={isConfirmed}
+              size="sm"
+              onClick={handleCancel}
+              className="mr-2"
             >
+              <XIcon className="h-4 w-4 mr-1" />
+              취소
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleEditToggle}
+              disabled={content.isConfirmed || content.isScheduled}
+            >
+              <EditIcon className="h-4 w-4 mr-1" />
               수정
             </Button>
-            <Button
-              onClick={() => onConfirm(id)}
-              disabled={isConfirmed}
-              variant={isConfirmed ? "outline" : "default"}
-            >
-              {isConfirmed ? "확정됨" : "확정"}
+          )}
+        </div>
+        
+        <div>
+          {isEditing ? (
+            <Button size="sm" onClick={handleEditToggle}>
+              <CheckIcon className="h-4 w-4 mr-1" />
+              저장
             </Button>
-          </>
-        )}
+          ) : (
+            !content.isConfirmed && (
+              <Button size="sm" onClick={handleConfirm}>
+                <CheckIcon className="h-4 w-4 mr-1" />
+                확정
+              </Button>
+            )
+          )}
+        </div>
       </CardFooter>
     </Card>
   );
-}; 
+} 

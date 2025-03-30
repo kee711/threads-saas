@@ -1,8 +1,4 @@
-// 클라이언트에서 사용하는 인터페이스 정의
-export interface ThreadsCredentials {
-  username: string;
-  password: string;
-}
+import { ThreadsCredentials } from "@/components/threads/types";
 
 interface AuthResponse {
   success: boolean;

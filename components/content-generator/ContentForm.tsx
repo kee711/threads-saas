@@ -1,31 +1,36 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
-import { Label } from "../ui/label";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { LoaderIcon } from "lucide-react";
 
 interface ContentFormProps {
   onSubmit: (topic: string, reference: string) => Promise<void>;
   isGenerating: boolean;
 }
 
-export const ContentForm: React.FC<ContentFormProps> = ({ onSubmit, isGenerating }) => {
+export function ContentForm({ onSubmit, isGenerating }: ContentFormProps) {
   const [topic, setTopic] = useState("");
   const [reference, setReference] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic) return;
+    
+    if (!topic) {
+      alert("주제를 입력해주세요.");
+      return;
+    }
+    
     await onSubmit(topic, reference);
   };
 
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
-        <CardTitle>AI 콘텐츠 생성</CardTitle>
+        <CardTitle>콘텐츠 생성</CardTitle>
         <CardDescription>
-          주제와 참고 자료를 입력하시면 AI가 스레드를 위한 컨텐츠 10개를 생성합니다.
+          AI로 스레드 콘텐츠를 생성하세요.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -34,29 +39,35 @@ export const ContentForm: React.FC<ContentFormProps> = ({ onSubmit, isGenerating
             <Label htmlFor="topic">주제</Label>
             <Input
               id="topic"
-              placeholder="AI 수익화 방법론"
+              placeholder="콘텐츠 주제를 입력하세요"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="reference">참고 자료 (선택사항)</Label>
-            <Textarea
+            <Label htmlFor="reference">참고자료 (선택사항)</Label>
+            <Input
               id="reference"
-              placeholder="참고할 내용이나 자료를 붙여넣으세요."
+              placeholder="참고자료 또는 키워드를 입력하세요"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
-              className="min-h-[150px]"
             />
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isGenerating}>
-            {isGenerating ? "생성 중..." : "콘텐츠 생성하기"}
+          <Button type="submit" disabled={isGenerating || !topic}>
+            {isGenerating ? (
+              <>
+                <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+                생성 중...
+              </>
+            ) : (
+              "콘텐츠 생성"
+            )}
           </Button>
         </CardFooter>
       </form>
     </Card>
   );
-}; 
+} 
