@@ -15,7 +15,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   return (
     <div className={cn("flex h-screen w-[390px] flex-col border-l bg-background", className)}>
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] p-4">
+      <div className="flex-1 overflow-auto p-4">
         <h1 className="mb-4 text-2xl font-semibold">Create New</h1>
 
         {/* Post Card Section */}
