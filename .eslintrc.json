@@ -1,0 +1,10 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:storybook/recommended"
+  ],
+  "rules": {
+    "no-var": "off",
+    "@typescript-eslint/no-empty-object-type": "off"
+  }
+}
