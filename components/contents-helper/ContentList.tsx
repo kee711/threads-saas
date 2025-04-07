@@ -5,26 +5,43 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PostCard } from '@/components/PostCard';
 import { ContentCategory, ContentItem, ContentListProps } from './types';
 import { Button } from '@/components/ui/button';
-import { getContentsByCategory } from '@/lib/services/content';
+import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import { getContents, ContentSource } from '@/app/actions/content';
+import { toast } from 'sonner';
 
 export function ContentList({ category, title }: ContentListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const addPost = useSelectedPostsStore(state => state.addPost);
+  const selectedPosts = useSelectedPostsStore(state => state.selectedPosts);
 
   useEffect(() => {
     async function fetchContents() {
       setIsLoading(true);
-      setError(null);
       try {
-        console.log('Fetching contents for category:', category);
-        const data = await getContentsByCategory(category);
-        console.log('Fetched data:', data);
-        setContents(data);
+        // 카테고리에 따라 source와 파라미터 설정
+        let source: ContentSource = 'my';
+        let params: Parameters<typeof getContents>[0] = { source };
+
+        switch (category) {
+          case 'viral':
+          case 'news':
+            source = 'external';
+            params = { source, category };
+            break;
+          case 'drafts':
+            params = { source: 'my', status: 'draft' };
+            break;
+        }
+
+        const { data, error } = await getContents(params);
+        if (error) throw error;
+
+        setContents(data || []);
       } catch (error) {
         console.error('Error fetching contents:', error);
-        setError(error instanceof Error ? error.message : '데이터를 가져오는 중 오류가 발생했습니다.');
+        toast.error('컨텐츠를 불러오는데 실패했습니다.');
       } finally {
         setIsLoading(false);
       }
@@ -69,8 +86,6 @@ export function ContentList({ category, title }: ContentListProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-2">
           {isLoading ? (
             <div className="text-center text-muted-foreground">데이터를 불러오는 중...</div>
-          ) : error ? (
-            <div className="text-center text-red-500">{error}</div>
           ) : contents.length > 0 ? (
             contents.map((content) => (
               <PostCard
@@ -86,6 +101,20 @@ export function ContentList({ category, title }: ContentListProps) {
                 shareCount={content.share_count}
                 topComment={content.top_comment}
                 url={content.url}
+                onAdd={() => addPost({
+                  id: content.id,
+                  content: content.content,
+                  username: "minsung.dev",
+                  timestamp: content.created_at,
+                  viewCount: content.view_count,
+                  likeCount: content.like_count,
+                  commentCount: content.comment_count,
+                  repostCount: content.repost_count,
+                  shareCount: content.share_count,
+                  topComment: content.top_comment,
+                  url: content.url
+                })}
+                isSelected={selectedPosts.some(post => post.id === content.id)}
               />
             ))
           ) : (
