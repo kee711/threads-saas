@@ -22,6 +22,7 @@ export type Content = {
   top_comment?: string
   url?: string
   category?: string
+  scheduled_at?: string
 }
 
 export async function createContent(content: Content) {
