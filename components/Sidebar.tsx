@@ -14,11 +14,13 @@ import {
   Timer,
   List,
   CalendarDays,
+  Settings,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useSession, signIn } from 'next-auth/react';
 
 // Navigation item type definition
 interface NavItem {
@@ -42,6 +44,7 @@ const STORAGE_KEY = 'sidebar-open-items';
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   // Initialize with empty array to prevent hydration mismatch
   const [openItems, setOpenItems] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -189,30 +192,51 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Bottom section: User Profile */}
       <div className="mt-auto border-t p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            {/* User Avatar */}
-            <Avatar>
-              <AvatarImage src="/avatars/01.png" alt="Harry Kee" />
-              <AvatarFallback>HK</AvatarFallback>
-            </Avatar>
-            {/* User Info */}
-            <div>
-              <p className="text-sm font-medium">Harry Kee</p>
-              <div className="flex items-center space-x-1">
-                {/* Pro Badge */}
-                <span className="rounded-md bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-600">
-                  Pro
-                </span>
-                {/* Timer Display */}
-                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                  <Timer className="h-3 w-3" />
-                  <span>14</span>
-                </div>
+        {session ? (
+          // 로그인된 경우
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              {/* User Avatar */}
+              <Avatar>
+                <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
+                <AvatarFallback>
+                  {session.user?.name
+                    ? session.user.name
+                      .split(' ')
+                      .map(n => n[0])
+                      .join('')
+                      .toUpperCase()
+                    : '??'}
+                </AvatarFallback>
+              </Avatar>
+              {/* User Info */}
+              <div>
+                <p className="text-sm font-medium">{session.user?.name}</p>
+                <p className="text-xs text-muted-foreground">Premium Plan</p>
               </div>
             </div>
+            {/* Settings Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+            >
+              <Link href="/settings">
+                <Settings className="h-5 w-5" />
+                <span className="sr-only">설정</span>
+              </Link>
+            </Button>
           </div>
-        </div>
+        ) : (
+          // 로그인되지 않은 경우
+          <Button
+            variant="default"
+            className="w-full"
+            onClick={() => signIn()}
+          >
+            로그인
+          </Button>
+        )}
       </div>
     </div>
   );
