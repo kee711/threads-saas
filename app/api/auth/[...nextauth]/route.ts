@@ -4,6 +4,10 @@ import ThreadsProvider from '@/lib/auth/threads-provider'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
+const supabaseUrl = process.env.SUPABASE_URL!
+const supabaseKey = process.env.SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseKey)
+
 const handler = NextAuth({
   providers: [
     GoogleProvider({
@@ -52,22 +56,12 @@ const handler = NextAuth({
       console.log('SignIn Callback - Account:', account)
       console.log('SignIn Callback - Profile:', profile)
 
-      const supabaseUrl = process.env.SUPABASE_URL
-      const supabaseKey = process.env.SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseKey) {
-        console.error('Supabase URL or Key is missing in environment variables')
-        return false
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseKey)
-
       try {
         // 사용자가 존재하는지 확인하고 deleted_at 필드 체크
         const { data: existingUser, error: fetchError } = await supabase
           .from('user_profiles')
           .select('*')
-          .eq('email', user.email!)
+          .eq('email', user.email)
           .single()
 
         if (fetchError && fetchError.code !== 'PGRST116') {
