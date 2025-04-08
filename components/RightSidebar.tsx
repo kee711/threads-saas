@@ -40,7 +40,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
         updatePostType(selectedPosts[1].id, newType);
       }
     }
-  }, [selectedPosts.length, selectedPosts]);
+  }, [selectedPosts, updatePostType]);
 
   const canComposeWithAI = selectedPosts.length === 2 &&
     selectedPosts.every(post => post.type) &&
@@ -90,7 +90,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setHasUnsavedContent(true);
       setWritingContent(savedContent);
     }
-  }, []);
+  }, [selectedPosts]);
 
   // selectedPosts가 변경될 때마다 writingContent 업데이트
   useEffect(() => {
@@ -110,7 +110,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setWritingContent("");
       localStorage.removeItem('draftContent');
     }
-  }, [selectedPosts]);
+  }, [selectedPosts, hasUnsavedContent, writingContent]);
 
   // writingContent가 변경될 때마다 hasUnsavedContent 업데이트와 localStorage 저장
   useEffect(() => {
@@ -124,7 +124,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       console.log('localStorage 삭제');
       localStorage.removeItem('draftContent');
     }
-  }, [writingContent, selectedPosts.length]);
+  }, [writingContent, selectedPosts.length, hasUnsavedContent]);
 
   // 다른 포스트가 추가될 때 작성 중인 글도 함께 추가
   useEffect(() => {
@@ -145,7 +145,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setHasUnsavedContent(false);
       localStorage.removeItem('draftContent');
     }
-  }, [selectedPosts.length, hasUnsavedContent]);
+  }, [selectedPosts, hasUnsavedContent, writingContent, addPost]);
 
   // writingContent가 비어있을 때 해당 post를 제거
   useEffect(() => {
@@ -154,7 +154,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setHasUnsavedContent(false);
       localStorage.removeItem('draftContent');
     }
-  }, [writingContent]);
+  }, [writingContent, selectedPosts, removePost]);
 
   const handleSaveToDraft = async () => {
     try {

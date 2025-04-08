@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { format, isSameDay, startOfMonth } from 'date-fns'
 import { Clock, Plus, Edit, Check, Trash2 } from 'lucide-react'
 import {
@@ -63,7 +63,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     fetchEvents()
   }, [])
 
-  const scrollToListDate = (date: Date) => {
+  const scrollToListDate = useCallback((date: Date) => {
     if (view === 'list' && listContainerRef.current) {
       const dateStr = format(date, 'yyyy-MM-dd')
       requestAnimationFrame(() => {
@@ -78,7 +78,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
         }
       })
     }
-  }
+  }, [view]);
 
   const handleSelectedDateChange = (date: Date | undefined) => {
     if (date) {
@@ -98,9 +98,9 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
   useEffect(() => {
     if (view === 'list') {
-      scrollToListDate(selectedDate)
+      scrollToListDate(selectedDate);
     }
-  }, [selectedDate, view])
+  }, [selectedDate, view, scrollToListDate]);
 
   const handleEventClick = (event: Event) => {
     if (event.status === 'scheduled') {
