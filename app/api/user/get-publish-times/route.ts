@@ -1,28 +1,33 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/authOptions'
 
 export async function GET() {
-  const supabase = await createClient()
+  try {
+    const session = await getServerSession(authOptions)
 
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser()
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'No authenticated user' }, { status: 401 })
+    }
 
-  if (userError || !user) {
-    return NextResponse.json({ publishTimes: [] }, { status: 401 })
+    const userId = session.user.id
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('publish_times')
+      .eq('user_id', userId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching publish_times:', error)
+      return NextResponse.json({ error: 'Failed to fetch publish_times' }, { status: 500 })
+    }
+
+    return NextResponse.json(data?.publish_times || [])
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ error: 'Unexpected server error' }, { status: 500 })
   }
-
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('publish_times')
-    .eq('user_id', user.id)
-    .single()
-
-  if (error) {
-    console.error('Error fetching publish_times:', error)
-    return NextResponse.json({ publishTimes: [] }, { status: 500 })
-  }
-
-  return NextResponse.json({ publishTimes: data?.publish_times || [] })
 }

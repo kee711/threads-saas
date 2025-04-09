@@ -6,12 +6,14 @@ import { PostCard } from '@/components/PostCard';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
-import { Sparkles } from 'lucide-react';
+import { Clock, Sparkles } from 'lucide-react';
 import { createContent } from '@/app/actions/content';
 import { toast } from 'sonner';
 import { composeWithAI } from '@/app/actions/openai';
 import { schedulePost, publishPost } from '@/app/actions/schedule';
 import useScheduleStore from '@/stores/useScheduleStore';
+import { ChangePublishTimeDialog } from './schedule/ChangePublishTimeDialog';
+import { format } from 'date-fns';
 
 interface RightSidebarProps {
   className?: string;
@@ -21,7 +23,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const { selectedPosts, removePost, updatePostType, addPost } = useSelectedPostsStore();
-  const scheduleTimes = useScheduleStore(state => state.scheduleTimes);
 
   // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
   useEffect(() => {
@@ -156,6 +157,109 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   }, [writingContent]);
 
+
+  const [publishTimes, setPublishTimes] = useState<string[]>([]);
+  const [reservedTimes, setReservedTimes] = useState<string[]>([]);
+  const [scheduleTime, setScheduleTime] = useState<string | null>(null);
+  const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
+
+  // user_profiles 테이블에서 publish_times를 배열로 가져와 publishTimes에 저장
+  const fetchPublishTimes = async () => {
+    const response = await fetch('/api/user/get-publish-times');
+    const data = await response.json();
+    console.log('publishTimes 함수 내 실행:', data);
+    if (data === null) {
+      setPublishTimes([]);
+    } else {
+      setPublishTimes(data);
+    }
+  };
+
+  // publish_status가 scheduled인 포스트들의 시간을 전부 배열로 가져와 reservedTimes에 저장
+  const fetchScheduledTimes = async () => {
+    const response = await fetch('/api/contents/scheduled');
+    const data = await response.json();
+    console.log('fetchScheduledTimes 함수 내 실행:', data);
+    if (data === null) {
+      setReservedTimes([]);
+    } else {
+      const reservedTimes = data.map((item: { scheduled_at: string }) => item.scheduled_at);
+      setReservedTimes(reservedTimes);
+    }
+  };
+
+  // 컴포넌트 mount 될 때만 자동으로 처음 한번 실행
+  useEffect(() => {
+    fetchPublishTimes();
+    fetchScheduledTimes();
+    setOnPublishTimeChange(false);
+  }, []);
+
+  // publishTimes와 reservedTimes가 모두 있을 때 예약 가능한 시간 찾기
+  useEffect(() => {
+    // publishTimes와 reservedTimes가 null 또는 undefined일 수 있으므로 확인
+    if (publishTimes?.length > 0 && reservedTimes) {
+      const nextAvailableTime = findAvailablePublishTime(publishTimes, reservedTimes);
+      console.log('nextAvailableTime:', nextAvailableTime);
+      setScheduleTime(nextAvailableTime);
+    } else {
+      setScheduleTime(null); // 데이터가 없으면 null로 설정
+    }
+  }, [publishTimes, reservedTimes]);
+
+  function findAvailablePublishTime(publishTimes: string[], reservedTimes: string[]): string | null {
+    const now = new Date();
+    const reservedSet = new Set(reservedTimes || []);
+    console.log('reservedSet:', reservedSet);
+    console.log('publishTimes:', publishTimes);
+
+    // 현재 시간 이후의 가장 가까운 예약 가능 시간 찾기
+    for (let dayOffset = 0; dayOffset < 30; dayOffset++) { // 최대 30일 후까지 검색
+      // 각 publishTime에 대해 오늘+dayOffset 날짜에 해당하는 시간 생성
+      const datesToCheck = publishTimes
+        .map((time) => {
+          // HH:MM 형식인지 확인
+          if (time.includes('T')) {
+            console.log('publishTime에 날짜 정보가 포함되어 있습니다:', time);
+            return null; // 잘못된 형식은 건너뜀
+          }
+
+          // 시간 문자열 분석 (시간은 DB에 UTC로 저장되어 있음)
+          const [utcHours, utcMinutes] = time.split(':').map(Number);
+
+          // 현재 날짜 + dayOffset에 해당하는 날짜 생성
+          const date = new Date();
+          date.setDate(date.getDate() + dayOffset);
+
+          // UTC 시간 설정 (DB에 저장된 시간은 UTC)
+          date.setUTCHours(utcHours, utcMinutes, 0, 0);
+
+          return date;
+        })
+        .filter(date => date !== null && date > now) // 현재 시간 이후만 필터링
+        .sort((a, b) => a!.getTime() - b!.getTime()); // 시간순 정렬
+
+      console.log('availableDates:', datesToCheck);
+      const reservedTimestamps = new Set(
+        reservedTimes.map(time => new Date(time).getTime())
+      );
+
+      // 각 날짜에 대해 이미 예약된 시간인지 확인
+      for (const date of datesToCheck) {
+        if (!date) continue;
+
+        const timestamp = date.getTime();
+        if (!reservedTimestamps.has(timestamp)) {
+          console.log('사용 가능한 시간 찾음:', date.toISOString(), '로컬 시간:', date.toLocaleString());
+          return date.toISOString();
+        }
+      }
+    }
+
+    return null; // 가능한 시간 없음
+  }
+
+
   const handleSaveToDraft = async () => {
     try {
       const { error } = await createContent({
@@ -177,16 +281,24 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 예약발행
   const handleSchedule = async () => {
+    if (!scheduleTime) {
+      toast.error('예약 가능한 시간이 없습니다.');
+      return;
+    }
+
     try {
-      const { error } = await schedulePost(writingContent, scheduleTimes);
+      // scheduleTime은 이미 UTC ISO 문자열이므로 그대로 사용
+      const isoString = scheduleTime;
+      console.log('isoString:', isoString);
+      const { error } = await schedulePost(writingContent, isoString);
 
       if (error) throw error;
 
-      // 예약 성공 시 초기화
       setWritingContent("");
       setHasUnsavedContent(false);
       localStorage.removeItem('draftContent');
       toast.success('예약이 완료되었습니다.');
+      fetchScheduledTimes(); // 예약되어있는 시간 갱신  
     } catch (error) {
       console.error('Error scheduling post:', error);
       toast.error('예약에 실패했습니다.');
@@ -212,18 +324,21 @@ export function RightSidebar({ className }: RightSidebarProps) {
   };
 
   return (
-    <div className={cn("flex h-screen w-[390px] flex-col border-l bg-background", className)}>
+    <div className={cn("flex h-[calc(100vh-48px)] mt-6 mr-6 w-[390px] flex-col rounded-xl border bg-background", className)}>
       <div className="flex-1 overflow-auto p-4">
 
-        <h1 className="text-2xl font-semibold">Create New</h1>
-
-        {/* Selected Posts Section */}
-        <div className="space-y-4 mb-4">
+        {/* Header */}
+        <div className='flex items-center justify-between pb-4'>
+          <h1 className="text-2xl font-semibold">Create New</h1>
           {selectedPosts.length > 0 && (
             <h2 className="text-sm font-medium text-muted-foreground">
               Selected Posts ({selectedPosts.length}/2)
             </h2>
           )}
+        </div>
+
+        {/* Selected Posts Section */}
+        <div className="space-y-4 mb-4">
 
           {/* Empty PostCard when no posts are selected */}
           {selectedPosts.length === 0 ? (
@@ -310,16 +425,38 @@ export function RightSidebar({ className }: RightSidebarProps) {
           >
             Save to Draft
           </Button>
+
           <div className="flex gap-2">
-            <Button
-              variant="default"
-              size="xl"
-              className="flex-1 bg-black text-white hover:bg-black/90"
-              onClick={handleSchedule}
-              disabled={!writingContent}
-            >
-              Add to Schedule
-            </Button>
+            <div className="flex-1 flex items-center gap-2 relative">
+              <Button
+                variant="default"
+                size="xl"
+                className="w-full rounded-r-sm mr-8 border-r border-dotted border-r-white bg-black text-white hover:bg-black/90"
+                onClick={handleSchedule}
+                disabled={!writingContent}
+              >
+                <div className="flex-col">
+                  <div>
+                    Schedule Post
+                  </div>
+                  {scheduleTime && (
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(scheduleTime).toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        hour12: true, // 오전/오후 표시
+                      })}
+                    </div>
+                  )}
+                </div>
+              </Button>
+              <div className='absolute right-0 h-full'>
+                <ChangePublishTimeDialog variant="icon" onPublishTimeChange={() => fetchPublishTimes()} ondisabled={!writingContent} />
+              </div>
+            </div>
             <Button
               variant="default"
               size="xl"
@@ -350,4 +487,4 @@ export function RightSidebar({ className }: RightSidebarProps) {
       )}
     </div>
   );
-} 
+}

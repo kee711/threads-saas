@@ -9,7 +9,7 @@ export default function ContentsHelperLayout({
 }: ContentsHelperLayoutProps) {
   return (
     <div className="flex h-screen">
-      <main className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+      <main className="flex-1 border m-6 rounded-xl overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         {children}
       </main>
       <RightSidebar />

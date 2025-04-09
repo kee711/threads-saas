@@ -1,6 +1,17 @@
 import { AuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google' // 예시: 너가 쓰는 provider로 바꿔!
 
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string  // ✅ id 추가
+      email: string
+      name?: string | null
+      image?: string | null
+    }
+  }
+}
+
 export const authOptions: AuthOptions = {
   providers: [
     GoogleProvider({
@@ -14,7 +25,7 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async session({ session, token }) {
-      session.user.id = token.sub  // JWT 토큰에서 user id 가져와 세션에 추가
+      session.user.id = token.sub as string  // JWT 토큰에서 user id 가져와 세션에 추가
       return session
     },
   },

@@ -104,7 +104,7 @@ export function PostCard({
 
 
   return (
-    <div className={`space-y-4 w-full bg-card ${isCompact ? 'p-3 border rounded-xl' : 'p-4 border-y'} ${isSelected ? 'border-primary' : ''}`}>
+    <div className={`space-y-4 w-full items-start h-auto ${isCompact ? 'p-3 border rounded-xl' : 'p-4 border-t mb-4'} ${isSelected ? 'bg-accent rounded-xl border-none' : 'bg-card'}`}>
       <div className="flex gap-3">
         {/* Avatar */}
         <Avatar className="flex-shrink-0 h-10 w-10">
