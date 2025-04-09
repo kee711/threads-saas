@@ -30,7 +30,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const title = categoryTitles[category];
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto">
       <ContentList category={category} title={title} />
     </div>
   );

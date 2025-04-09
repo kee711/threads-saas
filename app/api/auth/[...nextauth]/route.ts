@@ -79,6 +79,7 @@ const handler = NextAuth({
               name: user.name,
               provider: account?.provider,
               image: user.image,
+              user_id: user.id,
             })
             .eq('email', user.email)
 
@@ -100,6 +101,7 @@ const handler = NextAuth({
                 name: user.name,
                 provider: account?.provider,
                 image: user.image,
+                user_id: user.id,
               },
             ])
 
@@ -115,6 +117,7 @@ const handler = NextAuth({
               name: user.name,
               provider: account?.provider,
               image: user.image,
+              user_id: user.id,
             })
             .eq('email', user.email)
 

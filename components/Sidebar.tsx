@@ -15,6 +15,7 @@ import {
   List,
   CalendarDays,
   Settings,
+  Flame,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -108,135 +109,144 @@ export function Sidebar({ className }: SidebarProps) {
   ];
 
   return (
-    <div className={cn("flex h-screen flex-col justify-between border-r bg-background", className)}>
-      {/* Top section: Logo and Navigation */}
-      <div className="px-3 py-2">
-        {/* Logo */}
-        <div className="mb-4 px-3 py-2">
-          <h1 className="text-2xl font-bold tracking-tight">LOGO</h1>
+    <div className={cn("bg-muted w-[250px]", className)}>
+      <div className="flex flex-col justify-between h-full">
+        {/* Top section: Logo and Navigation */}
+        <div className="px-3 py-2 flex-1">
+          {/* Logo */}
+          <div className="mb-4 px-3 py-2">
+            <h1 className="text-2xl font-bold tracking-tight">LOGO</h1>
+          </div>
+
+          {/* Navigation Menu */}
+          <nav className="space-y-1">
+            {navigation.map((item) => {
+              // Render expandable menu item with dropdown
+              if (item.isExpandable) {
+                const isOpen = openItems.includes(item.name);
+                return (
+                  <div key={item.name} className="space-y-1">
+                    {/* Dropdown trigger button */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between font-normal"
+                      onClick={() => toggleItem(item.name)}
+                    >
+                      <div className="flex items-center">
+                        <item.icon className="mr-3 h-5 w-5" />
+                        {item.name}
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 transition-transform duration-200",
+                          isOpen && "transform rotate-180"
+                        )}
+                      />
+                    </Button>
+
+                    {/* Dropdown content with animation */}
+                    <div className={cn(
+                      "ml-4 space-y-1 overflow-hidden transition-all duration-200",
+                      isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                    )}>
+                      {item.subItems?.map((subItem) => (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          className={cn(
+                            "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                            pathname === subItem.href
+                              ? "bg-accent text-accent-foreground"
+                              : "transparent"
+                          )}
+                        >
+                          <subItem.icon className="mr-3 h-5 w-5" />
+                          {subItem.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Skip items without href
+              if (!item.href) return null;
+
+              // Render regular menu item
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                    pathname === item.href
+                      ? "bg-accent text-accent-foreground"
+                      : "transparent"
+                  )}
+                >
+                  <item.icon className="mr-3 h-5 w-5" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            // Render expandable menu item with dropdown
-            if (item.isExpandable) {
-              const isOpen = openItems.includes(item.name);
-              return (
-                <div key={item.name} className="space-y-1">
-                  {/* Dropdown trigger button */}
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-between font-normal"
-                    onClick={() => toggleItem(item.name)}
-                  >
-                    <div className="flex items-center">
-                      <item.icon className="mr-3 h-5 w-5" />
-                      {item.name}
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "h-4 w-4 transition-transform duration-200",
-                        isOpen && "transform rotate-180"
-                      )}
-                    />
-                  </Button>
-
-                  {/* Dropdown content with animation */}
-                  <div className={cn(
-                    "ml-4 space-y-1 overflow-hidden transition-all duration-200",
-                    isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                  )}>
-                    {item.subItems?.map((subItem) => (
-                      <Link
-                        key={subItem.name}
-                        href={subItem.href}
-                        className={cn(
-                          "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                          pathname === subItem.href
-                            ? "bg-accent text-accent-foreground"
-                            : "transparent"
-                        )}
-                      >
-                        <subItem.icon className="mr-3 h-5 w-5" />
-                        {subItem.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-
-            // Skip items without href
-            if (!item.href) return null;
-
-            // Render regular menu item
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                  pathname === item.href
-                    ? "bg-accent text-accent-foreground"
-                    : "transparent"
-                )}
-              >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Bottom section: User Profile */}
-      <div className="mt-auto border-t p-4">
-        {session ? (
-          // 로그인된 경우
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {/* User Avatar */}
-              <Avatar>
-                <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
-                <AvatarFallback>
-                  {session.user?.name
-                    ? session.user.name
-                      .split(' ')
-                      .map(n => n[0])
-                      .join('')
-                      .toUpperCase()
-                    : '??'}
-                </AvatarFallback>
-              </Avatar>
-              {/* User Info */}
-              <div>
-                <p className="text-sm font-medium">{session.user?.name}</p>
-                <p className="text-xs text-muted-foreground">Premium Plan</p>
-              </div>
-            </div>
-            {/* Settings Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-            >
-              <Link href="/settings">
-                <Settings className="h-5 w-5" />
-                <span className="sr-only">설정</span>
-              </Link>
-            </Button>
+        <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
+          <div className="flex items-center justify-center">
+            <Flame className="h-7 w-7" />
+            <p className="text-2xl font-bold">10</p>
           </div>
-        ) : (
-          // 로그인되지 않은 경우
-          <Button
-            variant="default"
-            className="w-full"
-            onClick={() => signIn()}
-          >
-            로그인
-          </Button>
-        )}
+        </div>
+
+        {/* Bottom section: User Profile */}
+        <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mt-2">
+          {session ? (
+            // 로그인된 경우
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {/* User Avatar */}
+                <Avatar>
+                  <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
+                  <AvatarFallback>
+                    {session.user?.name
+                      ? session.user.name
+                        .split(' ')
+                        .map(n => n[0])
+                        .join('')
+                        .toUpperCase()
+                      : '??'}
+                  </AvatarFallback>
+                </Avatar>
+                {/* User Info */}
+                <div>
+                  <p className="text-sm font-medium">{session.user?.name}</p>
+                  <p className="text-xs text-muted-foreground">Premium Plan</p>
+                </div>
+              </div>
+              {/* Settings Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+              >
+                <Link href="/settings">
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">설정</span>
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            // 로그인되지 않은 경우
+            <Button
+              variant="default"
+              className="w-full"
+              onClick={() => signIn()}
+            >
+              로그인
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

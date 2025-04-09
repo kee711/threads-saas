@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { getContents, updateContent, deleteContent } from '@/app/actions/content' // ⭐ 서버 액션 import
+import { getContents, updateContent } from '@/app/actions/content' // ⭐ 서버 액션 import
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { PostCard } from '@/components/PostCard'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -20,6 +20,7 @@ import { ScheduleHeader } from './ScheduleHeader'
 import { List } from './List'
 import { EditPostModal } from './EditPostModal'
 import { Event } from './types'
+import { deleteSchedule } from '@/app/actions/schedule'
 
 interface CalendarProps {
   defaultView?: 'calendar' | 'list'
@@ -128,7 +129,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
   const handleEventDelete = async (eventId: string) => {
     try {
-      const { error } = await deleteContent(eventId) // ⭐ 서버 액션으로 삭제
+      const { error } = await deleteSchedule(eventId) // 서버 액션으로 삭제
 
       if (!error) {
         setEvents(events.filter(event => event.id !== eventId))

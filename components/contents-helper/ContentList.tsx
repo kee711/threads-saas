@@ -61,31 +61,15 @@ export function ContentList({ category, title }: ContentListProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="pt-6">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">{title}</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleExpand}
-            className="h-8 w-8"
-          >
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </div>
+      <h2 className="text-2xl font-semibold pb-4">{title}</h2>
 
       {/* 컨텐츠 목록 */}
       {isExpanded && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-x-6">
           {isLoading ? (
-            <div className="text-center text-muted-foreground">데이터를 불러오는 중...</div>
+            <div className="text-muted-foreground">Loading...</div>
           ) : contents.length > 0 ? (
             contents.map((content) => (
               <PostCard
