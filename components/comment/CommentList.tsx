@@ -74,7 +74,7 @@ export function CommentList() {
                     .filter((item) => item.is_replied)
                     .map((item) => item.id);
 
-                // 🟡 댓글이 달린 게시물만 필터링
+                // 댓글이 달린 게시물만 필터링
                 const commentedPostIds = new Set(
                     uniqueComments.map((c) => c.root_post_content?.id)
                 );
