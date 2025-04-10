@@ -78,6 +78,11 @@ export function Sidebar({ className }: SidebarProps) {
   // Navigation configuration
   const navigation: NavItem[] = [
     {
+      name: 'Dashboard',
+      href: '/dashboard',
+      icon: BarChart2,
+    },
+    {
       name: 'Contents Helper',
       icon: FileEdit,
       isExpandable: true,
