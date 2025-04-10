@@ -100,10 +100,10 @@ const trendingPosts = [
 
 export default function DashboardPage() {
     const [selectedChart, setSelectedChart] = useState("Total Followers")
-    const currentChart = chartOptions[selectedChart]
+    const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
 
     return (
-        <div className="min-h-screen bg-[#f6f6f7] px-6 py-6">
+        <div className="px-6 py-6">
             {/* Top Bar */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Profile Overview</h1>
