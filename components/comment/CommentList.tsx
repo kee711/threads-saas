@@ -50,7 +50,6 @@ export function CommentList() {
             try {
                 const id = "d00b454a-bcc6-4bff-a0a7-c862080b538d"; // TODO: 실제 로그인한 사용자 id로 받아올 것
                 const rootPosts: ContentItem[] = await getRootPostId(id);
-                console.log(rootPosts);
                 const allData = await Promise.all(
                     rootPosts.map((post) => getComment(post.id, id))
                 );
@@ -82,7 +81,6 @@ export function CommentList() {
                 const filteredRootPosts = rootPosts.filter((post) =>
                     commentedPostIds.has(post.id)
                 );
-                console.log(uniqueComments);
 
                 setPostsWithComments(filteredRootPosts);
                 setComments(uniqueComments);
