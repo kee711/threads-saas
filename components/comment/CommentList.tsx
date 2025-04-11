@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ContentItem } from "../../lib/types";
+import { ContentItem } from "../contents-helper/types";
 import {
     getRootPostId,
     getComment,
@@ -50,6 +50,7 @@ export function CommentList() {
             try {
                 const id = "d00b454a-bcc6-4bff-a0a7-c862080b538d"; // TODO: 실제 로그인한 사용자 id로 받아올 것
                 const rootPosts: ContentItem[] = await getRootPostId(id);
+                console.log(rootPosts);
                 const allData = await Promise.all(
                     rootPosts.map((post) => getComment(post.id, id))
                 );
@@ -81,6 +82,7 @@ export function CommentList() {
                 const filteredRootPosts = rootPosts.filter((post) =>
                     commentedPostIds.has(post.id)
                 );
+                console.log(uniqueComments);
 
                 setPostsWithComments(filteredRootPosts);
                 setComments(uniqueComments);
@@ -130,6 +132,11 @@ export function CommentList() {
     };
 
     const currentPost = postsWithComments[currentIndex];
+    const hiddenCommentsForCurrentPost = comments.filter(
+        (c) =>
+          c.root_post_content?.id === currentPost?.id &&
+          hiddenComments.includes(c.id)
+      );
 
     return (
         <div className="w-full mx-auto max-w-5xl flex space-x-6 mt-5">
@@ -227,7 +234,7 @@ export function CommentList() {
                             ))}
 
                         {/* 답글 포함된 댓글 표시 */}
-                        {hiddenComments.length > 0 && (
+                        {hiddenCommentsForCurrentPost.length > 0 && (
                             <>
                                 <Button
                                     className="w-full"
