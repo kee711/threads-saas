@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import {
   TrendingUp,
@@ -119,8 +120,9 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Top section: Logo and Navigation */}
         <div className="px-3 py-2 flex-1">
           {/* Logo */}
-          <div className="mb-4 px-3 py-2">
-            <h1 className="text-2xl font-bold tracking-tight">LOGO</h1>
+          <div className="mt-2 mb-4 px-3 py-2">
+            {/* Logo Image */}
+            <Image src="/conflow-logo.svg" alt="Logo" width={120} height={100} />
           </div>
 
           {/* Navigation Menu */}
