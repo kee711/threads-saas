@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ContentItem } from "@/lib/types";
+import { ContentItem } from "../contents-helper/types";
 import {
     getRootPostId,
     getComment,
@@ -130,6 +130,11 @@ export function CommentList() {
     };
 
     const currentPost = postsWithComments[currentIndex];
+    const hiddenCommentsForCurrentPost = comments.filter(
+        (c) =>
+          c.root_post_content?.id === currentPost?.id &&
+          hiddenComments.includes(c.id)
+      );
 
     return (
         <div className="w-full mx-auto max-w-5xl flex space-x-6 mt-5">
@@ -227,7 +232,7 @@ export function CommentList() {
                             ))}
 
                         {/* 답글 포함된 댓글 표시 */}
-                        {hiddenComments.length > 0 && (
+                        {hiddenCommentsForCurrentPost.length > 0 && (
                             <>
                                 <Button
                                     className="w-full"
