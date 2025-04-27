@@ -1,0 +1,299 @@
+{
+  "tables": {
+    "comment": {
+      "columns": [
+        {
+          "name": "text",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "username",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "timestamp",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "shortcode",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "replied_to",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "is_replied",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "replies",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "root_post",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ]
+    },
+    "external_contents": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "top_comment",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "view_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "like_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "comment_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "repost_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "share_count",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "is_engaged",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ]
+    },
+    "metrics": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "follower_count",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "posts_count",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "likes",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "comments",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "shares",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "profile_views",
+          "type": "ARRAY",
+          "nullable": true
+        }
+      ]
+    },
+    "my_contents": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "scheduled_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "publish_status",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ]
+    },
+    "user_profiles": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "threads_profile_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "performance_data",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "email_verified",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "image",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "provider",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "provider_type",
+          "type": "character varying",
+          "nullable": true
+        },
+        {
+          "name": "access_token",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "refresh_token",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp without time zone",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "character varying",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "publish_times",
+          "type": "ARRAY",
+          "nullable": true
+        },
+        {
+          "name": "user_id",
+          "type": "text",
+          "nullable": true
+        }
+      ]
+    }
+  }
+}
