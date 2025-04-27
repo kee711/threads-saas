@@ -61,12 +61,13 @@ export async function GET(req: NextRequest) {
         expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'social_id, owner' } // or “social_id” based on your unique key
+      { onConflict: 'social_id, owner' }
     );
   if (dbError) {
     console.error("Supabase upsert failed:", dbError);
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
   }
+  console.log("supabase upsert succeeded : ", session.user.id, shortData.user_id)
   // Go back to main if succeeded
   return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
 }
