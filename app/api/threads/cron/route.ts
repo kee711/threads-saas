@@ -10,6 +10,47 @@ export default async function handler(
 ) {
   const supabase = await createClient();
 
+  // 1. ready_to_publish 상태의 미디어 컨테이너 게시
+  const { data: pendings, error: pendingError } = await supabase
+    .from('my_contents')
+    .select('id, creation_id, access_token, social_id')
+    .eq('publish_status', 'ready_to_publish')
+    .lte('created_at', new Date(Date.now() - 30_000).toISOString());
+
+  if (pendingError) {
+    console.error('Error fetching ready_to_publish rows:', pendingError);
+  } else if (pendings) {
+    for (const row of pendings) {
+      try {
+        const publishUrl =
+          `https://graph.threads.net/v1.0/${row.social_id}/threads_publish` +
+          `?creation_id=${row.creation_id}&access_token=${row.access_token}`;
+        const publishRes = await fetch(publishUrl, { method: 'POST' });
+        const publishData = await publishRes.json();
+
+        if (publishRes.ok) {
+          await supabase
+            .from('my_contents')
+            .update({ publish_status: 'posted' })
+            .eq('id', row.id);
+        } else {
+          console.error('Failed to publish container:', publishData);
+          await supabase
+            .from('my_contents')
+            .update({ publish_status: 'failed' })
+            .eq('id', row.id);
+        }
+      } catch (err) {
+        console.error('Error in publishing container:', err);
+        await supabase
+          .from('my_contents')
+          .update({ publish_status: 'failed' })
+          .eq('id', row.id);
+      }
+    }
+  }
+
+  // 2. scheduled 상태의 예약 게시
   const nowISO = new Date().toISOString();
   const { data: scheduled, error: scheduleError } = await supabase
     .from('my_contents')

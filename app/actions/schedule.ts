@@ -132,41 +132,27 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const creationId = containerData.id;
 
-    // 3. 컨테이너 게시 요청 (권장: 3초 대기)
-    if (mediaType === 'TEXT') {
-      await new Promise((r) => setTimeout(r, 3000));
-    } else {
-      await new Promise((r) => setTimeout(r, 30000));
+    // 3. 백그라운드 게시 대기 상태로 DB에 저장
+    const { error: insertError } = await supabase
+      .from('my_contents')
+      .insert([{
+        content,
+        creation_id: creationId,
+        publish_status: 'ready_to_publish',
+        user_id: session.user.id,
+        account_id: threadsUserId,
+        scheduled_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }]);
+    if (insertError) {
+      throw insertError;
     }
-    const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
-    const publishRes = await fetch(publishUrl, {
-      method: "POST",
-    });
-    const publishData = await publishRes.json();
 
-    if (!publishRes.ok) {
-      throw new Error("Threads 게시 실패: " + JSON.stringify(publishData));
-    }
+    await revalidatePath('/schedule');
+    return { data: { message: "컨테이너 생성 완료, 게시 대기 중" }, error: null };
 
-    // 4. DB에 게시 기록 저장
-    const { data, error } = await supabase
-      .from("my_contents")
-      .insert([
-        {
-          content,
-          scheduled_at: new Date().toISOString(),
-          publish_status: "posted",
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    revalidatePath("/schedule");
-    return { data, error: null };
   } catch (error) {
-    console.error("Error publishing to Threads:", error);
+    console.error('Error scheduling Threads publish:', error);
     return { data: null, error };
   }
 }
