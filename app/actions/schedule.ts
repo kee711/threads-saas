@@ -136,7 +136,7 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     (async () => {
       try {
         console.log("[Threads] 컨테이너 생성 완료. 30초 대기 후 게시 시작...");
-        await new Promise((r) => setTimeout(r, 30000)); // 30초 기다림
+        await new Promise((r) => setTimeout(r, 3000)); // 30초 기다림
 
         const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
         const publishRes = await fetch(publishUrl, { method: "POST" });
