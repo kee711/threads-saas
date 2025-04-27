@@ -57,16 +57,16 @@ export async function GET(req: NextRequest) {
         owner: session.user.id,
         platform: "threads",
         access_token: accessToken,
-        user_id: shortData.user_id,
+        social_id: shortData.user_id,
         expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" } // or "social_id" based on your unique key
+      { onConflict: 'social_id, owner' } // or “social_id” based on your unique key
     );
   if (dbError) {
     console.error("Supabase upsert failed:", dbError);
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
   }
-
-  return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?success=true`);
+  // Go back to main if succeeded
+  return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
 }
