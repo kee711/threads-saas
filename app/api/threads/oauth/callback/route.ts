@@ -56,6 +56,16 @@ export async function GET(req: NextRequest) {
   console.log("[social_id : ]", shortData.user_id)
   console.log("[owner : ]", session.user.id)
 
+  // 예시: access_token 받은 직후 반드시 /me 호출
+  const meRes = await fetch(
+    'https://graph.threads.net/v1.0/me?fields=id',
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!meRes.ok) throw new Error('Failed to fetch /me id');
+  const { id: threadsUserId } = await meRes.json();
+
+  console.log("threadsUserId me/ : ", threadsUserId)
+
   // 2-C) persist into Supabase
   const supabase = await createClient();
   const { error: dbError } = await supabase
@@ -65,7 +75,7 @@ export async function GET(req: NextRequest) {
         owner: session.user.id,
         platform: "threads",
         access_token: accessToken,
-        social_id: shortData.user_id,
+        social_id: threadsUserId,
         expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       },
