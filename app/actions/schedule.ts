@@ -132,39 +132,51 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const creationId = containerData.id;
 
-    // 3. 컨테이너 게시 요청 (권장: 3초 대기)
-    if (mediaType != 'TEXT') {
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-    const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
-    const publishRes = await fetch(publishUrl, {
-      method: "POST",
-    });
-    const publishData = await publishRes.json();
+    // 3. 컨테이너 게시 요청을 비동기 처리 (사용자는 즉시 응답)
+    (async () => {
+      try {
+        console.log("[Threads] 컨테이너 생성 완료. 30초 대기 후 게시 시작...");
+        await new Promise((r) => setTimeout(r, 30000)); // 30초 기다림
 
-    if (!publishRes.ok) {
-      throw new Error("Threads 게시 실패: " + JSON.stringify(publishData));
-    }
+        const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
+        const publishRes = await fetch(publishUrl, { method: "POST" });
+        const publishData = await publishRes.json();
 
-    // 4. DB에 게시 기록 저장
-    const { data, error } = await supabase
-      .from("my_contents")
-      .insert([
-        {
+        const supabaseBg = await createClient(); // 비동기 작업 안에서도 supabase 연결 다시 생성
+
+        if (!publishRes.ok) {
+          console.error("[Threads] 게시 실패:", publishData);
+          await supabaseBg.from("my_contents").insert([{
+            content,
+            scheduled_at: new Date().toISOString(),
+            publish_status: "failed",
+          }]);
+          return;
+        }
+
+        console.log("[Threads] 게시 성공:", publishData);
+        await supabaseBg.from("my_contents").insert([{
           content,
           scheduled_at: new Date().toISOString(),
           publish_status: "posted",
-        },
-      ])
-      .select()
-      .single();
+        }]);
+        await revalidatePath("/schedule");
 
-    if (error) throw error;
+      } catch (err) {
+        console.error("[Threads] 게시 비동기 처리 중 에러:", err);
+        const supabaseBg = await createClient();
+        await supabaseBg.from("my_contents").insert([{
+          content,
+          scheduled_at: new Date().toISOString(),
+          publish_status: "failed",
+        }]);
+      }
+    })();
 
-    revalidatePath("/schedule");
-    return { data, error: null };
+    // ✅ 메인 publishPost 함수는 여기서 바로 성공 처리
+    return { data: { message: "컨테이너 생성 완료, 백그라운드로 발행 예정" }, error: null };
   } catch (error) {
-    console.error("Error publishing to Threads:", error);
+    console.error('Error publishing to Threads:', error);
     return { data: null, error };
   }
 }
