@@ -19,7 +19,6 @@ import {
 } from "recharts"
 import { DonutChart } from "@/components/ui/donut-chart"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useRouter } from "next/navigation" // (✨ added)
 
 const followersData = [
     { month: "Jan", followers: 50000 },
@@ -100,17 +99,10 @@ const trendingPosts = [
 
 export default function DashboardPage() {
     const [selectedChart, setSelectedChart] = useState("Total Followers")
-    console.log("[selectedChart] : ", selectedChart)
-    console.log("[chartOptions] : ", chartOptions)
-
     const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
-    console.log("[currentChart] : ", currentChart)
-
-
-    const router = useRouter(); // (✨ added)
 
     const handleSocialLogin = () => {
-        router.push("/api/threads/oauth")
+        window.location.href = "/api/threads/oauth";
     }
 
     return (
