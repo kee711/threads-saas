@@ -7,14 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.redirect("/social-connect?error=unauthenticated");
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=unauthenticated`);
   }
 
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   if (!code || state !== session.user.id) {
-    return NextResponse.redirect("/social-connect?error=invalid_code");
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=invalid_code`);
   }
 
   // 2-A) short-lived exchange
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const shortData = await shortRes.json();
   if (!shortRes.ok || !shortData.access_token) {
     console.error("Short-token exchange failed:", shortData);
-    return NextResponse.redirect("/social-connect?error=token_exchange");
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=token_exchange`);
   }
 
   // 2-B) long-lived exchange (60 days)
@@ -61,12 +61,12 @@ export async function GET(req: NextRequest) {
         expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" } // or “social_id” based on your unique key
+      { onConflict: "user_id" } // or "social_id" based on your unique key
     );
   if (dbError) {
     console.error("Supabase upsert failed:", dbError);
-    return NextResponse.redirect("/social-connect?error=db_error");
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
   }
 
-  return NextResponse.redirect("/social-connect?success=true");
+  return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?success=true`);
 }
