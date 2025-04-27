@@ -7,7 +7,6 @@ import { Providers } from './providers'
 import { SessionProvider } from './providers/SessionProvider'
 import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
-
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {

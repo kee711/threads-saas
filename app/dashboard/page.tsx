@@ -18,8 +18,8 @@ import {
     Cell,
 } from "recharts"
 import { DonutChart } from "@/components/ui/donut-chart"
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useRouter } from "next/navigation" // (✨ added)
 
 const followersData = [
     { month: "Jan", followers: 50000 },
@@ -100,7 +100,18 @@ const trendingPosts = [
 
 export default function DashboardPage() {
     const [selectedChart, setSelectedChart] = useState("Total Followers")
+    console.log("[selectedChart] : ", selectedChart)
+    console.log("[chartOptions] : ", chartOptions)
+
     const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
+    console.log("[currentChart] : ", currentChart)
+
+
+    const router = useRouter(); // (✨ added)
+
+    const handleSocialLogin = () => {
+        router.push("/api/threads/oauth")
+    }
 
     return (
         <div className="px-6 py-6">
@@ -118,6 +129,17 @@ export default function DashboardPage() {
                         <AvatarFallback>HK</AvatarFallback>
                     </Avatar>
                 </div>
+            </div>
+
+            {/* 👉 Social Login Section */}
+            <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-2">Social Login</h2>
+                <button
+                    onClick={handleSocialLogin}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow"
+                >
+                    Connect Threads Account
+                </button>
             </div>
 
             {/* Stats Cards */}
@@ -149,7 +171,6 @@ export default function DashboardPage() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                {/* Dynamic Line Chart */}
                 <Card className="xl:col-span-2 shadow-sm">
                     <CardContent className="p-6 h-[300px]">
                         <h3 className="font-semibold mb-4">{currentChart.label}</h3>
@@ -169,7 +190,6 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-                {/* Growth Donut + Stats */}
                 <div className="flex flex-col gap-4">
                     <Card className="flex-1 shadow-sm">
                         <CardContent className="flex flex-col justify-center items-center p-6 h-full">

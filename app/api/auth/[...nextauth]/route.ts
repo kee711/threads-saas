@@ -1,6 +1,5 @@
 import NextAuth from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
-import ThreadsProvider from '@/lib/auth/threads-provider'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
@@ -21,10 +20,6 @@ const handler = NextAuth({
           scope: "openid email profile"
         }
       }
-    }),
-    ThreadsProvider({
-      clientId: process.env.THREADS_CLIENT_ID ?? '',
-      clientSecret: process.env.THREADS_CLIENT_SECRET ?? '',
     }),
   ],
   callbacks: {
