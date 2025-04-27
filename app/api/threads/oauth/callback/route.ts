@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     console.error("Supabase upsert failed:", dbError);
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
   }
-  console.log("supabase upsert succeeded : ", session.user.id, shortData.user_id)
+  console.log("supabase upsert succeeded : ", session.user.id, threadsUserId)
   // Go back to main if succeeded
   return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
 }

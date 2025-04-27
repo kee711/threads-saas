@@ -70,7 +70,7 @@ interface PublishPostParams {
 export async function publishPost({ content, mediaType, mediaUrl }: PublishPostParams) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
       throw new Error("로그인이 필요합니다.");
     }
 
@@ -84,8 +84,6 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
       .eq("platform", "threads")
       .single();
 
-    console.log("[Threads 계정] : ", account);
-
     if (accountError || !account?.access_token || !account?.social_id) {
       throw new Error("Threads 계정이 연동되어 있지 않거나, 토큰 정보가 없습니다.");
     }
@@ -93,34 +91,20 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     const accessToken = account.access_token;
     const threadsUserId = account.social_id;
 
-    console.log("[Threads Account Access token] : ", accessToken);
-    console.log("[Threads Account user_id] : ", threadsUserId);
-
     // 2. Threads 미디어 컨테이너 생성 요청
-    const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
-    const params = new URLSearchParams();
-    params.append("media_type", mediaType);
-    params.append("text", content);
-
-    if (mediaType === "IMAGE" && mediaUrl) {
-      params.append("image_url", mediaUrl);
-    } else if (mediaType === "VIDEO" && mediaUrl) {
-      params.append("video_url", mediaUrl);
+    const containerUrl = new URL(`https://graph.threads.net/v1.0/${threadsUserId}/threads`);
+    containerUrl.searchParams.set("media_type", mediaType);
+    containerUrl.searchParams.set("text", content);
+    if (mediaType === 'IMAGE' && mediaUrl) {
+      containerUrl.searchParams.set("image_url", mediaUrl);
     }
-    // URL 맨 뒤에 access_token 추가
-    params.append("access_token", accessToken);
+    if (mediaType === 'VIDEO' && mediaUrl) {
+      containerUrl.searchParams.set("video_url", mediaUrl);
+    }
+    containerUrl.searchParams.set("access_token", accessToken);
 
-    const containerUrl = `${baseUrl}?${params.toString()}`;
-
-    const containerRes = await fetch(containerUrl, {
-      method: "POST",
-      // Authorization 헤더 필요 없음
-    });
-
-    console.log("[Threads] 컨테이너 응답 상태:", containerRes.status);
+    const containerRes = await fetch(containerUrl.toString(), { method: "POST" });
     const responseBody = await containerRes.text();
-    console.log("[Threads] 컨테이너 응답 본문:", responseBody);
-
     if (!containerRes.ok) {
       throw new Error(`컨테이너 생성 실패: ${containerRes.status} ${responseBody}`);
     }
@@ -132,51 +116,28 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const creationId = containerData.id;
 
-    // 3. 컨테이너 게시 요청을 비동기 처리 (사용자는 즉시 응답)
-    (async () => {
-      try {
-        console.log("[Threads] 컨테이너 생성 완료. 3초 대기 후 게시 시작...");
-        await new Promise((r) => setTimeout(r, 3000)); // 30초 기다림
+    // 3. 백그라운드 게시 대기 상태로 DB에 저장
+    const { error: insertError } = await supabase
+      .from('my_contents')
+      .insert([{
+        content,
+        creation_id: creationId,
+        publish_status: 'ready_to_publish',
+        user_id: session.user.id,
+        account_id: threadsUserId,
+        scheduled_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }]);
+    if (insertError) {
+      throw insertError;
+    }
 
-        const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
-        const publishRes = await fetch(publishUrl, { method: "POST" });
-        const publishData = await publishRes.json();
+    await revalidatePath('/schedule');
+    return { data: { message: "컨테이너 생성 완료, 게시 대기 중" }, error: null };
 
-        const supabaseBg = await createClient(); // 비동기 작업 안에서도 supabase 연결 다시 생성
-
-        if (!publishRes.ok) {
-          console.error("[Threads] 게시 실패:", publishData);
-          await supabaseBg.from("my_contents").insert([{
-            content,
-            scheduled_at: new Date().toISOString(),
-            publish_status: "failed",
-          }]);
-          return;
-        }
-
-        console.log("[Threads] 게시 성공:", publishData);
-        await supabaseBg.from("my_contents").insert([{
-          content,
-          scheduled_at: new Date().toISOString(),
-          publish_status: "posted",
-        }]);
-        await revalidatePath("/schedule");
-
-      } catch (err) {
-        console.error("[Threads] 게시 비동기 처리 중 에러:", err);
-        const supabaseBg = await createClient();
-        await supabaseBg.from("my_contents").insert([{
-          content,
-          scheduled_at: new Date().toISOString(),
-          publish_status: "failed",
-        }]);
-      }
-    })();
-
-    // ✅ 메인 publishPost 함수는 여기서 바로 성공 처리
-    return { data: { message: "컨테이너 생성 완료, 백그라운드로 발행 예정" }, error: null };
   } catch (error) {
-    console.error('Error publishing to Threads:', error);
+    console.error('Error scheduling Threads publish:', error);
     return { data: null, error };
   }
 }
+
