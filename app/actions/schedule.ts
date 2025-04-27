@@ -133,7 +133,9 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     const creationId = containerData.id;
 
     // 3. 컨테이너 게시 요청 (권장: 3초 대기)
-    await new Promise((r) => setTimeout(r, 3000));
+    if (mediaType != 'TEXT') {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
     const publishRes = await fetch(publishUrl, {
       method: "POST",
