@@ -18,5 +18,9 @@ export async function GET(req: NextRequest) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("state", session.user.id); // CSRF: tie to user
 
+  console.log("client_id : ", clientId)
+  console.log("redirectUri : ", redirectUri)
+  console.log("authUrl : ", authUrl)
+
   return NextResponse.redirect(authUrl);
 }
