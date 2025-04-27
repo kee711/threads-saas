@@ -135,7 +135,7 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     // 3. 컨테이너 게시 요청을 비동기 처리 (사용자는 즉시 응답)
     (async () => {
       try {
-        console.log("[Threads] 컨테이너 생성 완료. 30초 대기 후 게시 시작...");
+        console.log("[Threads] 컨테이너 생성 완료. 3초 대기 후 게시 시작...");
         await new Promise((r) => setTimeout(r, 3000)); // 30초 기다림
 
         const publishUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`;
