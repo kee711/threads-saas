@@ -23,6 +23,19 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const { selectedPosts, removePost, updatePostType, addPost } = useSelectedPostsStore();
+  // Text content
+  const [writingContent, setWritingContent] = useState("");
+  const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
+  // Schedule data
+  const [publishTimes, setPublishTimes] = useState<string[]>([]);
+  const [reservedTimes, setReservedTimes] = useState<string[]>([]);
+  const [scheduleTime, setScheduleTime] = useState<string | null>(null);
+  const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
+
+  const [selectedMediaType, setSelectedMediaType] = useState<'TEXT' | 'IMAGE' | 'VIDEO'>('TEXT');
+  const [uploadedMediaUrl, setUploadedMediaUrl] = useState("");
+  // mediaType: selectedMediaType, // 기본은 TEXT로
+  //       mediaUrl: uploadedMediaUrl, 
 
   // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
   useEffect(() => {
@@ -42,44 +55,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
       }
     }
   }, [selectedPosts.length, selectedPosts]);
-
-  const canComposeWithAI = selectedPosts.length === 2 &&
-    selectedPosts.every(post => post.type) &&
-    selectedPosts.some(post => post.type === 'format') &&
-    selectedPosts.some(post => post.type === 'content');
-
-  const handleComposeWithAI = async () => {
-    if (!canComposeWithAI) return;
-
-    const formatPost = selectedPosts.find(post => post.type === 'format');
-    const contentPost = selectedPosts.find(post => post.type === 'content');
-
-    if (!formatPost || !contentPost) return;
-
-    try {
-      setIsComposing(true);
-      const { content, error } = await composeWithAI(formatPost, contentPost);
-
-      if (error) throw new Error(error);
-
-      // 선택된 포스트 초기화
-      selectedPosts.forEach(post => removePost(post.id));
-
-      // 생성된 콘텐츠를 writing PostCard에 저장, useEffect 통해 localStorage에 저장
-      setWritingContent(content);
-      setHasUnsavedContent(true);
-
-      toast.success('AI가 새로운 글을 생성했습니다.');
-    } catch (error) {
-      console.error('Error composing content:', error);
-      toast.error(error instanceof Error ? error.message : 'AI 글 생성에 실패했습니다.');
-    } finally {
-      setIsComposing(false);
-    }
-  };
-
-  const [writingContent, setWritingContent] = useState("");
-  const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
@@ -157,37 +132,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   }, [writingContent]);
 
-
-  const [publishTimes, setPublishTimes] = useState<string[]>([]);
-  const [reservedTimes, setReservedTimes] = useState<string[]>([]);
-  const [scheduleTime, setScheduleTime] = useState<string | null>(null);
-  const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
-
-  // user_profiles 테이블에서 publish_times를 배열로 가져와 publishTimes에 저장
-  const fetchPublishTimes = async () => {
-    const response = await fetch('/api/user/get-publish-times');
-    const data = await response.json();
-    console.log('publishTimes 함수 내 실행:', data);
-    if (data === null) {
-      setPublishTimes([]);
-    } else {
-      setPublishTimes(data);
-    }
-  };
-
-  // publish_status가 scheduled인 포스트들의 시간을 전부 배열로 가져와 reservedTimes에 저장
-  const fetchScheduledTimes = async () => {
-    const response = await fetch('/api/contents/scheduled');
-    const data = await response.json();
-    console.log('fetchScheduledTimes 함수 내 실행:', data);
-    if (data === null) {
-      setReservedTimes([]);
-    } else {
-      const reservedTimes = data.map((item: { scheduled_at: string }) => item.scheduled_at);
-      setReservedTimes(reservedTimes);
-    }
-  };
-
   // 컴포넌트 mount 될 때만 자동으로 처음 한번 실행
   useEffect(() => {
     fetchPublishTimes();
@@ -260,6 +204,71 @@ export function RightSidebar({ className }: RightSidebarProps) {
   }
 
 
+  // Compose
+  const canComposeWithAI = selectedPosts.length === 2 &&
+    selectedPosts.every(post => post.type) &&
+    selectedPosts.some(post => post.type === 'format') &&
+    selectedPosts.some(post => post.type === 'content');
+
+  const handleComposeWithAI = async () => {
+    if (!canComposeWithAI) return;
+
+    const formatPost = selectedPosts.find(post => post.type === 'format');
+    const contentPost = selectedPosts.find(post => post.type === 'content');
+
+    if (!formatPost || !contentPost) return;
+
+    try {
+      setIsComposing(true);
+      const { content, error } = await composeWithAI(formatPost, contentPost);
+
+      if (error) throw new Error(error);
+
+      // 선택된 포스트 초기화
+      selectedPosts.forEach(post => removePost(post.id));
+
+      // 생성된 콘텐츠를 writing PostCard에 저장, useEffect 통해 localStorage에 저장
+      setWritingContent(content);
+      setHasUnsavedContent(true);
+
+      toast.success('AI가 새로운 글을 생성했습니다.');
+    } catch (error) {
+      console.error('Error composing content:', error);
+      toast.error(error instanceof Error ? error.message : 'AI 글 생성에 실패했습니다.');
+    } finally {
+      setIsComposing(false);
+    }
+  };
+
+  // Scheule
+  // user_profiles 테이블에서 publish_times를 배열로 가져와 publishTimes에 저장
+  // 사용자가 설정한 선호 예약시간 가져오기
+  const fetchPublishTimes = async () => {
+    const response = await fetch('/api/user/get-publish-times');
+    const data = await response.json();
+    console.log('publishTimes 함수 내 실행:', data);
+    if (data === null) {
+      setPublishTimes([]);
+    } else {
+      setPublishTimes(data);
+    }
+  };
+
+  // publish_status가 scheduled인 포스트들의 시간을 전부 배열로 가져와 reservedTimes에 저장
+  // 현재 예약되어있는 시간들 가져오기
+  const fetchScheduledTimes = async () => {
+    const response = await fetch('/api/contents/scheduled');
+    const data = await response.json();
+    console.log('fetchScheduledTimes 함수 내 실행:', data);
+    if (data === null) {
+      setReservedTimes([]);
+    } else {
+      const reservedTimes = data.map((item: { scheduled_at: string }) => item.scheduled_at);
+      setReservedTimes(reservedTimes);
+    }
+  };
+
+  // Save Draft
   const handleSaveToDraft = async () => {
     try {
       const { error } = await createContent({
@@ -308,7 +317,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 즉시 발행
   const handlePublish = async () => {
     try {
-      const { error } = await publishPost(writingContent);
+      const { error } = await publishPost({
+        content: writingContent,
+        mediaType: selectedMediaType, // 기본은 TEXT로
+        mediaUrl: uploadedMediaUrl, // mediaUrl은 TEXT일 땐 필요 없음
+      });
 
       if (error) throw error;
 
@@ -322,6 +335,9 @@ export function RightSidebar({ className }: RightSidebarProps) {
       toast.error('발행에 실패했습니다.');
     }
   };
+
+
+  // UI
 
   return (
     <div className={cn("flex h-[calc(100vh-48px)] mt-6 mr-6 w-[390px] flex-col rounded-xl border bg-background", className)}>
