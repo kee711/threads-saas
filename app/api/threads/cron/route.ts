@@ -1,13 +1,10 @@
-// pages/api/threads/publish-pending.ts
+// app/api/threads/cron/route.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { publishPost } from '@/app/actions/schedule'; // 경로를 실제 publishPost가 정의된 파일로 수정하세요
 
 // 배포 시 Vercel의 Cron Job 등에서 매 분 호출하도록 설정
-export default async function handler(
-  _req: NextApiRequest,
-  res: NextApiResponse
-) {
+export async function POST() {
   const supabase = await createClient();
 
   // 1. ready_to_publish 상태의 미디어 컨테이너 게시
