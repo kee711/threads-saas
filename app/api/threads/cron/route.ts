@@ -88,10 +88,10 @@ export async function POST() {
           .eq('id', post.id);
       } catch (err) {
         console.error('Error publishing scheduled post:', err);
-        await supabase
-          .from('my_contents')
-          .update({ publish_status: 'failed' })
-          .eq('id', post.id);
+        // await supabase
+        //   .from('my_contents')
+        //   .update({ publish_status: 'failed' })
+        //   .eq('id', post.id);
       }
     }
   }
