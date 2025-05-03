@@ -140,7 +140,7 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
         creation_id: creationId,
         publish_status: 'ready_to_publish',
         user_id: session.user.id,
-        account_id: threadsUserId,
+        social_id: threadsUserId,
         scheduled_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
       }]);
