@@ -40,7 +40,12 @@ export async function POST() {
         console.error(`No access token found for social_id ${row.social_id}`);
         continue;
       }
+
+      // Cron 돌아가는 시점에서의 Access Token 확인
+      console.error('[Access Token on cron job] :', accessToken);
+
       try {
+
         const publishUrl =
           `https://graph.threads.net/v1.0/${row.social_id}/threads_publish` +
           `?creation_id=${row.creation_id}&access_token=${accessToken}`;
