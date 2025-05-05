@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
     Card,
     CardContent,
@@ -97,6 +97,7 @@ const trendingPosts = [
     { account: "ricardodavinci", followers: 893659, likes: 93440, engagement: 40 },
 ]
 
+
 export default function DashboardPage() {
     const [selectedChart, setSelectedChart] = useState("Total Followers")
     const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
@@ -104,6 +105,34 @@ export default function DashboardPage() {
     const handleSocialLogin = () => {
         window.location.href = "/api/threads/oauth";
     }
+
+
+    // Refresh Access Token
+
+    useEffect(() => {
+        const callRefreshTokenAPI = async () => {
+            try {
+                const res = await fetch('/api/threads/oauth/refresh', {
+                    method: 'GET', // 혹은 GET 등 백엔드 설정에 맞게
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    // body: JSON.stringify({ yourData: 'value' }), // 필요시 body 추가
+                });
+
+                const result = await res.json();
+                console.log('Refresh 결과:', result);
+            } catch (error) {
+                console.error('Refresh API 호출 실패:', error);
+            }
+        }
+        console.log("Refresh Token")
+        callRefreshTokenAPI();
+
+    }, [])
+
+
+    // UI
 
     return (
         <div className="px-6 py-6">
