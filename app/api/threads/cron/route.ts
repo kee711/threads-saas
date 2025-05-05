@@ -25,7 +25,10 @@ export async function POST() {
     .from('my_contents')
     .select('id, creation_id, social_id')
     .eq('publish_status', 'ready_to_publish')
-    .lte('created_at', new Date(Date.now() - 30_000).toISOString());
+    .lte('created_at', new Date(Date.now() - 60_000).toISOString());
+
+  // 실제로 DB에서 가져왔는지 확인
+  console.error('[가져온 ready_to_publish 상태인 게시물 목록]:', pendings);
 
   if (pendingError) {
     console.error('Error fetching ready_to_publish rows:', pendingError);
@@ -44,6 +47,7 @@ export async function POST() {
         // Post
         const publishRes = await fetch(publishUrl, { method: 'POST' });
         const publishData = await publishRes.json();
+        console.error('[POST 요청 보낸 직후]:', publishData);
 
         if (publishRes.ok) {
           await supabase
@@ -51,14 +55,14 @@ export async function POST() {
             .update({ publish_status: 'posted' })
             .eq('id', row.id);
         } else {
-          console.error('Failed to publish container:', publishData);
+          console.error('[Failed to publish container] :', publishData);
           await supabase
             .from('my_contents')
             .update({ publish_status: 'failed' })
             .eq('id', row.id);
         }
       } catch (err) {
-        console.error('Error in publishing container:', err);
+        console.error('[Error in publishing container] :', err);
         await supabase
           .from('my_contents')
           .update({ publish_status: 'failed' })
