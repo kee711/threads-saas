@@ -41,40 +41,27 @@ export async function POST() {
 
       console.error('[Access Token on cron job] :', accessToken);
 
-      // 미디어 컨테이너 상태 확인
-      const statusUrl = `https://graph.threads.net/v1.0/${row.creation_id}?fields=status&access_token=${accessToken}`;
-      const statusRes = await fetch(statusUrl);
-      let statusData;
-      try {
-        statusData = await statusRes.json();
-      } catch (e) {
-        const raw = await statusRes.text();
-        console.error(`Status JSON 파싱 실패 [${row.creation_id}]:`, raw);
-        continue;
-      }
-
-      if (statusData.status !== 'FINISHED') {
-        console.log(`컨테이너 아직 준비 안됨 [${row.creation_id}]:`, statusData.status);
-        continue;
-      }
-
-      console.error(`[Status JSON 파싱 성공]:`, statusData);
-
       // Publish
       try {
         const publishUrl =
           `https://graph.threads.net/v1.0/${row.social_id}/threads_publish` +
           `?creation_id=${row.creation_id}&access_token=${accessToken}`;
         const publishRes = await fetch(publishUrl, { method: 'POST' });
+        // publishResult 리턴 결과 확인 위한 콘솔
+        console.log('[publishRes]:', publishRes);
 
         let publishData;
         try {
           publishData = await publishRes.json();
         } catch (e) {
           const raw = await publishRes.text();
-          console.error(`Publish 응답 파싱 실패 [${row.creation_id}]:`, raw);
+          console.log(`Publish 응답 파싱 실패 [${row.creation_id}]:`, raw);
           continue;
         }
+
+        // publishResult 리턴 결과 확인 위한 콘솔
+        console.log('[publishRes]:', publishRes);
+        console.log('[publishData]:', publishData);
 
         if (publishRes.ok) {
           await supabase
@@ -83,7 +70,7 @@ export async function POST() {
             .eq('id', row.id);
           console.log(`✅ 게시 성공 [${row.creation_id}]`);
         } else {
-          console.error(`❌ 게시 실패 [${row.creation_id}]`, publishData);
+          console.log(`❌ 게시 실패 [${row.creation_id}]`, publishData);
           if (!publishData.error_user_msg?.includes('not ready')) {
             await supabase
               .from('my_contents')
