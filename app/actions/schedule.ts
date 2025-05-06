@@ -132,6 +132,33 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const creationId = containerData.id;
 
+    // Publish
+    try {
+      const publishUrl =
+        `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish` +
+        `?creation_id=${creationId}&access_token=${accessToken}`;
+      const publishRes = await fetch(publishUrl, { method: 'POST' });
+      const publishData = await publishRes.json();
+
+      console.log(`✅ 게시 시도 [${publishData}]`);
+
+      if (publishRes.ok) {
+        await supabase
+          .from('my_contents')
+          .update({ publish_status: 'posted' })
+          .eq('creation_id', creationId);
+        console.log(`✅ 게시 성공 [${creationId}]`);
+      } else {
+        await supabase
+          .from('my_contents')
+          .update({ publish_status: 'failed' })
+          .eq('creation_id', creationId);
+        console.log(`❌ 게시 실패 [${creationId}]`, publishData);
+      }
+    } catch (err) {
+      console.error('Error during publish request:', err);
+    }
+
     // 3. 백그라운드 게시 대기 상태로 DB에 저장
     const { error: insertError } = await supabase
       .from('my_contents')
