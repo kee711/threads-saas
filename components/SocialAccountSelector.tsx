@@ -36,7 +36,8 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
         .from('social_accounts')
         .select('*')
         .eq('owner', session.user.id)
-        .eq('platform', 'threads');
+        .eq('platform', 'threads')
+        .eq('is_active', true);
 
       if (error) throw error;
 
@@ -60,6 +61,43 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   useEffect(() => {
     fetchSocialAccounts();
   }, [session?.user?.id]);
+
+  // 계정 선택 시 user_profiles 테이블의 settings에 저장
+  const handleAccountSelect = async (accountId: string) => {
+    if (!session?.user?.id) return;
+
+    setSelectedAccount(accountId); // Zustand 스토어 업데이트
+
+    // DB의 user_profiles 테이블에도 선택된 계정 ID 저장
+    try {
+      const supabase = createClient();
+
+      // 현재 settings 데이터 가져오기
+      const { data: userData } = await supabase
+        .from('user_profiles')
+        .select('settings')
+        .eq('id', session.user.id)
+        .single();
+
+      // 기존 settings 유지하면서 selectedAccountId만 업데이트
+      const updatedSettings = {
+        ...(userData?.settings || {}),
+        selectedAccountId: accountId
+      };
+
+      // settings 필드 업데이트
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ settings: updatedSettings })
+        .eq('id', session.user.id);
+
+      if (updateError) {
+        console.error('소셜 계정 선택 저장 오류:', updateError);
+      }
+    } catch (error) {
+      console.error('소셜 계정 선택 처리 오류:', error);
+    }
+  };
 
   // 계정 목록이 없을 경우 빈 상태 표시
   if (accounts.length === 0) {
@@ -90,7 +128,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
 
         <Select
           value={selectedAccountId || undefined}
-          onValueChange={setSelectedAccount}
+          onValueChange={handleAccountSelect}
           disabled={isLoading}
         >
           <SelectTrigger className="min-w-[120px]">

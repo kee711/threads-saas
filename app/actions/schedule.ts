@@ -9,26 +9,83 @@ export type ScheduledPost = {
   id?: string
   content: string
   scheduled_at: string
-  publish_status: 'scheduled' | 'posted' | 'draft' | 'ready_to_publish'
+  publish_status: 'scheduled' | 'posted' | 'draft' | 'ready_to_publish' | 'failed'
   created_at?: string
+  social_id?: string
+  user_id?: string
+}
+
+// 전역 상태에서 선택된 계정 ID 가져오기
+async function getSelectedAccountId(userId: string) {
+  const supabase = await createClient();
+
+  // social-account-store 이름으로 저장된 상태 조회
+  const { data: storeData } = await supabase
+    .from('user_profiles')
+    .select('settings')
+    .eq('id', userId)
+    .single();
+
+  // settings 필드에서 selectedAccountId 추출
+  const selectedAccountId = storeData?.settings?.selectedAccountId || null;
+
+  return selectedAccountId;
 }
 
 export async function schedulePost(content: string, scheduledAt: string) {
   try {
-    const supabase = await createClient()
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    const supabase = await createClient();
+
+    // 전역 상태에서 선택된 계정 ID 가져오기
+    const selectedAccountId = await getSelectedAccountId(session.user.id);
+
+    // 소셜 계정 정보 조회
+    let socialId = null;
+    if (selectedAccountId) {
+      const { data: account } = await supabase
+        .from("social_accounts")
+        .select("social_id")
+        .eq("id", selectedAccountId)
+        .single();
+
+      if (account) {
+        socialId = account.social_id;
+      }
+    }
+
+    // 선택된 계정이 없으면 사용자의 첫 번째 소셜 계정 사용
+    if (!socialId) {
+      const { data: accounts } = await supabase
+        .from("social_accounts")
+        .select("social_id")
+        .eq("owner", session.user.id)
+        .eq("platform", "threads")
+        .eq("is_active", true)
+        .limit(1);
+
+      if (accounts && accounts.length > 0) {
+        socialId = accounts[0].social_id;
+      }
+    }
 
     const { data, error } = await supabase
       .from('my_contents')
       .insert([{
         content,
         scheduled_at: scheduledAt,
-        publish_status: 'scheduled'
-        // image, video 추가 필요
+        publish_status: 'scheduled',
+        user_id: session.user.id,
+        social_id: socialId
       }])
       .select()
-      .single()
+      .single();
 
-    if (error) throw error
+    if (error) throw error;
 
     revalidatePath('/schedule')
     return { data, error: null }
@@ -77,22 +134,10 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const supabase = await createClient();
 
-    // 1. 전역 상태에서 선택된 소셜 계정 ID 가져오기
-    const { data: selectedAccountStore } = await supabase
-      .from("client_store")
-      .select("data")
-      .eq("name", "social-account-store")
-      .single();
+    // 전역 상태에서 선택된 계정 ID 가져오기
+    const selectedAccountId = await getSelectedAccountId(session.user.id);
 
-    console.log("[선택된 소셜 계정 스토어]:", selectedAccountStore);
-
-    // 선택된 계정 ID
-    let selectedAccountId = null;
-    if (selectedAccountStore?.data?.state?.selectedAccountId) {
-      selectedAccountId = selectedAccountStore.data.state.selectedAccountId;
-    }
-
-    // 2. Threads access_token & social_id 조회
+    // 소셜 계정 정보 조회
     const accountQuery = supabase
       .from("social_accounts")
       .select("id, access_token, social_id")
@@ -119,7 +164,7 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     console.log("[Threads Account Access token] : ", accessToken);
     console.log("[Threads Account user_id] : ", threadsUserId);
 
-    // 2. Threads 미디어 컨테이너 생성 요청
+    // Threads 미디어 컨테이너 생성 요청
     const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
     const params = new URLSearchParams();
     params.append("media_type", mediaType);
@@ -137,7 +182,6 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const containerRes = await fetch(containerUrl, {
       method: "POST",
-      // Authorization 헤더 필요 없음
     });
 
     console.log("[Threads] 컨테이너 응답 상태:", containerRes.status);
@@ -184,13 +228,12 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
         }
         console.log(`✅ 게시 성공 [${creationId}]`);
       } else {
-        // publish 요청 실패하면 ready to publish 상태로 DB 저장
+        // publish 요청 실패하면 failed 상태로 변경 (요청에 따라 creation_id 저장하지 않음)
         const { error: insertError } = await supabase
           .from('my_contents')
           .insert([{
             content,
-            creation_id: creationId,
-            publish_status: 'ready_to_publish',
+            publish_status: 'failed',
             user_id: session.user.id,
             social_id: threadsUserId,
             media_id: publishData.id,

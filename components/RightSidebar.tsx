@@ -295,22 +295,10 @@ export function RightSidebar({ className }: RightSidebarProps) {
     if (!writingContent || !scheduleTime) return;
 
     try {
+      // 전역 상태의 소셜 계정으로 예약 발행 (schedulePost 내부에서 처리됨)
       const result = await schedulePost(writingContent, scheduleTime);
+
       if (result?.error) throw result.error;
-
-      // 선택된 소셜 계정 ID가 있으면 함께 저장
-      if (selectedAccountId) {
-        const supabase = await fetch('/api/supabase-client').then(res => res.json());
-        const { data, error: updateError } = await supabase
-          .from('my_contents')
-          .update({ social_account_id: selectedAccountId })
-          .eq('content', writingContent)
-          .eq('scheduled_at', scheduleTime);
-
-        if (updateError) {
-          console.error('Error updating social account for scheduled post:', updateError);
-        }
-      }
 
       // 스케줄 성공 시 초기화
       setWritingContent("");
@@ -327,14 +315,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 즉시 발행
   const handlePublish = async () => {
     try {
-      // 선택된 소셜 계정 정보 가져오기
-      const selectedAccount = getSelectedAccount();
-      console.log('Publishing to selected account:', selectedAccount);
-
+      // 전역 상태의 소셜 계정으로 발행 (publishPost 내부에서 처리됨)
       const result = await publishPost({
         content: writingContent,
         mediaType: selectedMediaType,
-        mediaUrl: uploadedMediaUrl,
+        mediaUrl: uploadedMediaUrl
       });
 
       if (result && 'error' in result && result.error) throw result.error;
