@@ -14,6 +14,7 @@ import { schedulePost, publishPost } from '@/app/actions/schedule';
 import useScheduleStore from '@/stores/useScheduleStore';
 import { ChangePublishTimeDialog } from './schedule/ChangePublishTimeDialog';
 import { format } from 'date-fns';
+import useSocialAccountStore from '@/stores/useSocialAccountStore';
 
 interface RightSidebarProps {
   className?: string;
@@ -23,6 +24,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const { selectedPosts, removePost, updatePostType, addPost } = useSelectedPostsStore();
+  const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
   // Text content
   const [writingContent, setWritingContent] = useState("");
   const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
@@ -290,19 +292,27 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 예약발행
   const handleSchedule = async () => {
-    if (!scheduleTime) {
-      toast.error('예약 가능한 시간이 없습니다.');
-      return;
-    }
+    if (!writingContent || !scheduleTime) return;
 
     try {
-      // scheduleTime은 이미 UTC ISO 문자열이므로 그대로 사용
-      const isoString = scheduleTime;
-      console.log('isoString:', isoString);
-      const { error } = await schedulePost(writingContent, isoString);
+      const result = await schedulePost(writingContent, scheduleTime);
+      if (result?.error) throw result.error;
 
-      if (error) throw error;
+      // 선택된 소셜 계정 ID가 있으면 함께 저장
+      if (selectedAccountId) {
+        const supabase = await fetch('/api/supabase-client').then(res => res.json());
+        const { data, error: updateError } = await supabase
+          .from('my_contents')
+          .update({ social_account_id: selectedAccountId })
+          .eq('content', writingContent)
+          .eq('scheduled_at', scheduleTime);
 
+        if (updateError) {
+          console.error('Error updating social account for scheduled post:', updateError);
+        }
+      }
+
+      // 스케줄 성공 시 초기화
       setWritingContent("");
       setHasUnsavedContent(false);
       localStorage.removeItem('draftContent');
@@ -317,13 +327,17 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 즉시 발행
   const handlePublish = async () => {
     try {
-      const { error } = await publishPost({
+      // 선택된 소셜 계정 정보 가져오기
+      const selectedAccount = getSelectedAccount();
+      console.log('Publishing to selected account:', selectedAccount);
+
+      const result = await publishPost({
         content: writingContent,
-        mediaType: selectedMediaType, // 기본은 TEXT로
-        mediaUrl: uploadedMediaUrl, // mediaUrl은 TEXT일 땐 필요 없음
+        mediaType: selectedMediaType,
+        mediaUrl: uploadedMediaUrl,
       });
 
-      if (error) throw error;
+      if (result && 'error' in result && result.error) throw result.error;
 
       // 발행 성공 시 초기화
       setWritingContent("");

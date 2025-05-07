@@ -9,7 +9,7 @@ export type ScheduledPost = {
   id?: string
   content: string
   scheduled_at: string
-  publish_status: 'scheduled' | 'posted' | 'draft'
+  publish_status: 'scheduled' | 'posted' | 'draft' | 'ready_to_publish'
   created_at?: string
 }
 
@@ -23,6 +23,7 @@ export async function schedulePost(content: string, scheduledAt: string) {
         content,
         scheduled_at: scheduledAt,
         publish_status: 'scheduled'
+        // image, video 추가 필요
       }])
       .select()
       .single()
@@ -76,13 +77,35 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
 
     const supabase = await createClient();
 
-    // 1. Threads access_token & social_id 조회
-    const { data: account, error: accountError } = await supabase
-      .from("social_accounts")
-      .select("access_token, social_id")
-      .eq("owner", session.user.id)
-      .eq("platform", "threads")
+    // 1. 전역 상태에서 선택된 소셜 계정 ID 가져오기
+    const { data: selectedAccountStore } = await supabase
+      .from("client_store")
+      .select("data")
+      .eq("name", "social-account-store")
       .single();
+
+    console.log("[선택된 소셜 계정 스토어]:", selectedAccountStore);
+
+    // 선택된 계정 ID
+    let selectedAccountId = null;
+    if (selectedAccountStore?.data?.state?.selectedAccountId) {
+      selectedAccountId = selectedAccountStore.data.state.selectedAccountId;
+    }
+
+    // 2. Threads access_token & social_id 조회
+    const accountQuery = supabase
+      .from("social_accounts")
+      .select("id, access_token, social_id")
+      .eq("platform", "threads");
+
+    // 선택된 계정이 있으면 해당 계정 사용, 없으면 사용자의 첫 번째 소셜 계정 사용
+    if (selectedAccountId) {
+      accountQuery.eq("id", selectedAccountId);
+    } else {
+      accountQuery.eq("owner", session.user.id);
+    }
+
+    const { data: account, error: accountError } = await accountQuery.single();
 
     console.log("[Threads 계정] : ", account);
 
@@ -143,40 +166,47 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
       console.log(`✅ 게시 시도 [${publishData}]`);
 
       if (publishRes.ok) {
-        await supabase
+        // DB에 새로운 row Create
+        const { error: insertError } = await supabase
           .from('my_contents')
-          .update({ publish_status: 'posted' })
-          .eq('creation_id', creationId);
+          .insert([{
+            content,
+            creation_id: creationId,
+            publish_status: 'posted',
+            user_id: session.user.id,
+            social_id: threadsUserId,
+            media_id: publishData.id,
+            scheduled_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          }]);
+        if (insertError) {
+          throw insertError;
+        }
         console.log(`✅ 게시 성공 [${creationId}]`);
       } else {
-        await supabase
+        // publish 요청 실패하면 ready to publish 상태로 DB 저장
+        const { error: insertError } = await supabase
           .from('my_contents')
-          .update({ publish_status: 'failed' })
-          .eq('creation_id', creationId);
+          .insert([{
+            content,
+            creation_id: creationId,
+            publish_status: 'ready_to_publish',
+            user_id: session.user.id,
+            social_id: threadsUserId,
+            media_id: publishData.id,
+            scheduled_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          }]);
+        if (insertError) {
+          throw insertError;
+        }
         console.log(`❌ 게시 실패 [${creationId}]`, publishData);
       }
     } catch (err) {
       console.error('Error during publish request:', err);
     }
 
-    // 3. 백그라운드 게시 대기 상태로 DB에 저장
-    const { error: insertError } = await supabase
-      .from('my_contents')
-      .insert([{
-        content,
-        creation_id: creationId,
-        publish_status: 'ready_to_publish',
-        user_id: session.user.id,
-        social_id: threadsUserId,
-        scheduled_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      }]);
-    if (insertError) {
-      throw insertError;
-    }
-
     await revalidatePath('/schedule');
-    return { data: { message: "컨테이너 생성 완료, 게시 대기 중" }, error: null };
 
   } catch (error) {
     console.error('Error scheduling Threads publish:', error);

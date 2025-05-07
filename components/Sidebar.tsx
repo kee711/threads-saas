@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSession, signIn } from 'next-auth/react';
+import { SocialAccountSelector } from '@/components/SocialAccountSelector';
 
 // Navigation item type definition
 interface NavItem {
@@ -204,6 +205,11 @@ export function Sidebar({ className }: SidebarProps) {
             <Flame className="h-7 w-7" />
             <p className="text-2xl font-bold">10</p>
           </div>
+        </div>
+
+        {/* 소셜 계정 전환 dropdown */}
+        <div className="border border-slate-300 rounded-lg m-4 mb-0">
+          <SocialAccountSelector />
         </div>
 
         {/* Bottom section: User Profile */}
