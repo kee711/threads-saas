@@ -14,6 +14,7 @@ import { schedulePost, publishPost } from '@/app/actions/schedule';
 import useScheduleStore from '@/stores/useScheduleStore';
 import { ChangePublishTimeDialog } from './schedule/ChangePublishTimeDialog';
 import { format } from 'date-fns';
+import useSocialAccountStore from '@/stores/useSocialAccountStore';
 
 interface RightSidebarProps {
   className?: string;
@@ -23,6 +24,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const { selectedPosts, removePost, updatePostType, addPost } = useSelectedPostsStore();
+  const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
   // Text content
   const [writingContent, setWritingContent] = useState("");
   const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
@@ -290,19 +292,15 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 예약발행
   const handleSchedule = async () => {
-    if (!scheduleTime) {
-      toast.error('예약 가능한 시간이 없습니다.');
-      return;
-    }
+    if (!writingContent || !scheduleTime) return;
 
     try {
-      // scheduleTime은 이미 UTC ISO 문자열이므로 그대로 사용
-      const isoString = scheduleTime;
-      console.log('isoString:', isoString);
-      const { error } = await schedulePost(writingContent, isoString);
+      // 전역 상태의 소셜 계정으로 예약 발행 (schedulePost 내부에서 처리됨)
+      const result = await schedulePost(writingContent, scheduleTime);
 
-      if (error) throw error;
+      if (result?.error) throw result.error;
 
+      // 스케줄 성공 시 초기화
       setWritingContent("");
       setHasUnsavedContent(false);
       localStorage.removeItem('draftContent');
@@ -317,13 +315,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 즉시 발행
   const handlePublish = async () => {
     try {
-      const { error } = await publishPost({
+      // 전역 상태의 소셜 계정으로 발행 (publishPost 내부에서 처리됨)
+      const result = await publishPost({
         content: writingContent,
-        mediaType: selectedMediaType, // 기본은 TEXT로
-        mediaUrl: uploadedMediaUrl, // mediaUrl은 TEXT일 땐 필요 없음
+        mediaType: selectedMediaType,
+        mediaUrl: uploadedMediaUrl
       });
 
-      if (error) throw error;
+      if (result && 'error' in result && result.error) throw result.error;
 
       // 발행 성공 시 초기화
       setWritingContent("");
