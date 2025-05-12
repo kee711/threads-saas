@@ -1,44 +1,128 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { signIn } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import { signIn, useSession } from 'next-auth/react'
 
 export default function SignInPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/'
+  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+  const { data: session, status } = useSession()
+
+  // 세션이 있으면 대시보드로 리다이렉트
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push('/dashboard')
+    }
+  }, [session, status, router])
+
+  // 로딩 상태 표시를 위한 상태
+  const [isLoading, setIsLoading] = useState(true)
+
+  // 페이지 로딩 후 로딩 상태 해제
+  useEffect(() => {
+    if (status !== 'loading') {
+      setIsLoading(false)
+    }
+  }, [status])
+
+  // 폼 제출 핸들러
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/')
+    }
+  }
+
+  // 로딩 중이면 로딩 UI 표시
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 w-full h-full backdrop-blur-sm bg-black/40 flex items-center justify-center">
+        <div className="text-white">
+          <svg className="animate-spin h-8 w-8 mr-3" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+      </div>
+    )
+  }
+
+  // 이미 인증되었으면 렌더링 안함 (리다이렉션 처리 중)
+  if (status === 'authenticated') {
+    return null
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-md space-y-8 rounded-lg border bg-card p-6 shadow-lg">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">로그인</h1>
-          <p className="text-sm text-muted-foreground">
-            계정으로 로그인하여 시작하세요
-          </p>
-        </div>
-        <div className="space-y-4">
-          <Button
-            className="w-full"
-            variant="outline"
-            onClick={() => signIn('google', { callbackUrl })}
+    <div className="relative h-screen w-full">
+      {/* 배경 대시보드 */}
+      <div className="fixed inset-0 w-full h-full bg-dashboard-preview bg-cover bg-center opacity-75 dark:opacity-50"></div>
+
+      {/* 블러 처리 오버레이 */}
+      <div className="fixed inset-0 w-full h-full backdrop-blur-sm bg-black/30 flex items-center justify-center">
+        {/* 로그인 모달 */}
+        <div className="w-full max-w-md space-y-8 rounded-xl border border-gray-200 dark:border-gray-800 bg-background/95 shadow-2xl p-8">
+          <button
+            onClick={handleGoBack}
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+            aria-label="닫기"
           >
-            <GoogleIcon className="mr-2 h-4 w-4" />
-            Google로 로그인
-          </Button>
-          <Button
-            className="w-full"
-            onClick={() => signIn('threads', { callbackUrl })}
-          >
-            <ThreadsIcon className="mr-2 h-4 w-4" />
-            Threads로 로그인
-          </Button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+
+          <div className="space-y-2 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">계정 생성</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              계정으로 로그인하여 시작하세요
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => signIn('google', { callbackUrl })}
+            >
+              <GoogleIcon className="mr-2 h-4 w-4" />
+              Google로 계속하기
+            </Button>
+
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => signIn('email', { callbackUrl })}
+            >
+              <EmailIcon className="mr-2 h-4 w-4" />
+              이메일로 계속하기
+            </Button>
+
+            <hr className="border-gray-700/50" />
+
+            <div className="text-center text-xs text-gray-500">
+              이미 계정이 있으신가요? <a href="#" className="text-primary hover:underline" onClick={(e) => {
+                e.preventDefault();
+                // 로그인 모드로 전환하는 로직
+              }}>로그인</a>
+            </div>
+
+            <div className="text-center text-xs text-gray-500">
+              계속 진행하면 서비스 <a href="/terms" className="text-primary hover:underline">이용약관</a>과 <a href="/privacy" className="text-primary hover:underline">개인정보처리방침</a>에 동의하게 됩니다.
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
+// 아이콘 컴포넌트들
 function GoogleIcon(props: React.ComponentProps<'svg'>) {
   return (
     <svg
@@ -59,17 +143,19 @@ function GoogleIcon(props: React.ComponentProps<'svg'>) {
   )
 }
 
-function ThreadsIcon(props: React.ComponentProps<'svg'>) {
+function EmailIcon(props: React.ComponentProps<'svg'>) {
   return (
     <svg
+      aria-hidden="true"
+      focusable="false"
       role="img"
-      viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 512 512"
       {...props}
     >
       <path
         fill="currentColor"
-        d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.781 3.631 2.695 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291 1.789-.103 3.521.324 5.147 1.265.036-.88.043-1.76.015-2.641-.156.003-.315.003-2.29 0-4.416-.887-5.756-2.398l1.403-1.476c.98 1.1 2.596 1.754 4.353 1.754.194 0 .387-.006.578-.018 1.67-.11 2.974-.699 3.93-1.778a6.068 6.068 0 0 0 1.384-2.524l2.044.547c-.376 1.206-.99 2.263-1.825 3.153-1.072 1.142-2.398 1.91-3.947 2.28.05 1.169.037 2.337-.04 3.505 3.849 1.627 5.157 4.907 4.24 7.82-.572 1.814-1.867 3.291-3.855 4.398-1.857 1.03-3.982 1.55-6.31 1.55zm-2.118-11.41c-.731.063-1.29.279-1.673.645-.34.327-.512.77-.485 1.248.04.732.406 1.205.912 1.514.539.349 1.24.5 1.955.457.524-.028 1.386-.147 1.969-.906.47-.613.794-1.493.964-2.62-1.307-.603-2.544-.405-3.642-.338z"
+        d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48H48zM0 176V384c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V176L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"
       />
     </svg>
   )

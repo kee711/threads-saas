@@ -1,7 +1,6 @@
 import NextAuth from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 
 const supabaseUrl = process.env.SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_ANON_KEY!
@@ -30,7 +29,7 @@ const handler = NextAuth({
 
       if (account && profile) {
         token.accessToken = account.access_token ?? ''
-        token.userId = (profile.sub || profile.user_id) ?? ''
+        token.userId = profile.sub ?? ''
         token.provider = account.provider ?? ''
       }
       return token
@@ -41,8 +40,6 @@ const handler = NextAuth({
 
       if (session.user) {
         session.user.id = token.userId as string
-        session.user.accessToken = token.accessToken as string
-        session.user.provider = token.provider as string
       }
       return session
     },
@@ -130,8 +127,8 @@ const handler = NextAuth({
     },
   },
   pages: {
-    signIn: '/auth/signin',
-    error: '/auth/error',
+    signIn: '/signin',
+    error: '/error',
   },
   debug: true,
 })

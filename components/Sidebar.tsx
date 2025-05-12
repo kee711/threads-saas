@@ -24,6 +24,7 @@ import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { SocialAccountSelector } from '@/components/SocialAccountSelector';
+import { useTheme } from 'next-themes';
 
 // Navigation item type definition
 interface NavItem {
@@ -48,6 +49,7 @@ const STORAGE_KEY = 'sidebar-open-items';
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { theme } = useTheme();
   // Initialize with empty array to prevent hydration mismatch
   const [openItems, setOpenItems] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -104,16 +106,14 @@ export function Sidebar({ className }: SidebarProps) {
       ],
     },
     {
-      name: 'Statistics',
-      href: '/statistics',
-      icon: BarChart2,
-    },
-    {
       name: 'Comments',
       href: '/comments',
       icon: MessageSquare,
     },
   ];
+
+  // 테마에 따라 적절한 로고 이미지 선택
+  const logoSrc = theme === 'dark' ? '/conflow-logo-dark.svg' : '/conflow-logo.svg';
 
   return (
     <div className={cn("bg-muted w-[250px]", className)}>
@@ -122,8 +122,13 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="px-3 py-2 flex-1">
           {/* Logo */}
           <div className="mt-2 mb-4 px-3 py-2">
-            {/* Logo Image */}
-            <Image src="/conflow-logo.svg" alt="Logo" width={120} height={100} />
+            {/* Logo Image - 테마에 따라 다른 로고 표시 */}
+            <Image src={logoSrc} alt="Logo" width={120} height={100} />
+          </div>
+
+          {/* 소셜 계정 전환 dropdown */}
+          <div className="border-t border-slate-300 mb-4">
+            <SocialAccountSelector />
           </div>
 
           {/* Navigation Menu */}
@@ -205,11 +210,6 @@ export function Sidebar({ className }: SidebarProps) {
             <Flame className="h-7 w-7" />
             <p className="text-2xl font-bold">10</p>
           </div>
-        </div>
-
-        {/* 소셜 계정 전환 dropdown */}
-        <div className="border border-slate-300 rounded-lg m-4 mb-0">
-          <SocialAccountSelector />
         </div>
 
         {/* Bottom section: User Profile */}
