@@ -1,19 +1,25 @@
-'use server'
+"use server";
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
-import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export type ScheduledPost = {
-  id?: string
-  content: string
-  scheduled_at: string
-  publish_status: 'scheduled' | 'posted' | 'draft' | 'ready_to_publish' | 'failed'
-  created_at?: string
-  social_id?: string
-  user_id?: string
-}
+  id?: string;
+  content: string;
+  scheduled_at: string;
+  publish_status:
+    | "scheduled"
+    | "posted"
+    | "draft"
+    | "ready_to_publish"
+    | "failed";
+  created_at?: string;
+  social_id?: string;
+  user_id?: string;
+  images?: string[];
+};
 
 // 전역 상태에서 선택된 계정 ID 가져오기
 async function getSelectedAccountId(userId: string) {
@@ -21,9 +27,9 @@ async function getSelectedAccountId(userId: string) {
 
   // social-account-store 이름으로 저장된 상태 조회
   const { data: storeData } = await supabase
-    .from('user_profiles')
-    .select('settings')
-    .eq('id', userId)
+    .from("user_profiles")
+    .select("settings")
+    .eq("id", userId)
     .single();
 
   // settings 필드에서 selectedAccountId 추출
@@ -32,7 +38,12 @@ async function getSelectedAccountId(userId: string) {
   return selectedAccountId;
 }
 
-export async function schedulePost(content: string, scheduledAt: string) {
+export async function schedulePost(
+  content: string,
+  scheduledAt: string,
+  mediaType?: "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL",
+  images?: string[]
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
@@ -74,58 +85,169 @@ export async function schedulePost(content: string, scheduledAt: string) {
     }
 
     const { data, error } = await supabase
-      .from('my_contents')
-      .insert([{
-        content,
-        scheduled_at: scheduledAt,
-        publish_status: 'scheduled',
-        user_id: session.user.id,
-        social_id: socialId
-      }])
+      .from("my_contents")
+      .insert([
+        {
+          content,
+          scheduled_at: scheduledAt,
+          publish_status: "scheduled",
+          user_id: session.user.id,
+          social_id: socialId,
+          media_type: mediaType || "TEXT",
+          images: images || [],
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
 
-    revalidatePath('/schedule')
-    return { data, error: null }
+    revalidatePath("/schedule");
+    return { data, error: null };
   } catch (error) {
-    console.error('Error scheduling post:', error)
-    return { data: null, error }
+    console.error("Error scheduling post:", error);
+    return { data: null, error };
   }
 }
-
 
 export async function deleteSchedule(id: string) {
   try {
-    const supabase = await createClient()
+    const supabase = await createClient();
 
     const { error } = await supabase
-      .from('my_contents')
+      .from("my_contents")
       .update({
-        publish_status: 'draft',
-        scheduled_at: null
+        publish_status: "draft",
+        scheduled_at: null,
       })
-      .eq('id', id)
+      .eq("id", id);
 
-    if (error) throw error
+    if (error) throw error;
 
-    revalidatePath('/schedule')
-    return { error: null }
+    revalidatePath("/schedule");
+    return { error: null };
   } catch (error) {
-    console.error('Error deleting schedule:', error)
-    return { error }
+    console.error("Error deleting schedule:", error);
+    return { error };
   }
 }
 
-
 interface PublishPostParams {
   content: string;
-  mediaType: 'TEXT' | 'IMAGE' | 'VIDEO';
-  mediaUrl?: string; // image_url 또는 video_url
+  mediaType: "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL";
+  images?: string[];
 }
 
-export async function publishPost({ content, mediaType, mediaUrl }: PublishPostParams) {
+// 이미지 및 캐러셀 처리를 위한 함수
+async function createThreadsContainer(
+  threadsUserId: string,
+  accessToken: string,
+  params: PublishPostParams
+) {
+  const { content, mediaType, images } = params;
+
+  // 케이스별 처리
+  // 1. 텍스트만 있는 경우
+  if (mediaType === "TEXT" || !images || images.length === 0) {
+    const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
+    const urlParams = new URLSearchParams();
+    urlParams.append("media_type", "TEXT");
+    urlParams.append("text", content);
+    urlParams.append("access_token", accessToken);
+
+    const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+    const response = await fetch(containerUrl, { method: "POST" });
+    const data = await response.json();
+
+    return {
+      success: response.ok,
+      creationId: data.id,
+      error: response.ok ? null : `컨테이너 생성 실패: ${JSON.stringify(data)}`,
+    };
+  }
+
+  // 2. 이미지가 하나인 경우
+  else if (mediaType === "IMAGE" && images.length === 1) {
+    const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
+    const urlParams = new URLSearchParams();
+    urlParams.append("media_type", "IMAGE");
+    urlParams.append("image_url", images[0]);
+    urlParams.append("text", content);
+    urlParams.append("access_token", accessToken);
+
+    const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+    const response = await fetch(containerUrl, { method: "POST" });
+    const data = await response.json();
+
+    return {
+      success: response.ok,
+      creationId: data.id,
+      error: response.ok
+        ? null
+        : `이미지 컨테이너 생성 실패: ${JSON.stringify(data)}`,
+    };
+  }
+
+  // 3. 이미지가 여러 개인 경우 (캐러셀)
+  else if (
+    (mediaType === "IMAGE" || mediaType === "CAROUSEL") &&
+    images.length > 1
+  ) {
+    // 3-1. 각 이미지마다 아이템 컨테이너 생성
+    const itemContainers = [];
+
+    for (const imageUrl of images) {
+      const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
+      const urlParams = new URLSearchParams();
+      urlParams.append("media_type", "IMAGE");
+      urlParams.append("image_url", imageUrl);
+      urlParams.append("is_carousel_item", "true");
+      urlParams.append("access_token", accessToken);
+
+      const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      const response = await fetch(containerUrl, { method: "POST" });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          creationId: null,
+          error: `캐러셀 아이템 생성 실패: ${await response.text()}`,
+        };
+      }
+
+      const data = await response.json();
+      itemContainers.push(data.id);
+    }
+
+    // 3-2. 캐러셀 컨테이너 생성
+    const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
+    const urlParams = new URLSearchParams();
+    urlParams.append("media_type", "CAROUSEL");
+    urlParams.append("text", content);
+    urlParams.append("children", itemContainers.join(","));
+    urlParams.append("access_token", accessToken);
+
+    const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+    const response = await fetch(containerUrl, { method: "POST" });
+    const data = await response.json();
+
+    return {
+      success: response.ok,
+      creationId: data.id,
+      error: response.ok
+        ? null
+        : `캐러셀 컨테이너 생성 실패: ${JSON.stringify(data)}`,
+    };
+  }
+
+  return {
+    success: false,
+    creationId: null,
+    error: "지원하지 않는 미디어 타입입니다.",
+  };
+}
+
+export async function publishPost(params: PublishPostParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
@@ -155,7 +277,9 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     console.log("[Threads 계정] : ", account);
 
     if (accountError || !account?.access_token || !account?.social_id) {
-      throw new Error("Threads 계정이 연동되어 있지 않거나, 토큰 정보가 없습니다.");
+      throw new Error(
+        "Threads 계정이 연동되어 있지 않거나, 토큰 정보가 없습니다."
+      );
     }
 
     const accessToken = account.access_token;
@@ -164,47 +288,25 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
     console.log("[Threads Account Access token] : ", accessToken);
     console.log("[Threads Account user_id] : ", threadsUserId);
 
-    // Threads 미디어 컨테이너 생성 요청
-    const baseUrl = `https://graph.threads.net/v1.0/${threadsUserId}/threads`;
-    const params = new URLSearchParams();
-    params.append("media_type", mediaType);
-    params.append("text", content);
+    // Threads 미디어 컨테이너 생성
+    const containerResult = await createThreadsContainer(
+      threadsUserId,
+      accessToken,
+      params
+    );
 
-    if (mediaType === "IMAGE" && mediaUrl) {
-      params.append("image_url", mediaUrl);
-    } else if (mediaType === "VIDEO" && mediaUrl) {
-      params.append("video_url", mediaUrl);
-    }
-    // URL 맨 뒤에 access_token 추가
-    params.append("access_token", accessToken);
-
-    const containerUrl = `${baseUrl}?${params.toString()}`;
-
-    const containerRes = await fetch(containerUrl, {
-      method: "POST",
-    });
-
-    console.log("[Threads] 컨테이너 응답 상태:", containerRes.status);
-    const responseBody = await containerRes.text();
-    console.log("[Threads] 컨테이너 응답 본문:", responseBody);
-
-    if (!containerRes.ok) {
-      throw new Error(`컨테이너 생성 실패: ${containerRes.status} ${responseBody}`);
+    if (!containerResult.success || !containerResult.creationId) {
+      throw new Error(containerResult.error || "미디어 컨테이너 생성 실패");
     }
 
-    const containerData = JSON.parse(responseBody);
-    if (!containerData?.id) {
-      throw new Error("Threads 미디어 컨테이너 생성 실패: " + JSON.stringify(containerData));
-    }
-
-    const creationId = containerData.id;
+    const creationId = containerResult.creationId;
 
     // Publish
     try {
       const publishUrl =
         `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish` +
         `?creation_id=${creationId}&access_token=${accessToken}`;
-      const publishRes = await fetch(publishUrl, { method: 'POST' });
+      const publishRes = await fetch(publishUrl, { method: "POST" });
       const publishData = await publishRes.json();
 
       console.log(`✅ 게시 시도 [${publishData}]`);
@@ -212,17 +314,21 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
       if (publishRes.ok) {
         // DB에 새로운 row Create
         const { error: insertError } = await supabase
-          .from('my_contents')
-          .insert([{
-            content,
-            creation_id: creationId,
-            publish_status: 'posted',
-            user_id: session.user.id,
-            social_id: threadsUserId,
-            media_id: publishData.id,
-            scheduled_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          }]);
+          .from("my_contents")
+          .insert([
+            {
+              content: params.content,
+              creation_id: creationId,
+              publish_status: "posted",
+              user_id: session.user.id,
+              social_id: threadsUserId,
+              media_id: publishData.id,
+              media_type: params.mediaType,
+              images: params.images || [],
+              scheduled_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            },
+          ]);
         if (insertError) {
           throw insertError;
         }
@@ -230,29 +336,33 @@ export async function publishPost({ content, mediaType, mediaUrl }: PublishPostP
       } else {
         // publish 요청 실패하면 failed 상태로 변경 (요청에 따라 creation_id 저장하지 않음)
         const { error: insertError } = await supabase
-          .from('my_contents')
-          .insert([{
-            content,
-            publish_status: 'failed',
-            user_id: session.user.id,
-            social_id: threadsUserId,
-            media_id: publishData.id,
-            scheduled_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          }]);
+          .from("my_contents")
+          .insert([
+            {
+              content: params.content,
+              publish_status: "failed",
+              user_id: session.user.id,
+              social_id: threadsUserId,
+              media_id: publishData.id,
+              media_type: params.mediaType,
+              images: params.images || [],
+              scheduled_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            },
+          ]);
         if (insertError) {
           throw insertError;
         }
         console.log(`❌ 게시 실패 [${creationId}]`, publishData);
       }
     } catch (err) {
-      console.error('Error during publish request:', err);
+      console.error("Error during publish request:", err);
     }
 
-    await revalidatePath('/schedule');
-
+    revalidatePath("/");
+    return { error: null };
   } catch (error) {
-    console.error('Error scheduling Threads publish:', error);
-    return { data: null, error };
+    console.error("Error publishing post:", error);
+    return { error };
   }
 }
