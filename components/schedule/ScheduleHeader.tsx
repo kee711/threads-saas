@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Calendar as CalendarIcon, Clock, ChevronDown, Plus, Edit, Check } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock, ChevronDown, Plus, Edit, Check, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -17,6 +17,7 @@ interface ScheduleHeaderProps {
   view: 'calendar' | 'list'
   setView: (view: 'calendar' | 'list') => void
   scheduledCount: number
+  postedCount?: number
   month: Date
   selectedDate?: Date
   onMonthChange: (date: Date) => void
@@ -27,6 +28,7 @@ export function ScheduleHeader({
   view,
   setView,
   scheduledCount,
+  postedCount = 0,
   month,
   selectedDate,
   onMonthChange,
@@ -73,6 +75,12 @@ export function ScheduleHeader({
         <div className="flex items-center gap-2 text-muted-foreground">
           <CalendarIcon className="h-4 w-4" />
           <span>{scheduledCount} Scheduled</span>
+        </div>
+
+        {/* Posted Count */}
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Send className="h-4 w-4" />
+          <span>{postedCount} Posted</span>
         </div>
 
         {/* Change Publish Time */}

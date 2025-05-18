@@ -19,6 +19,9 @@ import {
 } from "recharts"
 import { DonutChart } from "@/components/ui/donut-chart"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { createClient } from '@/lib/supabase/client'
+import { useSession } from 'next-auth/react'
+import useSocialAccountStore from '@/stores/useSocialAccountStore'
 
 const followersData = [
   { month: "Jan", followers: 50000 },
@@ -101,14 +104,61 @@ const trendingPosts = [
 export default function DashboardPage() {
   const [selectedChart, setSelectedChart] = useState("Total Followers")
   const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
+  const [hasSocialAccount, setHasSocialAccount] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const { data: session } = useSession()
+  const { accounts, setAccounts } = useSocialAccountStore()
 
   const handleSocialLogin = () => {
     window.location.href = "/api/threads/oauth";
   }
 
+  // 소셜 계정 정보 가져오기
+  useEffect(() => {
+    const fetchSocialAccounts = async () => {
+      if (!session?.user?.id) return;
+
+      try {
+        setIsLoading(true);
+
+        // 1. Zustand 스토어 확인
+        if (accounts.length > 0) {
+          setHasSocialAccount(true);
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. Supabase에서 소셜 계정 확인
+        const supabase = createClient();
+        const { data: socialAccounts, error } = await supabase
+          .from('social_accounts')
+          .select('*')
+          .eq('owner', session.user.id)
+          .eq('is_active', true);
+
+        if (error) {
+          console.error('소셜 계정 조회 오류:', error);
+          return;
+        }
+
+        // 소셜 계정이 있으면 상태 업데이트
+        if (socialAccounts && socialAccounts.length > 0) {
+          setHasSocialAccount(true);
+          setAccounts(socialAccounts);
+        } else {
+          setHasSocialAccount(false);
+        }
+      } catch (error) {
+        console.error('소셜 계정 조회 중 오류 발생:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSocialAccounts();
+  }, [session, accounts, setAccounts]);
 
   // Refresh Access Token
-
   useEffect(() => {
     const callRefreshTokenAPI = async () => {
       try {
@@ -152,28 +202,31 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 👉 Social Login Section */}
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">Social Login</h2>
-        <button
-          onClick={handleSocialLogin}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow"
-        >
-          Connect Threads Account
-        </button>
-      </div>
+      {/* 👉 Social Login Section - 계정이 없을 때만 표시 */}
+      {!isLoading && !hasSocialAccount && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-2">소셜 계정 연결</h2>
+          <button
+            onClick={handleSocialLogin}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow"
+          >
+            Threads 계정 연결하기
+          </button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         {Object.keys(chartOptions).map((label, i) => {
           const isSelected = selectedChart === label
-          const { color, value, change } = {
+          const chartData = {
             "Total Followers": { value: "13,675", change: "+2.51%", color: "text-green-500" },
             "Total Posts": { value: "1,986", change: "-1.43%", color: "text-red-500" },
             "Total Likes": { value: "890,543", change: "-3.56%", color: "text-red-500" },
             "Total Comments": { value: "1,234,780", change: "+0.94%", color: "text-green-500" },
             "Total Shares": { value: "432,097", change: "-0.20%", color: "text-red-500" },
-          }[label]
+          }[label as keyof typeof chartOptions];
+
           return (
             <Card
               key={i}
@@ -183,8 +236,8 @@ export default function DashboardPage() {
             >
               <CardContent>
                 <p className="text-sm text-muted-foreground">{label}</p>
-                <h2 className="text-xl font-semibold">{value}</h2>
-                <p className={`${color} text-sm`}>{change}</p>
+                <h2 className="text-xl font-semibold">{chartData.value}</h2>
+                <p className={`${chartData.color} text-sm`}>{chartData.change}</p>
               </CardContent>
             </Card>
           )

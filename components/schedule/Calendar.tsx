@@ -40,15 +40,15 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const { data, error } = await getContents({ status: 'scheduled' }); // ⭐ 서버 액션 사용
+        const { data, error } = await getContents({});
         if (error) throw error;
 
         if (data) {
           const formattedEvents = data.map((content: any) => ({
             id: content.id,
             title: content.content,
-            date: new Date(content.scheduled_at || content.created_at),
-            time: format(new Date(content.scheduled_at || content.created_at), 'HH:mm'),
+            date: new Date(content.scheduled_at),
+            time: format(new Date(content.scheduled_at), 'HH:mm'),
             status: content.publish_status
           }));
           setEvents(formattedEvents);
@@ -211,7 +211,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   }
 
   const scheduledCount = events.filter(event => event.status === 'scheduled').length
-
+  const postedCount = events.filter(event => event.status === 'posted').length
   const firstDayOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
   const lastDayOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)
 
@@ -227,6 +227,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
         view={view}
         setView={setView}
         scheduledCount={scheduledCount}
+        postedCount={postedCount}
         month={month}
         selectedDate={selectedDate}
         onMonthChange={handleMonthChange}
@@ -279,10 +280,10 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                           <div
                             key={event.id}
                             className={cn(
-                              'rounded-md p-2 text-sm hover:opacity-75 transition-colors cursor-pointer',
+                              'relative rounded-md p-2 text-sm hover:opacity-75 transition-colors cursor-pointer',
                               event.status === 'scheduled'
                                 ? 'bg-blue-100 text-foreground cursor-grab'
-                                : 'bg-gray-150 text-muted-foreground',
+                                : 'bg-[#D9D9D9] text-foreground',
                               draggedEvent?.id === event.id && "opacity-50 ring-2 ring-primary ring-offset-2"
                             )}
                             onClick={() => handleEventClick(event)}
@@ -293,6 +294,14 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                               setDropTargetDate(null)
                             }}
                           >
+                            <div
+                              className={cn(
+                                "absolute top-2 right-2 h-2 w-2 rounded-full",
+                                event.status === 'scheduled'
+                                  ? "bg-red-500 animate-pulse"
+                                  : "bg-green-500"
+                              )}
+                            />
                             <div className="font-semibold">{event.time}</div>
                             <div className="truncate">
                               {event.title}

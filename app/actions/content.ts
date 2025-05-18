@@ -51,20 +51,14 @@ export async function createContent(content: Content) {
 export async function getContents(params?: {
   source?: ContentSource
   category?: ContentCategory
-  status?: PublishStatus
 }) {
   try {
     const supabase = await createClient()
-    const { source = 'my', category = 'all', status = 'all' } = params || {}
+    const { source = 'my', category = 'all' } = params || {}
 
     // my_contents 테이블에서 조회
     if (source === 'my') {
-      const query = supabase.from('my_contents').select('*')
-
-      // publish_status로 필터링
-      if (status !== 'all') {
-        query.eq('publish_status', status)
-      }
+      const query = supabase.from('my_contents').select('*').in('publish_status', ['scheduled', 'posted'])
 
       const { data, error } = await query.order('created_at', { ascending: false })
       if (error) throw error
