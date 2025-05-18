@@ -82,28 +82,24 @@ export function Sidebar({ className }: SidebarProps) {
   // Navigation configuration
   const navigation: NavItem[] = [
     {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: BarChart2,
-    },
-    {
-      name: 'Contents Helper',
+      name: 'Contents Cooker',
       icon: FileEdit,
       isExpandable: true,
       subItems: [
-        { name: 'Viral Posts', href: '/contents-helper/viral-posts', icon: TrendingUp },
-        { name: 'News', href: '/contents-helper/news', icon: Newspaper },
-        { name: 'My Drafts', href: '/contents-helper/drafts', icon: FileEdit },
+        { name: 'Topic Finder', href: '/contents-cooker/topic-finder', icon: TrendingUp },
+        { name: 'Post Radar', href: '/contents-cooker/post-radar', icon: Newspaper },
+        { name: 'Saved', href: '/contents-cooker/saved', icon: FileEdit },
       ],
     },
     {
       name: 'Schedule',
+      href: '/schedule',
       icon: Calendar,
-      isExpandable: true,
-      subItems: [
-        { name: 'Calendar View', href: '/schedule/calendar', icon: CalendarDays },
-        { name: 'List View', href: '/schedule/list', icon: List },
-      ],
+    },
+    {
+      name: 'Statistics',
+      href: '/statistics',
+      icon: BarChart2,
     },
     {
       name: 'Comments',
@@ -138,11 +134,11 @@ export function Sidebar({ className }: SidebarProps) {
               if (item.isExpandable) {
                 const isOpen = openItems.includes(item.name);
                 return (
-                  <div key={item.name} className="space-y-1">
+                  <div key={item.name}>
                     {/* Dropdown trigger button */}
                     <Button
                       variant="ghost"
-                      className="w-full justify-between font-normal"
+                      className="w-full justify-between font-normal px-3"
                       onClick={() => toggleItem(item.name)}
                     >
                       <div className="flex items-center">
@@ -159,7 +155,7 @@ export function Sidebar({ className }: SidebarProps) {
 
                     {/* Dropdown content with animation */}
                     <div className={cn(
-                      "ml-4 space-y-1 overflow-hidden transition-all duration-200",
+                      "space-y-1 overflow-hidden transition-all duration-200",
                       isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                     )}>
                       {item.subItems?.map((subItem) => (
@@ -167,7 +163,7 @@ export function Sidebar({ className }: SidebarProps) {
                           key={subItem.name}
                           href={subItem.href}
                           className={cn(
-                            "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                            "flex items-center rounded-lg px-6 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
                             pathname === subItem.href
                               ? "bg-accent text-accent-foreground"
                               : "transparent"
