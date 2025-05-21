@@ -1,331 +1,361 @@
-"use client"
+"use client";
 
-import React, { useEffect, useState } from "react"
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-} from "recharts"
-import { DonutChart } from "@/components/ui/donut-chart"
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { createClient } from '@/lib/supabase/client'
-import { useSession } from 'next-auth/react'
-import useSocialAccountStore from '@/stores/useSocialAccountStore'
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { fetchThreadsInsights, DashboardData, MetricData, PostData } from "@/app/api/insights/route";
 
-const followersData = [
-  { month: "Jan", followers: 50000 },
-  { month: "Feb", followers: 80000 },
-  { month: "Mar", followers: 100000 },
-  { month: "Apr", followers: 160000 },
-  { month: "May", followers: 230000 },
-  { month: "Jun", followers: 210000 },
-  { month: "Jul", followers: 250000 },
-]
+function GrowthDonut({
+    currentValue,
+    previousValue,
+    size = 120,
+    strokeWidth = 10,
+}: {
+    currentValue: number;
+    previousValue: number;
+    size?: number;
+    strokeWidth?: number;
+}) {
+    const growthPercent = previousValue !== 0
+        ? ((currentValue - previousValue) / previousValue) * 100
+        : currentValue > 0 ? 100 : 0;
 
-const postsData = [
-  { month: "Jan", posts: 120 },
-  { month: "Feb", posts: 98 },
-  { month: "Mar", posts: 110 },
-  { month: "Apr", posts: 130 },
-  { month: "May", posts: 95 },
-  { month: "Jun", posts: 105 },
-  { month: "Jul", posts: 120 },
-]
+    const normalizedValue = Math.min(Math.max(growthPercent, -100), 100);
+    const displayValue = Math.abs(normalizedValue);
+    const isNegative = normalizedValue < 0;
 
-const likesData = [
-  { month: "Jan", likes: 5000 },
-  { month: "Feb", likes: 10000 },
-  { month: "Mar", likes: 7500 },
-  { month: "Apr", likes: 9200 },
-  { month: "May", likes: 8700 },
-  { month: "Jun", likes: 9400 },
-  { month: "Jul", likes: 11000 },
-]
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (displayValue / 100) * circumference;
 
-const commentsData = [
-  { month: "Jan", comments: 800 },
-  { month: "Feb", comments: 750 },
-  { month: "Mar", comments: 900 },
-  { month: "Apr", comments: 1100 },
-  { month: "May", comments: 1050 },
-  { month: "Jun", comments: 970 },
-  { month: "Jul", comments: 1200 },
-]
-
-const sharesData = [
-  { month: "Jan", shares: 400 },
-  { month: "Feb", shares: 500 },
-  { month: "Mar", shares: 450 },
-  { month: "Apr", shares: 600 },
-  { month: "May", shares: 580 },
-  { month: "Jun", shares: 630 },
-  { month: "Jul", shares: 700 },
-]
-
-const chartOptions = {
-  "Total Followers": { data: followersData, key: "followers", label: "Followers" },
-  "Total Posts": { data: postsData, key: "posts", label: "Posts" },
-  "Total Likes": { data: likesData, key: "likes", label: "Likes" },
-  "Total Comments": { data: commentsData, key: "comments", label: "Comments" },
-  "Total Shares": { data: sharesData, key: "shares", label: "Shares" },
-}
-
-const visitsData = [
-  { day: "Mon", visits: 446 },
-  { day: "Tue", visits: 285 },
-  { day: "Wed", visits: 382 },
-  { day: "Thu", visits: 368 },
-  { day: "Fri", visits: 413 },
-  { day: "Sat", visits: 307 },
-  { day: "Sun", visits: 432 },
-]
-
-const trendingPosts = [
-  { account: "markzberg", followers: 9876362, likes: 791203, engagement: 60 },
-  { account: "anastasis", followers: 1452596, likes: 542981, engagement: 10 },
-  { account: "google", followers: 3284341, likes: 539411, engagement: 100 },
-  { account: "spotify", followers: 5762981, likes: 339391, engagement: 100 },
-  { account: "roblox", followers: 8345291, likes: 193491, engagement: 25 },
-  { account: "ricardodavinci", followers: 893659, likes: 93440, engagement: 40 },
-]
-
-
-export default function DashboardPage() {
-  const [selectedChart, setSelectedChart] = useState("Total Followers")
-  const currentChart = chartOptions[selectedChart as keyof typeof chartOptions]
-  const [hasSocialAccount, setHasSocialAccount] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const { data: session } = useSession()
-  const { accounts, setAccounts } = useSocialAccountStore()
-
-  const handleSocialLogin = () => {
-    window.location.href = "/api/threads/oauth";
-  }
-
-  // 소셜 계정 정보 가져오기
-  useEffect(() => {
-    const fetchSocialAccounts = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        setIsLoading(true);
-
-        // 1. Zustand 스토어 확인
-        if (accounts.length > 0) {
-          setHasSocialAccount(true);
-          setIsLoading(false);
-          return;
-        }
-
-        // 2. Supabase에서 소셜 계정 확인
-        const supabase = createClient();
-        const { data: socialAccounts, error } = await supabase
-          .from('social_accounts')
-          .select('*')
-          .eq('owner', session.user.id)
-          .eq('is_active', true);
-
-        if (error) {
-          console.error('소셜 계정 조회 오류:', error);
-          return;
-        }
-
-        // 소셜 계정이 있으면 상태 업데이트
-        if (socialAccounts && socialAccounts.length > 0) {
-          setHasSocialAccount(true);
-          setAccounts(socialAccounts);
-        } else {
-          setHasSocialAccount(false);
-        }
-      } catch (error) {
-        console.error('소셜 계정 조회 중 오류 발생:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    const getColorForGrowth = (percentage: number): string => {
+        if (percentage >= 20) return "#4F46E5";
+        if (percentage >= 5) return "#FBBF24";
+        if (percentage >= 0) return "#84CC16";
+        return "#EF4444";
     };
 
-    fetchSocialAccounts();
-  }, [session, accounts, setAccounts]);
+    const chartColor = getColorForGrowth(normalizedValue);
 
-  // Refresh Access Token
-  useEffect(() => {
-    const callRefreshTokenAPI = async () => {
-      try {
-        const res = await fetch('/api/threads/oauth/refresh', {
-          method: 'GET', // 혹은 GET 등 백엔드 설정에 맞게
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          // body: JSON.stringify({ yourData: 'value' }), // 필요시 body 추가
-        });
-
-        const result = await res.json();
-        console.log('Refresh 결과:', result);
-      } catch (error) {
-        console.error('Refresh API 호출 실패:', error);
-      }
-    }
-    console.log("Refresh Token")
-    callRefreshTokenAPI();
-
-  }, [])
-
-
-  // UI
-
-  return (
-    <div className="px-6 py-6">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Profile Overview</h1>
-        <div className="flex gap-4 items-center">
-          <input
-            type="search"
-            placeholder="Search anything..."
-            className="px-4 py-2 rounded-md bg-white border shadow-sm text-sm w-64"
-          />
-          <Avatar>
-            <AvatarImage src="/avatars/01.png" alt="Harry Kee" />
-            <AvatarFallback>HK</AvatarFallback>
-          </Avatar>
-        </div>
-      </div>
-
-      {/* 👉 Social Login Section - 계정이 없을 때만 표시 */}
-      {!isLoading && !hasSocialAccount && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-2">소셜 계정 연결</h2>
-          <button
-            onClick={handleSocialLogin}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow"
-          >
-            Threads 계정 연결하기
-          </button>
-        </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        {Object.keys(chartOptions).map((label, i) => {
-          const isSelected = selectedChart === label
-          const chartData = {
-            "Total Followers": { value: "13,675", change: "+2.51%", color: "text-green-500" },
-            "Total Posts": { value: "1,986", change: "-1.43%", color: "text-red-500" },
-            "Total Likes": { value: "890,543", change: "-3.56%", color: "text-red-500" },
-            "Total Comments": { value: "1,234,780", change: "+0.94%", color: "text-green-500" },
-            "Total Shares": { value: "432,097", change: "-0.20%", color: "text-red-500" },
-          }[label as keyof typeof chartOptions];
-
-          return (
-            <Card
-              key={i}
-              variant="default"
-              className={`shadow-sm cursor-pointer ${isSelected ? "ring-2 ring-indigo-500" : ""}`}
-              onClick={() => setSelectedChart(label)}
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+            <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="#2c2c3b"
+                strokeWidth={strokeWidth}
+                fill="none"
+            />
+            <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke={chartColor}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                transform={`rotate(${isNegative ? 180 : 0} ${size / 2} ${size / 2})`}
+                style={{ transition: "stroke-dashoffset 0.5s ease" }}
+            />
+            <text
+                x={size / 2}
+                y={size / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize="16"
+                fill="#FFFFFF"
             >
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{label}</p>
-                <h2 className="text-xl font-semibold">{chartData.value}</h2>
-                <p className={`${chartData.color} text-sm`}>{chartData.change}</p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                {`${isNegative ? '-' : ''}${displayValue.toFixed(1)}%`}
+            </text>
+        </svg>
+    );
+}
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card className="xl:col-span-2 shadow-sm">
-          <CardContent className="p-6 h-[300px]">
-            <h3 className="font-semibold mb-4">{currentChart.label}</h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={currentChart.data}>
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey={currentChart.key}
-                  stroke="#6366F1"
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+function GrowthSummary({ metrics }: {
+    metrics: {
+        impressions: { current: number; previous: number };
+        reach: { current: number; previous: number };
+        profileViews: { current: number; previous: number };
+        followers: { current: number; previous: number };
+    };
+}) {
+    return (
+        <Card className="bg-[#1c1c28] border border-[#2c2c3b] shadow-sm mt-6">
+            <CardContent className="p-6">
+                <h3 className="font-semibold mb-4 text-white">Growth Summary</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(metrics).map(([metric, values]) => {
+                        const growth = values.previous !== 0
+                            ? ((values.current - values.previous) / values.previous) * 100
+                            : values.current > 0 ? 100 : 0;
+                        const isPositive = growth >= 0;
 
-        <div className="flex flex-col gap-4">
-          <Card className="flex-1 shadow-sm">
-            <CardContent className="flex flex-col justify-center items-center p-6 h-full">
-              <h3 className="text-md font-semibold mb-2">Growth</h3>
-              <DonutChart value={9.3} />
-              <p className="text-sm text-muted-foreground mt-2">Total Score</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm">
-            <CardContent className="p-6 text-center">
-              <p>New Followers: <strong>145 people</strong></p>
-              <p>Bonus: <strong>1,465</strong></p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Bottom Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        <Card className="shadow-sm">
-          <CardContent className="p-6 h-[250px]">
-            <h3 className="font-semibold mb-4">Profile Visits</h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={visitsData}>
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="visits">
-                  {visitsData.map((entry, index) => (
-                    <Cell key={index} fill={index === 1 ? "#00D1B2" : "#5B8DEF"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-6">
-            <h3 className="font-semibold mb-4">Trending Posts</h3>
-            <div className="grid grid-cols-5 text-xs text-muted-foreground font-medium mb-2">
-              <span>Account</span>
-              <span>Followers</span>
-              <span>Likes</span>
-              <span className="col-span-2">Engagement</span>
-            </div>
-            <div className="space-y-2">
-              {trendingPosts.map((post, i) => (
-                <div key={i} className="grid grid-cols-5 items-center text-sm">
-                  <span>{post.account}</span>
-                  <span>{post.followers.toLocaleString()}</span>
-                  <span>{post.likes.toLocaleString()}</span>
-                  <div className="col-span-2">
-                    <Progress value={post.engagement} />
-                  </div>
+                        return (
+                            <div key={metric} className="flex flex-col items-center p-3 rounded-lg bg-[#2c2c3b]">
+                                <span className="text-sm text-[#a0a0b0] capitalize">{metric.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                <span className="text-lg font-semibold text-white">
+                                    {values.current.toLocaleString()}
+                                </span>
+                                <span className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                                    {isPositive ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
-              ))}
-            </div>
-          </CardContent>
+            </CardContent>
         </Card>
-      </div>
-    </div>
-  )
+    );
+}
+
+export default function ThreadsDashboard() {
+    const [selectedChart, setSelectedChart] = useState("Impressions");
+    const [apiData, setApiData] = useState<DashboardData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+    // In a real app, you would get these from your auth system
+    const [accessToken] = useState<string>("your_access_token_here");
+    const [userId] = useState<string>("your_user_id_here");
+
+    useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const data = await fetchThreadsInsights(accessToken, range, userId);
+                setApiData(data);
+            } catch (err) {
+                console.error("Error fetching Threads data:", err);
+                setError("Failed to load data. Showing sample data instead.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadData();
+    }, [range, accessToken, userId]);
+
+    const data = apiData;
+
+    const chartData = {
+        "Impressions": { data: data?.impressions || [], key: "value", label: "Impressions" },
+        "Reach": { data: data?.reach || [], key: "value", label: "Reach" },
+        "Profile Views": { data: data?.profileViews || [], key: "value", label: "Profile Views" },
+        "Followers": { data: data?.followers || [], key: "value", label: "Followers" },
+    };
+
+    const getPreviousValue = (data: MetricData[], currentValue: number) => {
+        if (!data || data.length < 2) return currentValue;
+        return data[data.length - 2]?.value || currentValue;
+    };
+
+    const growthMetrics = {
+        impressions: {
+            current: data?.impressions.slice(-1)[0]?.value || 0,
+            previous: getPreviousValue(data?.impressions || [], data?.impressions.slice(-1)[0]?.value || 0)
+        },
+        reach: {
+            current: data?.reach.slice(-1)[0]?.value || 0,
+            previous: getPreviousValue(data?.reach || [], data?.reach.slice(-1)[0]?.value || 0)
+        },
+        profileViews: {
+            current: data?.profileViews.slice(-1)[0]?.value || 0,
+            previous: getPreviousValue(data?.profileViews || [], data?.profileViews.slice(-1)[0]?.value || 0)
+        },
+        followers: {
+            current: data?.followers.slice(-1)[0]?.value || 0,
+            previous: getPreviousValue(data?.followers || [], data?.followers.slice(-1)[0]?.value || 0)
+        }
+    };
+
+    const handleRefresh = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const data = await fetchThreadsInsights(accessToken, range, userId);
+            setApiData(data);
+        } catch (err) {
+            console.error("Error refreshing data:", err);
+            setError("Failed to refresh data");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (isLoading && !apiData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center text-white bg-[#0d0d12]">
+                <div className="space-y-4">
+                    <Skeleton className="h-8 w-[200px] bg-[#2c2c3b]" />
+                    <Skeleton className="h-4 w-[300px] bg-[#2c2c3b]" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-[#0d0d12] text-white px-4 py-6 sm:px-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Threads Profile Insights</h1>
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={isLoading}
+                        className="bg-[#1c1c28] border-[#2c2c3b] text-white hover:bg-[#2c2c3b]"
+                    >
+                        {isLoading ? "Refreshing..." : "Refresh Data"}
+                    </Button>
+                    <Avatar>
+                        <AvatarImage src="/avatars/01.png" alt="Profile" />
+                        <AvatarFallback>TH</AvatarFallback>
+                    </Avatar>
+                </div>
+            </div>
+
+            {error && (
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-300">
+                    {error} {data?.isMock && "(Using sample data)"}
+                </div>
+            )}
+
+            <div className="flex items-center justify-between mb-6">
+                <Tabs value={range} onValueChange={(value) => setRange(value as any)} className="mb-6 flex-grow">
+                    <TabsList className="bg-[#1c1c28] border border-[#2c2c3b] flex justify-around py-2 px-4 rounded-lg">
+                        <TabsTrigger value="24h" className="text-white py-2 px-4 rounded-md">24 Hours</TabsTrigger>
+                        <TabsTrigger value="7d" className="text-white py-2 px-4 rounded-md">7 Days</TabsTrigger>
+                        <TabsTrigger value="30d" className="text-white py-2 px-4 rounded-md">30 Days</TabsTrigger>
+                        <DatePicker date={selectedDate} setDate={setSelectedDate} />
+                    </TabsList>
+                </Tabs>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {Object.entries(chartData).map(([label, chart], i) => (
+                    <Card
+                        key={i}
+                        className={`bg-[#1c1c28] border border-[#2c2c3b] shadow-sm cursor-pointer ${selectedChart === label ? "ring-2 ring-indigo-500" : ""}`}
+                        onClick={() => setSelectedChart(label)}
+                    >
+                        <CardContent className="p-4">
+                            <p className="text-sm text-white">{label}</p>
+                            <h2 className="text-xl font-semibold text-white">
+                                {chart.data?.slice(-1)[0]?.value.toLocaleString() || "-"}
+                            </h2>
+                            <p className="text-sm text-[#a0a0b0]">Latest</p>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <Card className="bg-[#1c1c28] border border-[#2c2c3b] shadow-sm xl:col-span-2">
+                    <CardContent className="p-6 h-[300px]">
+                        <h3 className="font-semibold mb-4 text-white">{chartData[selectedChart].label}</h3>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData[selectedChart].data}>
+                                <XAxis dataKey="label" stroke="#aaa" />
+                                <YAxis stroke="#aaa" />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: "#2c2c3b",
+                                        border: "none",
+                                        borderRadius: "0.5rem",
+                                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                                    }}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey={chartData[selectedChart].key}
+                                    stroke="#6366F1"
+                                    strokeWidth={2}
+                                    dot={{ r: 3 }}
+                                    activeDot={{ r: 5 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-[#1c1c28] border border-[#2c2c3b] shadow-sm">
+                    <CardContent className="flex flex-col justify-center items-center p-6 h-[300px]">
+                        <h3 className="text-md font-semibold mb-2 text-white">Engagement Rate</h3>
+                        <div className="text-4xl font-bold text-white my-4">
+                            {data?.engagement || 0}%
+                        </div>
+                        <p className="text-sm text-[#a0a0b0]">
+                            {(data?.engagement || 0) > 5 ? "Strong" : "Needs improvement"}
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <GrowthSummary metrics={growthMetrics} />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <Card className="bg-[#1c1c28] border border-[#2c2c3b] shadow-sm">
+                    <CardContent className="p-6 h-[250px]">
+                        <h3 className="font-semibold mb-4 text-white">Profile Views</h3>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data?.profileViews || []}>
+                                <XAxis dataKey="label" stroke="#aaa" />
+                                <YAxis stroke="#aaa" />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: "#2c2c3b",
+                                        border: "none",
+                                        borderRadius: "0.5rem"
+                                    }}
+                                />
+                                <Bar dataKey="value">
+                                    {(data?.profileViews || []).map((_, index) => (
+                                        <Cell
+                                            key={index}
+                                            fill={index % 2 === 0 ? "#5B8DEF" : "#00D1B2"}
+                                        />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-[#1c1c28] border border-[#2c2c3b] shadow-sm">
+                    <CardContent className="p-6">
+                        <h3 className="font-semibold mb-4 text-white">Top Posts</h3>
+                        <div className="grid grid-cols-4 text-xs text-[#aaa] font-medium mb-2">
+                            <span className="text-white">Post</span>
+                            <span className="text-white">Impressions</span>
+                            <span className="text-white">Reach</span>
+                            <span className="text-white">Engagement</span>
+                        </div>
+                        <div className="space-y-2">
+                            {(data?.topPosts || []).map((post, i) => (
+                                <div key={post.id || i} className="grid grid-cols-4 items-center text-sm text-white">
+                                    <span className="truncate">{post.title}</span>
+                                    <span>{post.impressions}</span>
+                                    <span>{post.reach}</span>
+                                    <div>
+                                        <Progress value={post.engagementRate * 10} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
 }
