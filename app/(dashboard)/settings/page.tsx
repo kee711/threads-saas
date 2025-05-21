@@ -44,8 +44,7 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState('')
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false })
-    router.push('/')
+    await signOut({ redirect: true, callbackUrl: '/' })
   }
 
   const handleDeleteAccount = async () => {

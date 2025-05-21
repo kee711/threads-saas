@@ -18,7 +18,7 @@ export default withAuth(
 // 보호할 경로 설정
 export const config = {
   matcher: [
-    '/',
+    '/dashboard',
     '/schedule/:path*',
     '/contents-helper/:path*',
     // 로그인이 필요한 다른 경로들 추가
