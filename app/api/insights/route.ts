@@ -1,4 +1,3 @@
-// threads-api.ts
 export interface MetricData {
     label: string;
     value: number;
