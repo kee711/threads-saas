@@ -15,6 +15,9 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { ReusableDropdown } from "@/components/ui/dropdown";
 import Image from "next/image";
+import { Input } from "./ui/input";
+import { toast } from "sonner";
+import { improvePost } from "@/app/actions/openai";
 
 interface PostCardProps {
   variant?: "default" | "writing" | "compact";
@@ -129,6 +132,7 @@ export function PostCard({
     fileInputRef.current?.click();
   };
 
+  // 이미지 추가 기능
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -147,6 +151,7 @@ export function PostCard({
     e.target.value = "";
   };
 
+  // 이미지 삭제 기능
   const handleRemoveImage = (index: number) => {
     const updatedImages = selectedImages.filter((_, i) => i !== index);
     setSelectedImages(updatedImages);
@@ -156,11 +161,42 @@ export function PostCard({
     }
   };
 
+  // Improve Post 기능
+  const [isImproving, setIsImproving] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [showAiInput, setShowAiInput] = useState(false);
+  const [writingContent, setWritingContent] = useState(content);
+
+  // Improve Post 기능
+  const handleImprovePost = async () => {
+    if (!writingContent) {
+      toast.error("개선할 콘텐츠가 없습니다.");
+      return;
+    }
+
+    try {
+      setIsImproving(true);
+      const { content, error } = await improvePost(writingContent);
+
+      if (error) throw new Error(error);
+
+      // 개선된 콘텐츠로 업데이트
+      setWritingContent(content);
+      toast.success("콘텐츠가 성공적으로 개선되었습니다.");
+    } catch (error) {
+      console.error("Error improving content:", error);
+      toast.error(
+        error instanceof Error ? error.message : "콘텐츠 개선에 실패했습니다."
+      );
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
   return (
     <div
-      className={`space-y-4 w-full h-auto ${
-        isCompact ? "p-3 border rounded-xl" : "p-4 border-t mb-4"
-      } ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
+      className={`space-y-4 w-full h-auto ${isCompact ? "p-3 border rounded-xl" : "p-4 mb-4"
+        } ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
     >
       <div className="flex gap-3">
         {/* Avatar */}
@@ -197,9 +233,8 @@ export function PostCard({
               />
             ) : (
               <div
-                className={`whitespace-pre-wrap overflow-hidden text-ellipsis ${
-                  isCompact ? "line-clamp-3" : ""
-                }`}
+                className={`whitespace-pre-wrap overflow-hidden text-ellipsis ${isCompact ? "line-clamp-3" : ""
+                  }`}
               >
                 {content}
               </div>
@@ -208,13 +243,12 @@ export function PostCard({
             {/* 이미지 미리보기 영역 */}
             {selectedImages.length > 0 && (
               <div
-                className={`grid gap-2 mt-2 ${
-                  selectedImages.length === 1
-                    ? "grid-cols-1"
-                    : selectedImages.length === 2
+                className={`grid gap-2 mt-2 ${selectedImages.length === 1
+                  ? "grid-cols-1"
+                  : selectedImages.length === 2
                     ? "grid-cols-2"
                     : "grid-cols-3"
-                }`}
+                  }`}
               >
                 {selectedImages.map((image, index) => (
                   <div
@@ -309,6 +343,49 @@ export function PostCard({
                 <Sparkles className="h-4 w-4" />
                 <span>AI</span>
               </Button>
+            </div>
+
+          )}
+
+          {/* AI Input Dropdown */}
+          {showAiInput && (
+            <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
+              <Input
+                placeholder="Input Prompt"
+                className="w-full"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="flex-1">
+                  Add Hook
+                </Button>
+                <Button variant="ghost" size="sm" className="flex-1">
+                  Add Hook
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="flex-1">
+                  Expand Post
+                </Button>
+                <Button variant="ghost" size="sm" className="flex-1">
+                  Expand Post
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1"
+                  onClick={handleImprovePost}
+                  disabled={isImproving || !writingContent}
+                >
+                  {isImproving ? "개선 중..." : "Improve Post"}
+                </Button>
+                <Button variant="ghost" size="sm" className="flex-1">
+                  Improve Post
+                </Button>
+              </div>
             </div>
           )}
         </div>
