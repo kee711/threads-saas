@@ -13,6 +13,7 @@ import { composeWithAI, improvePost } from "@/app/actions/openai";
 import { schedulePost, publishPost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import Image from "next/image";
 
 interface RightSidebarProps {
   className?: string;
@@ -387,35 +388,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
-  // Improve Post 기능
-  const [isImproving, setIsImproving] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-
-  const handleImprovePost = async () => {
-    if (!writingContent) {
-      toast.error("개선할 콘텐츠가 없습니다.");
-      return;
-    }
-
-    try {
-      setIsImproving(true);
-      const { content, error } = await improvePost(writingContent);
-
-      if (error) throw new Error(error);
-
-      // 개선된 콘텐츠로 업데이트
-      setWritingContent(content);
-      toast.success("콘텐츠가 성공적으로 개선되었습니다.");
-    } catch (error) {
-      console.error("Error improving content:", error);
-      toast.error(
-        error instanceof Error ? error.message : "콘텐츠 개선에 실패했습니다."
-      );
-    } finally {
-      setIsImproving(false);
-    }
-  };
-
   // UI
 
   return (
@@ -428,7 +400,10 @@ export function RightSidebar({ className }: RightSidebarProps) {
       <div className="flex-1 overflow-auto p-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-4">
-          <h1 className="text-2xl font-semibold">Create New</h1>
+          <div className="flex items-center gap-1">
+            <Image src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
+            <h1 className="text-2xl font-semibold">Salt AI</h1>
+          </div>
           {selectedPosts.length > 0 && (
             <h2 className="text-sm font-medium text-muted-foreground">
               Selected Posts ({selectedPosts.length}/2)
@@ -485,47 +460,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
           )}
         </div>
 
-        {/* AI Input Dropdown */}
-        {showAiInput && (
-          <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
-            <Input
-              placeholder="Input Prompt"
-              className="w-full"
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex-1"
-                onClick={handleImprovePost}
-                disabled={isImproving || !writingContent}
-              >
-                {isImproving ? "개선 중..." : "Improve Post"}
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Improve Post
-              </Button>
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* Bottom Buttons - Default */}

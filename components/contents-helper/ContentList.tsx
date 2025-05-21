@@ -31,7 +31,7 @@ export function ContentList({ category, title }: ContentListProps) {
             params = { source, category };
             break;
           case 'drafts':
-            params = { source: 'my', status: 'draft' };
+            params = { source: 'my', category: 'drafts' };
             break;
         }
 
@@ -67,39 +67,40 @@ export function ContentList({ category, title }: ContentListProps) {
 
       {/* 컨텐츠 목록 */}
       {isExpanded && (
-        <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-x-6">
+        <div className="columns-1 md:columns-2 gap-6 space-y-6">
           {isLoading ? (
             <div className="text-muted-foreground">Loading...</div>
           ) : contents.length > 0 ? (
             contents.map((content) => (
-              <PostCard
-                key={content.id}
-                variant="default"
-                username="minsung.dev"
-                content={content.content}
-                timestamp={formatDate(content.created_at)}
-                viewCount={content.view_count}
-                likeCount={content.like_count}
-                commentCount={content.comment_count}
-                repostCount={content.repost_count}
-                shareCount={content.share_count}
-                topComment={content.top_comment}
-                url={content.url}
-                onAdd={() => addPost({
-                  id: content.id,
-                  content: content.content,
-                  username: "minsung.dev",
-                  timestamp: content.created_at,
-                  viewCount: content.view_count,
-                  likeCount: content.like_count,
-                  commentCount: content.comment_count,
-                  repostCount: content.repost_count,
-                  shareCount: content.share_count,
-                  topComment: content.top_comment,
-                  url: content.url
-                })}
-                isSelected={selectedPosts.some(post => post.id === content.id)}
-              />
+              <div key={content.id} className="break-inside-avoid mb-6">
+                <PostCard
+                  variant="default"
+                  username="minsung.dev"
+                  content={content.content}
+                  timestamp={formatDate(content.created_at)}
+                  viewCount={content.view_count}
+                  likeCount={content.like_count}
+                  commentCount={content.comment_count}
+                  repostCount={content.repost_count}
+                  shareCount={content.share_count}
+                  topComment={content.top_comment}
+                  url={content.url}
+                  onAdd={() => addPost({
+                    id: content.id,
+                    content: content.content,
+                    username: "minsung.dev",
+                    timestamp: content.created_at,
+                    viewCount: content.view_count,
+                    likeCount: content.like_count,
+                    commentCount: content.comment_count,
+                    repostCount: content.repost_count,
+                    shareCount: content.share_count,
+                    topComment: content.top_comment,
+                    url: content.url
+                  })}
+                  isSelected={selectedPosts.some(post => post.id === content.id)}
+                />
+              </div>
             ))
           ) : (
             <div className="text-center text-muted-foreground">

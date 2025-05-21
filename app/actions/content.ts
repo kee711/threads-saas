@@ -56,23 +56,41 @@ export async function getContents(params?: {
     const supabase = await createClient()
     const { source = 'my', category = 'all' } = params || {}
 
+    let query;
+
     // my_contents 테이블에서 조회
     if (source === 'my') {
-      const query = supabase.from('my_contents').select('*').in('publish_status', ['scheduled', 'posted'])
+      query = supabase
+        .from('my_contents')
+        .select('*')
 
-      const { data, error } = await query.order('created_at', { ascending: false })
-      if (error) throw error
-      return { data, error: null }
+      // drafts 카테고리 처리 - draft 상태만 조회
+      if (category === 'drafts') {
+        query = query.eq('publish_status', 'draft')
+      }
+      // 그 외 카테고리 처리 - scheduled 또는 posted 상태만 조회
+      else {
+        query = query.in('publish_status', ['scheduled', 'posted'])
+
+      }
     }
-
     // external_contents 테이블에서 조회
-    else {
-      const query = supabase.from('external_contents').select('*')
-
-      const { data, error } = await query.order('created_at', { ascending: false })
-      if (error) throw error
-      return { data, error: null }
+    else if (source === 'external') {
+      query = supabase
+        .from('external_contents')
+        .select('*')
     }
+    // 유효하지 않은 소스인 경우 에러 반환
+    else {
+      throw new Error(`Invalid source: ${source}`)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    return { data, error: null }
+
   } catch (error) {
     console.error('Error fetching contents:', error)
     return { data: null, error }
