@@ -39,22 +39,23 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
+  const { currentSocialId, currentUsername } = useSocialAccountStore();
 
   // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
   useEffect(() => {
     if (selectedPosts.length === 2) {
       // 첫 번째 포스트에 type이 없으면 'format'으로 설정
       if (!selectedPosts[0].type) {
-        updatePostType(selectedPosts[0].id, "format");
+        updatePostType(selectedPosts[0].id, "topic");
       }
       // 두 번째 포스트에 type이 없으면 'content'로 설정
       if (!selectedPosts[1].type) {
-        updatePostType(selectedPosts[1].id, "content");
+        updatePostType(selectedPosts[1].id, "ingredient");
       }
       // 두 포스트의 type이 같으면, 나중에 추가된 포스트를 다른 type으로 설정
       else if (selectedPosts[0].type === selectedPosts[1].type) {
         const newType =
-          selectedPosts[0].type === "format" ? "content" : "format";
+          selectedPosts[0].type === "topic" ? "ingredient" : "topic";
         updatePostType(selectedPosts[1].id, newType);
       }
     }
@@ -121,14 +122,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
       addPost({
         id: tempId,
         content: writingContent,
-        username: "Username",
-        timestamp: new Date().toISOString(),
-        viewCount: 0,
-        likeCount: 0,
-        commentCount: 0,
-        repostCount: 0,
-        shareCount: 0,
-        avatar: "/avatars/01.png",
       });
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
@@ -250,14 +243,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const canComposeWithAI =
     selectedPosts.length === 2 &&
     selectedPosts.every((post) => post.type) &&
-    selectedPosts.some((post) => post.type === "format") &&
-    selectedPosts.some((post) => post.type === "content");
+    selectedPosts.some((post) => post.type === "topic") &&
+    selectedPosts.some((post) => post.type === "ingredient");
 
   const handleComposeWithAI = async () => {
     if (!canComposeWithAI) return;
 
-    const formatPost = selectedPosts.find((post) => post.type === "format");
-    const contentPost = selectedPosts.find((post) => post.type === "content");
+    const formatPost = selectedPosts.find((post) => post.type === "topic");
+    const contentPost = selectedPosts.find((post) => post.type === "ingredient");
 
     if (!formatPost || !contentPost) return;
 
@@ -431,18 +424,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
               <PostCard
                 key={post.id}
                 variant={selectedPosts.length >= 2 ? "compact" : "writing"}
-                avatar={post.avatar}
-                username={post.username}
+                avatar='' // 현재 사용자 계정 프로필 이미지
+                username="Example" // 현재 사용자 계정 이름
                 content={
                   selectedPosts.length >= 2 ? post.content : writingContent
                 }
-                timestamp={post.timestamp}
-                viewCount={post.viewCount}
-                likeCount={post.likeCount}
-                commentCount={post.commentCount}
-                repostCount={post.repostCount}
-                shareCount={post.shareCount}
-                topComment={post.topComment}
                 url={post.url}
                 onSelect={(type) => updatePostType(post.id, type)}
                 onMinus={() => removePost(post.id)}

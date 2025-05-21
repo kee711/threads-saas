@@ -3,16 +3,7 @@ import { create } from 'zustand'
 interface SelectedPost {
   id: string
   content: string
-  username: string
-  avatar?: string
-  type?: 'format' | 'content'
-  timestamp?: string
-  viewCount?: number
-  likeCount?: number
-  commentCount?: number
-  repostCount?: number
-  shareCount?: number
-  topComment?: string
+  type?: 'topic' | 'ingredient'
   url?: string
 }
 
@@ -20,7 +11,7 @@ interface SelectedPostsState {
   selectedPosts: SelectedPost[]
   addPost: (post: SelectedPost) => void
   removePost: (postId: string) => void
-  updatePostType: (postId: string, type: 'format' | 'content') => void
+  updatePostType: (postId: string, type: 'topic' | 'ingredient') => void
   clearPosts: () => void
 }
 
