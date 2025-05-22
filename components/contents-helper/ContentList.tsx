@@ -63,25 +63,10 @@ export function ContentList({ category, title }: ContentListProps) {
                   variant="default"
                   username="minsung.dev"
                   content={content.content}
-                  timestamp={formatDate(content.created_at)}
-                  viewCount={content.view_count}
-                  likeCount={content.like_count}
-                  commentCount={content.comment_count}
-                  repostCount={content.repost_count}
-                  shareCount={content.share_count}
-                  topComment={content.top_comment}
                   url={content.url}
                   onAdd={() => addPost({
                     id: content.id,
                     content: content.content,
-                    timestamp: content.created_at,
-                    viewCount: content.view_count,
-                    likeCount: content.like_count,
-                    commentCount: content.comment_count,
-                    repostCount: content.repost_count,
-                    shareCount: content.share_count,
-                    topComment: content.top_comment,
-                    url: content.url
                   })}
                   isSelected={selectedPosts.some(post => post.id === content.id)}
                 />
