@@ -306,7 +306,7 @@ export function PostCard({
               </Button>
             </div>
           )}
-          {/* Compact variant Buttons */}
+          {/* Compact variant Buttons
           {isCompact && (
             <div className="flex items-center justify-end space-x-2">
               <span className="text-muted-foreground">use as</span>
@@ -318,7 +318,7 @@ export function PostCard({
                 initialLabel={order === 0 ? "format" : "content"}
               />
             </div>
-          )}
+          )} */}
           {/* Writing variant Buttons */}
           {isWriting && (
             <div className="flex items-center justify-end space-x-2">
