@@ -5,8 +5,8 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 export type ContentSource = 'my' | 'external'
-export type ContentCategory = 'all' | 'viral' | 'news' | 'drafts'
-export type PublishStatus = 'draft' | 'scheduled' | 'published' | 'failed'
+export type ContentCategory = 'external' | 'saved'
+export type PublishStatus = 'draft' | 'scheduled' | 'posted'
 
 export type Content = {
   id?: string
@@ -54,7 +54,7 @@ export async function getContents(params?: {
 }) {
   try {
     const supabase = await createClient()
-    const { source = 'my', category = 'all' } = params || {}
+    const { source = 'my', category } = params || {}
 
     let query;
 
@@ -64,14 +64,9 @@ export async function getContents(params?: {
         .from('my_contents')
         .select('*')
 
-      // drafts 카테고리 처리 - draft 상태만 조회
-      if (category === 'drafts') {
+      // saved 카테고리 처리
+      if (category === 'saved') {
         query = query.eq('publish_status', 'draft')
-      }
-      // 그 외 카테고리 처리 - scheduled 또는 posted 상태만 조회
-      else {
-        query = query.in('publish_status', ['scheduled', 'posted'])
-
       }
     }
     // external_contents 테이블에서 조회

@@ -35,7 +35,7 @@ interface PostCardProps {
   url?: string;
   onAdd?: () => void;
   onMinus?: () => void;
-  onSelect?: (type: "format" | "content") => void;
+  onSelect?: () => void;
   isSelected?: boolean;
   order?: number;
   onContentChange?: (content: string) => void;
@@ -195,7 +195,7 @@ export function PostCard({
 
   return (
     <div
-      className={`space-y-4 w-full h-auto ${isCompact ? "p-3 border rounded-xl" : "p-4 mb-4"
+      className={`space-y-4 w-full h-auto border p-3 rounded-xl ${isCompact ? "" : "p-3 mb-4"
         } ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
     >
       <div className="flex gap-3">

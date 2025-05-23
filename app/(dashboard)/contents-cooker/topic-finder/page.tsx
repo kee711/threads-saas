@@ -10,6 +10,8 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth'
 import { createClient } from '@/lib/supabase/server'
 import { authOptions } from '@/lib/auth/authOptions'
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default async function TopicFinderPage() {
     const session = await getServerSession(authOptions)
@@ -64,6 +66,18 @@ export default async function TopicFinderPage() {
                         <SaltAIGeneratorButton />
                     </div>
                 </div>
+
+
+                {/* Text details input for topic */}
+                <div className="flex flex-col gap-4">
+                    <Input placeholder="Enter topic details" />
+                    {/* Add button */}
+                    <div className="flex justify-end">
+                        <Button>Add</Button>
+                    </div>
+                </div>
+
+
             </div>
         </div>
     );
