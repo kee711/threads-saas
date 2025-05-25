@@ -34,6 +34,16 @@ const config: NextConfig = {
       });
     }
 
+    if (dev) {
+      // StagewiseToolbar 설정
+      config.module.rules.push({
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      });
+    }
+
     return config;
   },
 };

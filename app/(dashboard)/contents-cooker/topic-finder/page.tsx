@@ -22,10 +22,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
 
 export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
+    const addPost = useSelectedPostsStore(state => state.addPost);
 
     const { accounts, selectedAccountId, currentUsername } = useSocialAccountStore()
     const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
@@ -157,6 +159,18 @@ export default function TopicFinderPage() {
         }
     };
 
+    // 토픽을 선택된 포스트에 추가
+    const handleAddPost = (topic: string, detail: string) => {
+        const post = {
+            id: `${Date.now()}`, // 임시 ID 생성
+            content: detail,
+            url: topic // 토픽을 url로 저장
+        };
+
+        addPost(post);
+        toast.success('포스트가 추가되었습니다.');
+    };
+
     // 토픽 결과 변경 추적
     useEffect(() => {
         console.log('Current topicResults:', topicResults);
@@ -233,7 +247,13 @@ export default function TopicFinderPage() {
                                                         onChange={e => setTopicResults(prev => prev.map((tt, idx) => idx === i ? { ...tt, detail: e.target.value } : tt))}
                                                     />
                                                     <div className="flex justify-end">
-                                                        <Button variant="outline" className="px-4 py-1 text-base font-semibold">+ Add</Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="px-4 py-1 text-base font-semibold"
+                                                            onClick={() => handleAddPost(t.topic, t.detail || '')}
+                                                        >
+                                                            + Add
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             )}
