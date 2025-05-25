@@ -5,8 +5,8 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 export type ContentSource = 'my' | 'external'
-export type ContentCategory = 'all' | 'viral' | 'news' | 'drafts'
-export type PublishStatus = 'draft' | 'scheduled' | 'published' | 'failed'
+export type ContentCategory = 'external' | 'saved'
+export type PublishStatus = 'draft' | 'scheduled' | 'posted'
 
 export type Content = {
   id?: string
@@ -51,34 +51,41 @@ export async function createContent(content: Content) {
 export async function getContents(params?: {
   source?: ContentSource
   category?: ContentCategory
-  status?: PublishStatus
 }) {
   try {
     const supabase = await createClient()
-    const { source = 'my', category = 'all', status = 'all' } = params || {}
+    const { source = 'my', category } = params || {}
+
+    let query;
 
     // my_contents 테이블에서 조회
     if (source === 'my') {
-      const query = supabase.from('my_contents').select('*')
+      query = supabase
+        .from('my_contents')
+        .select('*')
 
-      // publish_status로 필터링
-      if (status !== 'all') {
-        query.eq('publish_status', status)
+      // saved 카테고리 처리
+      if (category === 'saved') {
+        query = query.eq('publish_status', 'draft')
       }
-
-      const { data, error } = await query.order('created_at', { ascending: false })
-      if (error) throw error
-      return { data, error: null }
     }
-
     // external_contents 테이블에서 조회
-    else {
-      const query = supabase.from('external_contents').select('*')
-
-      const { data, error } = await query.order('created_at', { ascending: false })
-      if (error) throw error
-      return { data, error: null }
+    else if (source === 'external') {
+      query = supabase
+        .from('external_contents')
+        .select('*')
     }
+    // 유효하지 않은 소스인 경우 에러 반환
+    else {
+      throw new Error(`Invalid source: ${source}`)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    return { data, error: null }
+
   } catch (error) {
     console.error('Error fetching contents:', error)
     return { data: null, error }

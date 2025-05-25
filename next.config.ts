@@ -17,7 +17,7 @@ const config: NextConfig = {
     // Vercel 배포 시 TypeScript 검사를 건너뜁니다.
     ignoreBuildErrors: true,
   },
-  webpack: (config) => {
+  webpack: (config, { dev }) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -25,6 +25,15 @@ const config: NextConfig = {
       path: false,
       os: false,
     };
+
+    // Only include stagewise in development mode
+    if (!dev) {
+      config.module.rules.push({
+        test: /@stagewise/,
+        loader: 'ignore-loader',
+      });
+    }
+
     return config;
   },
 };

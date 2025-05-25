@@ -123,14 +123,25 @@ export function List({
                   <div
                     key={event.id}
                     className={cn(
-                      'flex items-center justify-between p-3 rounded-lg',
-                      event.status === 'scheduled' ? 'bg-muted hover:bg-blue-100 cursor-grab' : 'bg-gray-150 text-muted-foreground',
+                      'relative flex items-center justify-between p-3 rounded-lg',
+                      event.status === 'scheduled'
+                        ? 'bg-blue-100 hover:bg-blue-200 text-foreground cursor-grab'
+                        : 'bg-[#D9D9D9] hover:bg-[#CCCCCC] text-foreground',
                       draggedEvent?.id === event.id && "opacity-50"
                     )}
                     draggable={event.status === 'scheduled'}
                     onDragStart={(e) => handleDragStart(e, event)}
                     onClick={() => handleEventClick(event)}
                   >
+                    <div
+                      className={cn(
+                        "absolute top-3 right-3 h-2 w-2 rounded-full",
+                        event.status === 'scheduled'
+                          ? "bg-red-500 animate-pulse"
+                          : "bg-green-500"
+                      )}
+                    />
+
                     <div className="flex items-center gap-3">
                       <div className="text-sm font-medium w-12 text-center">{event.time}</div>
                       <div className="line-clamp-1">{event.title}</div>

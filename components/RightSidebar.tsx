@@ -6,13 +6,15 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
 import { schedulePost, publishPost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import NextImage from 'next/image';
+import Link from 'next/link'
 
 interface RightSidebarProps {
   className?: string;
@@ -21,6 +23,7 @@ interface RightSidebarProps {
 export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
@@ -38,26 +41,27 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
+  const { currentSocialId, currentUsername } = useSocialAccountStore();
 
-  // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
-  useEffect(() => {
-    if (selectedPosts.length === 2) {
-      // 첫 번째 포스트에 type이 없으면 'format'으로 설정
-      if (!selectedPosts[0].type) {
-        updatePostType(selectedPosts[0].id, "format");
-      }
-      // 두 번째 포스트에 type이 없으면 'content'로 설정
-      if (!selectedPosts[1].type) {
-        updatePostType(selectedPosts[1].id, "content");
-      }
-      // 두 포스트의 type이 같으면, 나중에 추가된 포스트를 다른 type으로 설정
-      else if (selectedPosts[0].type === selectedPosts[1].type) {
-        const newType =
-          selectedPosts[0].type === "format" ? "content" : "format";
-        updatePostType(selectedPosts[1].id, newType);
-      }
-    }
-  }, [selectedPosts.length, selectedPosts]);
+  // // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
+  // useEffect(() => {
+  //   if (selectedPosts.length === 2) {
+  //     // 첫 번째 포스트에 type이 없으면 'format'으로 설정
+  //     if (!selectedPosts[0].type) {
+  //       updatePostType(selectedPosts[0].id, "topic");
+  //     }
+  //     // 두 번째 포스트에 type이 없으면 'content'로 설정
+  //     if (!selectedPosts[1].type) {
+  //       updatePostType(selectedPosts[1].id, "ingredient");
+  //     }
+  //     // 두 포스트의 type이 같으면, 나중에 추가된 포스트를 다른 type으로 설정
+  //     else if (selectedPosts[0].type === selectedPosts[1].type) {
+  //       const newType =
+  //         selectedPosts[0].type === "topic" ? "ingredient" : "topic";
+  //       updatePostType(selectedPosts[1].id, newType);
+  //     }
+  //   }
+  // }, [selectedPosts.length, selectedPosts]);
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
@@ -120,14 +124,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
       addPost({
         id: tempId,
         content: writingContent,
-        username: "Username",
-        timestamp: new Date().toISOString(),
-        viewCount: 0,
-        likeCount: 0,
-        commentCount: 0,
-        repostCount: 0,
-        shareCount: 0,
-        avatar: "/avatars/01.png",
       });
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
@@ -245,31 +241,42 @@ export function RightSidebar({ className }: RightSidebarProps) {
     return null; // 가능한 시간 없음
   }
 
-  // Compose
-  const canComposeWithAI =
-    selectedPosts.length === 2 &&
-    selectedPosts.every((post) => post.type) &&
-    selectedPosts.some((post) => post.type === "format") &&
-    selectedPosts.some((post) => post.type === "content");
+  // activePostId가 변경될 때 writingContent 업데이트
+  useEffect(() => {
+    if (activePostId) {
+      const activePost = selectedPosts.find(post => post.id === activePostId);
+      if (activePost) {
+        setWritingContent(activePost.content);
+      }
+    }
+  }, [activePostId, selectedPosts]);
+
+  // writingContent가 변경될 때 active 포스트 업데이트
+  useEffect(() => {
+    if (activePostId && writingContent) {
+      const updatedPosts = selectedPosts.map(post =>
+        post.id === activePostId ? { ...post, content: writingContent } : post
+      );
+      // TODO: 포스트 업데이트 로직 구현
+    }
+  }, [writingContent, activePostId]);
+
+  // canComposeWithAI 로직 수정 (type 제거)
+  const canComposeWithAI = selectedPosts.length === 2;
 
   const handleComposeWithAI = async () => {
     if (!canComposeWithAI) return;
 
-    const formatPost = selectedPosts.find((post) => post.type === "format");
-    const contentPost = selectedPosts.find((post) => post.type === "content");
-
-    if (!formatPost || !contentPost) return;
-
     try {
       setIsComposing(true);
-      const { content, error } = await composeWithAI(formatPost, contentPost);
+      const { content, error } = await composeWithAI(selectedPosts[0], selectedPosts[1]);
 
       if (error) throw new Error(error);
 
       // 선택된 포스트 초기화
       selectedPosts.forEach((post) => removePost(post.id));
 
-      // 생성된 콘텐츠를 writing PostCard에 저장, useEffect 통해 localStorage에 저장
+      // 생성된 콘텐츠를 writing PostCard에 저장
       setWritingContent(content);
       setHasUnsavedContent(true);
 
@@ -387,33 +394,19 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
-  // Improve Post 기능
-  const [isImproving, setIsImproving] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-
-  const handleImprovePost = async () => {
-    if (!writingContent) {
-      toast.error("개선할 콘텐츠가 없습니다.");
-      return;
+  // activePostId 업데이트 useEffect
+  useEffect(() => {
+    if (selectedPosts.length > 0) {
+      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
+      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
+    } else {
+      setActivePostId(null);
     }
+  }, [selectedPosts.length]);
 
-    try {
-      setIsImproving(true);
-      const { content, error } = await improvePost(writingContent);
-
-      if (error) throw new Error(error);
-
-      // 개선된 콘텐츠로 업데이트
-      setWritingContent(content);
-      toast.success("콘텐츠가 성공적으로 개선되었습니다.");
-    } catch (error) {
-      console.error("Error improving content:", error);
-      toast.error(
-        error instanceof Error ? error.message : "콘텐츠 개선에 실패했습니다."
-      );
-    } finally {
-      setIsImproving(false);
-    }
+  // 포스트 클릭 핸들러
+  const handlePostClick = (postId: string) => {
+    setActivePostId(postId);
   };
 
   // UI
@@ -428,16 +421,19 @@ export function RightSidebar({ className }: RightSidebarProps) {
       <div className="flex-1 overflow-auto p-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-4">
-          <h1 className="text-2xl font-semibold">Create New</h1>
+          <div className="flex items-center gap-1">
+            <NextImage src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
+            <h1 className="text-2xl font-semibold">Salt AI</h1>
+          </div>
           {selectedPosts.length > 0 && (
             <h2 className="text-sm font-medium text-muted-foreground">
-              Selected Posts ({selectedPosts.length}/2)
+              Selected Posts ({selectedPosts.length}/3)
             </h2>
           )}
         </div>
 
         {/* Selected Posts Section */}
-        <div className="space-y-4 mb-4">
+        <div className="space-y-4">
           {/* Empty PostCard when no posts are selected */}
           {selectedPosts.length === 0 ? (
             <PostCard
@@ -453,79 +449,55 @@ export function RightSidebar({ className }: RightSidebarProps) {
           ) : (
             /* Selected Posts */
             selectedPosts.map((post, index) => (
-              <PostCard
+              <div
                 key={post.id}
-                variant={selectedPosts.length >= 2 ? "compact" : "writing"}
-                avatar={post.avatar}
-                username={post.username}
-                content={
-                  selectedPosts.length >= 2 ? post.content : writingContent
-                }
-                timestamp={post.timestamp}
-                viewCount={post.viewCount}
-                likeCount={post.likeCount}
-                commentCount={post.commentCount}
-                repostCount={post.repostCount}
-                shareCount={post.shareCount}
-                topComment={post.topComment}
-                url={post.url}
-                onSelect={(type) => updatePostType(post.id, type)}
-                onMinus={() => removePost(post.id)}
-                onAiClick={() => setShowAiInput(!showAiInput)}
-                order={index}
-                onContentChange={
-                  selectedPosts.length >= 2 ? undefined : setWritingContent
-                }
-                images={selectedPosts.length >= 2 ? [] : selectedImages}
-                onImagesChange={
-                  selectedPosts.length >= 2 ? undefined : handleImagesChange
-                }
-              />
+                onClick={() => handlePostClick(post.id)}
+                className="cursor-pointer"
+              >
+                <PostCard
+                  variant={post.id === activePostId ? "writing" : "compact"}
+                  avatar='' // 현재 사용자 계정 프로필 이미지
+                  username="Example" // 현재 사용자 계정 이름
+                  content={post.id === activePostId ? writingContent : post.content}
+                  url={post.url}
+                  onMinus={() => removePost(post.id)}
+                  onAiClick={() => setShowAiInput(!showAiInput)}
+                  order={index}
+                  onContentChange={post.id === activePostId ? setWritingContent : undefined}
+                  images={post.id === activePostId ? selectedImages : []}
+                  onImagesChange={post.id === activePostId ? handleImagesChange : undefined}
+                />
+              </div>
             ))
           )}
-        </div>
-
-        {/* AI Input Dropdown */}
-        {showAiInput && (
-          <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
-            <Input
-              placeholder="Input Prompt"
-              className="w-full"
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
+          {/* Divider with Text */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex-1"
-                onClick={handleImprovePost}
-                disabled={isImproving || !writingContent}
-              >
-                {isImproving ? "개선 중..." : "Improve Post"}
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Improve Post
-              </Button>
+            <div className="relative flex justify-center">
+              <span className="bg-white px-4 text-sm text-gray-400">Or get from</span>
             </div>
           </div>
-        )}
+
+          {/* Navigation Buttons */}
+          <div className="grid grid-cols-3 gap-2">
+            <Link href="/contents-cooker/topic-finder" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+              <TextSearch className="w-6 h-6 mb-2 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Topic Finder</span>
+            </Link>
+            <Link href="/contents-cooker/post-radar" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+              <Radio className="w-6 h-6 mb-2 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Post Radar</span>
+            </Link>
+            <Link href="/contents-cooker/saved" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+              <PencilLine className="w-6 h-6 mb-2 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Saved</span>
+            </Link>
+          </div>
+        </div>
+
+
       </div>
 
       {/* Bottom Buttons - Default */}
