@@ -16,7 +16,7 @@ interface HeadlineInputWithTagsProps {
 }
 
 export function HeadlineInputWithTags({ tags, value, readOnly, onChange, hideTags, inline, ellipsis, onCreateDetails }: HeadlineInputWithTagsProps) {
-    const [headline, setHeadline] = useState(value ?? '');
+    const [headline, setHeadline] = useState<string>(typeof value === 'string' ? value : '');
     const [placeholder, setPlaceholder] = useState('Write headline...');
 
     useEffect(() => {
@@ -48,8 +48,8 @@ export function HeadlineInputWithTags({ tags, value, readOnly, onChange, hideTag
                 />
                 <Button
                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold text-base"
-                    style={{ background: headline.trim() ? '#111' : '#B0B0B0' }}
-                    disabled={!headline.trim()}
+                    style={{ background: headline ? '#111' : '#B0B0B0' }}
+                    disabled={!headline}
                     onClick={onCreateDetails}
                 >
                     <Sparkles className="w-5 h-5" />
