@@ -87,35 +87,75 @@ export async function GET(req: NextRequest) {
     console.log("DB에 소셜 계정 정보 저장 시작");
     const supabase = await createClient();
 
-    // social_accounts 테이블에 계정 정보 저장
-    const { error: dbError } = await supabase
+    // 기존 계정 확인
+    const { data: existingAccount, error: checkError } = await supabase
       .from("social_accounts")
-      .upsert({
-        owner: session.user.id,
-        platform: "threads",
-        access_token: accessToken,
-        social_id: threadsUserId,
-        username: username,
-        threads_profile_picture_url: profilePictureUrl,
-        expires_at: expiresAt,
-        updated_at: new Date().toISOString(),
-        is_active: true
-      }, {
-        onConflict: 'social_id, owner'
-      });
+      .select("id")
+      .eq("owner", session.user.id)
+      .eq("social_id", threadsUserId)
+      .maybeSingle();
 
-    if (dbError) {
-      console.error("소셜 계정 정보 저장 실패:", dbError);
+    if (checkError) {
+      console.error("기존 계정 확인 오류:", checkError);
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
     }
 
-    console.log("소셜 계정 정보 저장 완료");
+    let accountId;
+    let isNewAccount = false;
+
+    // social_accounts 테이블에 계정 정보 저장
+    if (existingAccount) {
+      // 기존 계정 업데이트
+      accountId = existingAccount.id;
+      const { error: dbError } = await supabase
+        .from("social_accounts")
+        .update({
+          access_token: accessToken,
+          expires_at: expiresAt,
+          updated_at: new Date().toISOString(),
+          is_active: true,
+          threads_profile_picture_url: profilePictureUrl,
+          username: username
+        })
+        .eq("id", accountId);
+
+      if (dbError) {
+        console.error("소셜 계정 정보 업데이트 실패:", dbError);
+        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
+      }
+    } else {
+      // 새 계정 생성
+      isNewAccount = true;
+      const { data: newAccount, error: dbError } = await supabase
+        .from("social_accounts")
+        .insert({
+          owner: session.user.id,
+          platform: "threads",
+          access_token: accessToken,
+          social_id: threadsUserId,
+          username: username,
+          threads_profile_picture_url: profilePictureUrl,
+          expires_at: expiresAt,
+          updated_at: new Date().toISOString(),
+          is_active: true,
+          onboarding_completed: false // 온보딩 미완료 상태로 설정
+        })
+        .select("id")
+        .single();
+
+      if (dbError || !newAccount) {
+        console.error("소셜 계정 정보 저장 실패:", dbError);
+        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=db_error`);
+      }
+
+      accountId = newAccount.id;
+    }
 
     // user_profiles 테이블의 selected_social_account 필드 업데이트
     const { error: updateError } = await supabase
       .from("user_profiles")
       .update({ selected_social_account: threadsUserId })
-      .eq("user_id", session.user.id);  // id 대신 user_id로 수정
+      .eq("user_id", session.user.id);
 
     if (updateError) {
       console.error("사용자 프로필 업데이트 실패:", updateError);
@@ -124,8 +164,14 @@ export async function GET(req: NextRequest) {
       console.log("사용자 프로필 selected_social_account 업데이트 완료");
     }
 
-    console.log("Threads 계정 연동 완료, 메인 페이지로 리다이렉트");
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
+    console.log("Threads 계정 연동 완료");
+
+    // 새 계정이면 온보딩 모달을 표시하기 위해 파라미터 추가
+    if (isNewAccount) {
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/settings?account_added=true&account_id=${accountId}`);
+    } else {
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
+    }
   } catch (error) {
     console.error("Threads OAuth 콜백 처리 중 오류:", error);
     return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=unknown`);
