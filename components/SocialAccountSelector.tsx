@@ -34,7 +34,8 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
     currentUsername,
     setAccounts,
     setSelectedAccount,
-    setCurrentAccountInfo
+    setCurrentAccountInfo,
+    setAccountDetails
   } = useSocialAccountStore();
 
   // 소셜 계정 목록 가져오기 및 마지막 선택 계정 정보 불러오기
@@ -182,27 +183,21 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
       selectedAccount.social_id,
       selectedAccount.username || selectedAccount.social_id
     );
-
-    // 온보딩 상태 확인 및 모달 표시
+    // account_info, account_tags도 가져와서 저장
     try {
       const supabase = createClient();
-
-      // 온보딩 완료 여부 확인
-      const { data, error } = await supabase
+      const { data: details, error: detailsError } = await supabase
         .from('social_accounts')
-        .select('onboarding_completed')
+        .select('account_info, account_tags')
         .eq('id', accountId)
         .single();
-
-      if (error) {
-        console.error('온보딩 상태 조회 오류:', error);
-      } else if (data && data.onboarding_completed === false) {
-        console.log('온보딩이 필요한 계정:', accountId);
-        setNewAccountId(accountId);
-        setShowOnboarding(true);
+      if (!detailsError && details) {
+        setAccountDetails(details.account_info || '', details.account_tags || []);
+      } else {
+        setAccountDetails('', []);
       }
-    } catch (error) {
-      console.error('온보딩 상태 확인 오류:', error);
+    } catch (err) {
+      setAccountDetails('', []);
     }
 
     // DB의 user_profiles 테이블에도 선택된 계정 ID 저장
