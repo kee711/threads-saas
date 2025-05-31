@@ -9,6 +9,16 @@ const config: NextConfig = {
     THREADS_CLIENT_ID: process.env.THREADS_CLIENT_ID,
     THREADS_CLIENT_SECRET: process.env.THREADS_CLIENT_SECRET,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   eslint: {
     // Vercel 배포 시 ESLint 검사를 건너뜁니다.
     ignoreDuringBuilds: true,

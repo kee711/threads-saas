@@ -13,11 +13,12 @@ import {
   X,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { ReusableDropdown } from "@/components/ui/dropdown";
 import Image from "next/image";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { improvePost } from "@/app/actions/openai";
+import { uploadMediaFilesClient, deleteMediaFileClient } from "@/lib/utils/upload";
+import { useSession } from "next-auth/react";
 
 interface PostCardProps {
   variant?: "default" | "writing" | "compact";
@@ -39,8 +40,8 @@ interface PostCardProps {
   isSelected?: boolean;
   order?: number;
   onContentChange?: (content: string) => void;
-  images?: string[];
-  onImagesChange?: (images: string[]) => void;
+  media?: string[];
+  onMediaChange?: (media: string[]) => void;
 }
 
 // 점수 계산 함수
@@ -85,13 +86,29 @@ export function PostCard({
   isSelected,
   order,
   onContentChange,
-  images = [],
-  onImagesChange,
+  media = [],
+  onMediaChange,
 }: PostCardProps) {
   const [isAiActive, setIsAiActive] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<string[]>(images);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>(media);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // NextAuth 세션 (컴포넌트 최상위 레벨에서 호출)
+  const { data: session, status } = useSession();
+
+  // media prop이 변경될 때 selectedMedia 상태 동기화 (무한 루프 방지)
+  useEffect(() => {
+    // media prop이 변경되었을 때만 selectedMedia 업데이트
+    setSelectedMedia(media);
+  }, [JSON.stringify(media)]);
+
+  // 디버깅용 세션 정보 출력
+  useEffect(() => {
+    console.log("PostCard 세션 상태:", { session, status });
+    console.log("사용자 ID:", session?.user?.id);
+    console.log("전체 세션 객체:", session);
+  }, [session, status]);
 
   const handleAiClick = () => {
     if (onAiClick) {
@@ -133,18 +150,51 @@ export function PostCard({
   };
 
   // 이미지 추가 기능
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newImages = Array.from(files).map((file) =>
-      URL.createObjectURL(file)
-    );
-    const updatedImages = [...selectedImages, ...newImages];
-    setSelectedImages(updatedImages);
+    // 세션 로딩 중일 때 대기
+    if (status === "loading") {
+      toast.error("세션을 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
-    if (onImagesChange) {
-      onImagesChange(updatedImages);
+    // 세션 인증 확인 (다양한 방법으로 체크)
+    const userId = session?.user?.id || session?.user?.email || (session?.user as any)?.sub;
+    console.log("업로드 시 사용자 정보:", { session, userId, status });
+
+    if (!userId) {
+      toast.error("로그인이 필요합니다.");
+      console.error("세션 정보를 찾을 수 없습니다:", { session, status });
+      return;
+    }
+
+    try {
+      // 로딩 상태 표시
+      toast.loading("미디어를 업로드 중입니다...");
+
+      // 클라이언트 사이드 업로드 (userId 전달)
+      const { urls, error } = await uploadMediaFilesClient(Array.from(files), userId);
+
+      if (error) {
+        throw new Error(error);
+      }
+
+      // 업로드된 URL들을 기존 이미지에 추가
+      const updatedMedia = [...selectedMedia, ...urls];
+      setSelectedMedia(updatedMedia);
+
+      if (onMediaChange) {
+        onMediaChange(updatedMedia);
+      }
+
+      toast.dismiss();
+      toast.success(`${urls.length}개의 미디어가 업로드되었습니다.`);
+    } catch (error) {
+      toast.dismiss();
+      console.error("미디어 업로드 실패:", error);
+      toast.error("미디어 업로드에 실패했습니다.");
     }
 
     // 파일 입력 초기화 (동일한 파일을 다시 선택할 수 있도록)
@@ -152,12 +202,41 @@ export function PostCard({
   };
 
   // 이미지 삭제 기능
-  const handleRemoveImage = (index: number) => {
-    const updatedImages = selectedImages.filter((_, i) => i !== index);
-    setSelectedImages(updatedImages);
+  const handleRemoveImage = async (index: number) => {
+    const imageUrl = selectedMedia[index];
 
-    if (onImagesChange) {
-      onImagesChange(updatedImages);
+    // 세션 로딩 중일 때 대기
+    if (status === "loading") {
+      toast.error("세션을 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    // 세션 인증 확인 (다양한 방법으로 체크)
+    const userId = session?.user?.id || session?.user?.email || (session?.user as any)?.sub;
+
+    if (!userId) {
+      toast.error("로그인이 필요합니다.");
+      console.error("세션 정보를 찾을 수 없습니다:", { session, status });
+      return;
+    }
+
+    try {
+      // 서버에서 파일 삭제 (blob URL이 아닌 경우에만)
+      if (!imageUrl.startsWith("blob:")) {
+        await deleteMediaFileClient(imageUrl, userId);
+      }
+
+      const updatedMedia = selectedMedia.filter((_, i) => i !== index);
+      setSelectedMedia(updatedMedia);
+
+      if (onMediaChange) {
+        onMediaChange(updatedMedia);
+      }
+
+      toast.success("미디어가 삭제되었습니다.");
+    } catch (error) {
+      console.error("미디어 삭제 실패:", error);
+      toast.error("미디어 삭제에 실패했습니다.");
     }
   };
 
@@ -207,7 +286,7 @@ export function PostCard({
 
         <div className="flex-col flex-1">
           {/* Username, Content and Timestamp */}
-          <div className="flex-1 space-y-1 pb-10">
+          <div className="flex-1 space-y-1 pb-5">
             <div className="flex justify-between pr-1">
               <span className="font-medium">{username}</span>
               <div>
@@ -240,37 +319,53 @@ export function PostCard({
               </div>
             )}
 
-            {/* 이미지 미리보기 영역 */}
-            {selectedImages.length > 0 && (
+            {/* 미디어 미리보기 영역 */}
+            {selectedMedia.length > 0 && (
               <div
-                className={`grid gap-2 mt-2 ${selectedImages.length === 1
-                  ? "grid-cols-1"
-                  : selectedImages.length === 2
-                    ? "grid-cols-2"
-                    : "grid-cols-3"
-                  }`}
+                className="grid gap-2 mt-2 grid-cols-3"
               >
-                {selectedImages.map((image, index) => (
-                  <div
-                    key={index}
-                    className="relative rounded-md overflow-hidden aspect-square"
-                  >
-                    <Image
-                      src={image}
-                      alt={`첨부 이미지 ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                    {isWriting && (
-                      <button
-                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1"
-                        onClick={() => handleRemoveImage(index)}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {selectedMedia.map((mediaUrl, index) => {
+                  const isVideo = mediaUrl.includes('.mp4') ||
+                    mediaUrl.includes('.mov') ||
+                    mediaUrl.includes('.avi') ||
+                    mediaUrl.includes('.mkv') ||
+                    mediaUrl.includes('.webm');
+
+                  const isGif = mediaUrl.includes('.gif');
+
+                  return (
+                    <div
+                      key={index}
+                      className="relative rounded-md overflow-hidden aspect-square flex items-center justify-center bg-muted"
+                    >
+                      {isVideo ? (
+                        <video
+                          src={mediaUrl}
+                          className="object-cover w-full h-full"
+                          controls={false}
+                          muted
+                        />
+                      ) : (
+                        <Image
+                          src={mediaUrl}
+                          alt={`첨부 미디어 ${index + 1}`}
+                          width={100}
+                          height={100}
+                          className="object-cover"
+                          unoptimized={isGif}
+                        />
+                      )}
+                      {isWriting && (
+                        <button
+                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1"
+                          onClick={() => handleRemoveImage(index)}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -280,7 +375,7 @@ export function PostCard({
             type="file"
             ref={fileInputRef}
             className="hidden"
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             onChange={handleImageChange}
           />
