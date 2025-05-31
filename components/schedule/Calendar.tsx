@@ -268,7 +268,6 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                       key={dayOffset}
                       className={cn(
                         "min-h-[150px] p-2 border border-transparent rounded transition-colors duration-150 ease-in-out",
-                        !isCurrentMonth && "opacity-40",
                         isDropTarget && "border-primary bg-primary/10"
                       )}
                       onDragOver={(e) => handleDragOver(e, currentDate)}
