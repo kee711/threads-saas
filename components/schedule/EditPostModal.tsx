@@ -142,13 +142,7 @@ export function EditPostModal({
         </div>
 
         <DialogFooter className="flex justify-between items-center pt-4 border-t">
-          <div>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex justify-between w-full">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive">
@@ -173,9 +167,14 @@ export function EditPostModal({
               </AlertDialogContent>
             </AlertDialog>
 
-            <Button onClick={handleSaveChanges}>
-              Change Schedule
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveChanges}>
+                Change Schedule
+              </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>

@@ -6,7 +6,7 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronLeft, ChevronRight } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
@@ -25,7 +25,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
@@ -66,6 +66,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
   //     }
   //   }
   // }, [selectedPosts.length, selectedPosts]);
+
+  // selectedPosts가 추가될때만 사이드바 펼치기
+  useEffect(() => {
+    setIsCollapsed(false);
+  }, [selectedPosts.length]);
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
@@ -436,20 +441,28 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Collapsed 상태일 때 floating 버튼
   if (isCollapsed) {
     return (
-      <div className="fixed top-10 right-8 z-50 flex items-center gap-2">
-        <span className="text-sm text-muted-foreground whitespace-nowrap">
-          Add post to start!
-        </span>
-        <div className="flex items-center gap-3 bg-background border rounded-xl p-3 shadow-lg">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(false)}
-            className="h-8 w-8 shrink-0"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+      <div className={cn(
+        "fixed top-10 right-12 z-50 rounded-full cursor-pointer border border-muted bg-background shadow-md shadow-muted-foreground/10 p-2 flex items-center justify-center transition-all duration-300 hover:bg-muted-foreground/10",
+        isCollapsed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      )}
+        onClick={() => setIsCollapsed(false)}
+      >
+        <div className="flex items-center gap-1">
+          <NextImage src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
         </div>
+        {/* <span className="text-sm font-medium text-muted-foreground mr-2">
+          Salt AI
+        </span> */}
+        {/* {selectedPosts.length === 0 && (
+          <h2 className="text-sm font-medium text-muted-foreground mr-2">
+            Add post to start!
+          </h2>
+        )}
+        {selectedPosts.length > 0 && (
+          <h2 className="text-sm font-medium text-muted-foreground mr-2">
+            Selected Posts ({selectedPosts.length}/3)
+          </h2>
+        )} */}
       </div>
     );
   }
@@ -458,7 +471,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   return (
     <div
       className={cn(
-        "flex h-[calc(100vh-48px)] mt-6 mr-6 w-[390px] flex-col rounded-xl border bg-background",
+        "transition-transform duration-300 overflow-hidden h-[calc(100vh-48px)] mt-6 mr-6 flex flex-col rounded-xl border bg-background",
         className
       )}
     >
@@ -467,8 +480,12 @@ export function RightSidebar({ className }: RightSidebarProps) {
         <div className="flex items-center justify-between pb-4">
           <div className="flex items-center gap-1">
             <NextImage src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
-            <h1 className="text-2xl font-semibold">Salt AI</h1>
           </div>
+          {selectedPosts.length === 0 && (
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Add post to start!
+            </h2>
+          )}
           {selectedPosts.length > 0 && (
             <h2 className="text-sm font-medium text-muted-foreground">
               Selected Posts ({selectedPosts.length}/3)
@@ -481,7 +498,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
             onClick={() => setIsCollapsed(true)}
             className="h-8 w-8 shrink-0 ml-auto"
           >
-            <ChevronRight className="h-4 w-4" />
+            <PanelRightClose className="h-6 w-6 text-muted-foreground" />
           </Button>
         </div>
 
