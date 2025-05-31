@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { format, isSameDay, startOfMonth } from 'date-fns'
-import { Clock, Plus, Edit, Check, Trash2 } from 'lucide-react'
+import { Clock, Plus, Edit, Check, Trash2, Image, Video, FileText, Images } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -49,7 +49,10 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
             title: content.content,
             date: new Date(content.scheduled_at),
             time: format(new Date(content.scheduled_at), 'HH:mm'),
-            status: content.publish_status
+            status: content.publish_status,
+            media_type: content.media_type || 'TEXT',
+            media_urls: content.media_urls || [],
+            is_carousel: content.is_carousel || false
           }));
           setEvents(formattedEvents);
         } else {
@@ -303,8 +306,14 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                               )}
                             />
                             <div className="font-semibold">{event.time}</div>
-                            <div className="truncate">
-                              {event.title}
+                            <div className="flex items-center gap-2">
+                              {event.media_type === 'IMAGE' && <Image className="w-4 h-4" />}
+                              {event.media_type === 'VIDEO' && <Video className="w-4 h-4" />}
+                              {event.media_type === 'TEXT' && <FileText className="w-4 h-4" />}
+                              {event.media_type === 'CAROUSEL' && <Images className="w-4 h-4" />}
+                              <div className="truncate">
+                                {event.title}
+                              </div>
                             </div>
                           </div>
                         ))}

@@ -6,7 +6,7 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronLeft, ChevronRight } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
@@ -14,7 +14,8 @@ import { schedulePost, publishPost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
-import Link from 'next/link'
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 interface RightSidebarProps {
   className?: string;
@@ -24,9 +25,12 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
+  const pathname = usePathname();
+
   // Text content
   const [writingContent, setWritingContent] = useState("");
   const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
@@ -37,7 +41,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
 
   // 이미지 관련 상태
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
@@ -163,8 +167,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // 이미지가 추가되거나 제거될 때 미디어 타입 업데이트
   useEffect(() => {
-    if (selectedImages.length > 0) {
-      if (selectedImages.length > 1) {
+    if (selectedMedia.length > 0) {
+      if (selectedMedia.length > 1) {
         setSelectedMediaType("CAROUSEL");
       } else {
         setSelectedMediaType("IMAGE");
@@ -172,12 +176,30 @@ export function RightSidebar({ className }: RightSidebarProps) {
     } else {
       setSelectedMediaType("TEXT");
     }
-  }, [selectedImages]);
+  }, [selectedMedia]);
 
   // 이미지 변경 핸들러
-  const handleImagesChange = (images: string[]) => {
-    console.log("이미지 변경됨:", images);
-    setSelectedImages(images);
+  const handleMediaChange = (media: string[]) => {
+    console.log("미디어 변경됨:", media);
+    setSelectedMedia(media);
+
+    // 미디어 타입 자동 감지
+    if (media.length === 0) {
+      setSelectedMediaType("TEXT");
+    } else if (media.length === 1) {
+      // 단일 파일의 경우 확장자로 타입 판단
+      const imageUrl = media[0];
+      const extension = imageUrl.split('.').pop()?.toLowerCase();
+
+      if (extension && ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(extension)) {
+        setSelectedMediaType("VIDEO");
+      } else {
+        setSelectedMediaType("IMAGE");
+      }
+    } else {
+      // 복수 파일의 경우 캐러셀로 처리
+      setSelectedMediaType("CAROUSEL");
+    }
   };
 
   function findAvailablePublishTime(
@@ -351,14 +373,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
         writingContent,
         scheduleTime,
         selectedMediaType,
-        selectedImages
+        selectedMedia
       );
 
       if (result?.error) throw result.error;
 
       // 스케줄 성공 시 초기화
       setWritingContent("");
-      setSelectedImages([]);
+      setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
       toast.success("예약이 완료되었습니다.");
@@ -377,14 +399,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
         content: writingContent,
         mediaType:
           selectedMediaType === "CAROUSEL" ? "IMAGE" : selectedMediaType,
-        images: selectedImages,
+        media_urls: selectedMedia,
       });
 
       if (result && "error" in result && result.error) throw result.error;
 
       // 발행 성공 시 초기화
       setWritingContent("");
-      setSelectedImages([]);
+      setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
       toast.success("발행이 완료되었습니다.");
@@ -411,6 +433,28 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // UI
 
+  // Collapsed 상태일 때 floating 버튼
+  if (isCollapsed) {
+    return (
+      <div className="fixed top-10 right-8 z-50 flex items-center gap-2">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
+          Add post to start!
+        </span>
+        <div className="flex items-center gap-3 bg-background border rounded-xl p-3 shadow-lg">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCollapsed(false)}
+            className="h-8 w-8 shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 펼쳐진 상태일 때 기존 사이드바
   return (
     <div
       className={cn(
@@ -430,6 +474,15 @@ export function RightSidebar({ className }: RightSidebarProps) {
               Selected Posts ({selectedPosts.length}/3)
             </h2>
           )}
+          {/* 토글 버튼 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCollapsed(true)}
+            className="h-8 w-8 shrink-0 ml-auto"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Selected Posts Section */}
@@ -443,8 +496,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
               content={writingContent}
               onAiClick={() => setShowAiInput(!showAiInput)}
               onContentChange={setWritingContent}
-              images={selectedImages}
-              onImagesChange={handleImagesChange}
+              media={selectedMedia}
+              onMediaChange={handleMediaChange}
             />
           ) : (
             /* Selected Posts */
@@ -464,8 +517,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
                   onAiClick={() => setShowAiInput(!showAiInput)}
                   order={index}
                   onContentChange={post.id === activePostId ? setWritingContent : undefined}
-                  images={post.id === activePostId ? selectedImages : []}
-                  onImagesChange={post.id === activePostId ? handleImagesChange : undefined}
+                  media={post.id === activePostId ? selectedMedia : []}
+                  onMediaChange={post.id === activePostId ? handleMediaChange : undefined}
                 />
               </div>
             ))
@@ -482,17 +535,56 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
           {/* Navigation Buttons */}
           <div className="grid grid-cols-3 gap-2">
-            <Link href="/contents-cooker/topic-finder" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-              <TextSearch className="w-6 h-6 mb-2 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Topic Finder</span>
+            <Link
+              href="/contents-cooker/topic-finder"
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents-cooker/topic-finder"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <TextSearch className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents-cooker/topic-finder"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Topic Finder</span>
             </Link>
-            <Link href="/contents-cooker/post-radar" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-              <Radio className="w-6 h-6 mb-2 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Post Radar</span>
+            <Link
+              href="/contents-cooker/post-radar"
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents-cooker/post-radar"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <Radio className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents-cooker/post-radar"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Post Radar</span>
             </Link>
-            <Link href="/contents-cooker/saved" className="flex flex-col items-center p-4 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-              <PencilLine className="w-6 h-6 mb-2 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Saved</span>
+            <Link
+              href="/contents-cooker/saved"
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents-cooker/saved"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <PencilLine className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents-cooker/saved"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Saved</span>
             </Link>
           </div>
         </div>
