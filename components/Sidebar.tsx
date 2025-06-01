@@ -201,6 +201,7 @@ export function Sidebar({ className }: SidebarProps) {
           </nav>
         </div>
 
+        {/* Streaks */}
         <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
           <div className="flex items-center justify-center">
             <Flame className="h-7 w-7" />

@@ -9,13 +9,13 @@ import { signIn, useSession } from 'next-auth/react'
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+  const callbackUrl = searchParams.get('callbackUrl') || '/contents-cooker/topic-finder'
   const { data: session, status } = useSession()
 
   // 세션이 있으면 대시보드로 리다이렉트
   useEffect(() => {
     if (status === 'authenticated' && session) {
-      router.push('/dashboard')
+      router.push('/contents-cooker/topic-finder')
     }
   }, [session, status, router])
 
