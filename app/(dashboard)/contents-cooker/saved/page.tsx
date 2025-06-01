@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 
 export default function SavedPage() {
     return (
-        <div className="container mx-auto py-6">
+        <div className="p-4 md:p-6">
             <h1 className="text-3xl font-bold mb-6">Saved</h1>
 
             <div className="flex flex-col gap-4 mb-6 bg-gray-100 p-4 rounded-lg">

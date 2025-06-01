@@ -177,9 +177,9 @@ export default function TopicFinderPage() {
     }, [topicResults]);
 
     return (
-        <div className="container mx-auto py-6 h-screen">
+        <div className="p-4 md:p-6 h-screen">
             <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-full mx-auto pb-48 p-10 flex flex-col items-center overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                <div className="w-full mx-auto pb-48 flex flex-col items-center overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     {/* 중앙 정렬 인사말 */}
                     <div className="flex flex-row items-center gap-4 mb-8">
                         <Image src="/saltAIIcon.svg" alt="Salt AI Icon" width={48} height={48} />

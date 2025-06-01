@@ -350,7 +350,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="p-4 md:p-6">
       {/* 상단에 세션 로딩 상태 처리 */}
       {status === 'loading' && (
         <div className="text-center py-4 mb-4 bg-muted rounded">

@@ -14,7 +14,7 @@ export function MobileMenuButton() {
       variant="ghost"
       size="icon"
       onClick={toggleSidebar}
-      className="md:hidden fixed top-4 left-4 z-30 bg-background/80 backdrop-blur-sm border"
+      className="md:hidden fixed top-4 right-4 z-30 bg-background/80 backdrop-blur-sm border"
     >
       <Menu className="h-5 w-5" />
       <span className="sr-only">메뉴 열기</span>
