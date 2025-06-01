@@ -34,8 +34,10 @@ import {
     Share,
     Calendar,
     Download,
-    RefreshCw
+    RefreshCw,
+    Loader2
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // 타입 정의
 interface InsightsData {
@@ -590,12 +592,17 @@ export default function StatisticsPage() {
     }).slice(0, 3); // Top 3만 선택
 
     // 초기 로딩 중이거나 클라이언트가 아직 마운트되지 않은 경우
-    if (!isClient) {
+    if (!isClient || !selectedAccount) {
         return (
-            <div className="container mx-auto py-6 space-y-6">
-                <div className="text-center">
-                    <Skeleton className="h-8 w-48 mx-auto mb-4" />
-                    <Skeleton className="h-4 w-64 mx-auto" />
+            <div className="space-y-6 p-6">
+                {/* Loading State */}
+                <div className="space-y-4">
+                    <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
+                        ))}
+                    </div>
                 </div>
             </div>
         );
@@ -612,334 +619,254 @@ export default function StatisticsPage() {
         );
     }
 
-    if (!selectedAccount) {
-        return (
-            <div className="container mx-auto py-6 space-y-6">
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">No Account Selected</h1>
-                    <p className="text-muted-foreground">
-                        Please select a Threads account to view statistics.
-                    </p>
-                    <div className="mt-4">
-                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                            Account Selection Required
-                        </Badge>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="container mx-auto py-6 space-y-6">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 p-4 md:p-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <h1 className="text-3xl font-bold">Statistics</h1>
-                        <Badge variant="secondary" className="text-sm">
-                            @{selectedAccount.username || selectedAccount.social_id}
-                        </Badge>
-                    </div>
-                    <p className="text-muted-foreground">
-                        Last {selectedDateRange} days insights for your Threads account
+                    <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {selectedAccount.account_name}의 성과 분석
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Live Data
-                    </Badge>
+
+                {/* Controls */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Date Range Selector */}
+                    <div className="flex border rounded-lg bg-muted p-1 w-full sm:w-auto">
+                        {dateRanges.map((range) => (
+                            <button
+                                key={range.days}
+                                onClick={() => setSelectedDateRange(range.days)}
+                                className={cn(
+                                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex-1 sm:flex-none",
+                                    selectedDateRange === range.days
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {range.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Refresh Button */}
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={handleRefresh}
                         disabled={refreshing}
-                        className="flex items-center gap-2"
+                        className="w-full sm:w-auto"
                     >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Export
+                        {refreshing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <RefreshCw className="h-4 w-4" />
+                        )}
+                        새로고침
                     </Button>
                 </div>
             </div>
 
-            {/* 날짜 범위 선택 */}
-            <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Time Range:</span>
-                <div className="flex gap-1">
-                    {dateRanges.map((range) => (
-                        <button
-                            key={range.days}
-                            onClick={() => setSelectedDateRange(range.days)}
-                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${selectedDateRange === range.days
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            {range.label}
-                        </button>
-                    ))}
+            {loading ? (
+                /* Loading State */
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-gray-200 rounded-lg h-80 animate-pulse" />
+                        <div className="bg-gray-200 rounded-lg h-80 animate-pulse" />
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <>
+                    {/* Metrics Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {metricCards.map((card, index) => (
+                            <Card key={index}>
+                                <CardContent className="p-4 md:p-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-medium text-muted-foreground">
+                                                {card.title}
+                                            </p>
+                                            {loading ? (
+                                                <div className="space-y-1">
+                                                    <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
+                                                    <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-1">
+                                                    <div className="text-xl md:text-2xl font-bold">
+                                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                                                    </div>
+                                                    <div className="flex items-center text-sm">
+                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                            {card.change}
+                                                        </span>
+                                                        <span className="text-muted-foreground ml-1">
+                                                            {card.description}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="h-6 w-6 text-muted-foreground">
+                                            {card.icon}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
 
-            {/* 메트릭 카드들 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {metricCards.map((card, index) => (
-                    <Card key={index} className="relative overflow-hidden">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                {card.title}
-                            </CardTitle>
-                            <div className="p-2 bg-muted rounded-full">
-                                {card.icon}
-                            </div>
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Line Chart */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <CardTitle className="text-lg">Performance Over Time</CardTitle>
+                                    <div className="flex flex-wrap gap-2">
+                                        {metricOptions.map((option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={selectedMetric === option.id ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setSelectedMetric(option.id)}
+                                                className="text-xs h-8"
+                                            >
+                                                {option.icon}
+                                                <span className="ml-1">{option.label}</span>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-64 md:h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData}>
+                                            <defs>
+                                                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
+                                            <XAxis
+                                                dataKey="name"
+                                                stroke="#6b7280"
+                                                fontSize={12}
+                                            />
+                                            <YAxis
+                                                stroke="#6b7280"
+                                                fontSize={12}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: '#fff',
+                                                    border: '1px solid #e0e4e7',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                                                }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey={selectedMetric}
+                                                stroke="#3b82f6"
+                                                strokeWidth={3}
+                                                fill="url(#colorGradient)"
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Pie Chart */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Engagement Breakdown</CardTitle>
+                                <p className="text-sm text-muted-foreground">
+                                    지난 {selectedDateRange}일 동안의 인게이지먼트 분포
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-64 md:h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={pieData}
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={80}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                                label={({ name, value }) => `${name}: ${value}%`}
+                                            >
+                                                {pieData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip
+                                                formatter={(value: any) => [`${value}%`, 'Percentage']}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Top Posts Section */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">Top Posts</CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                지난 {selectedDateRange}일 동안 가장 높은 성과를 기록한 포스트
+                            </p>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
-                                <div className="space-y-2">
-                                    <Skeleton className="h-8 w-24" />
-                                    <Skeleton className="h-4 w-16" />
+                                <div className="space-y-4">
+                                    {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : topPosts.length > 0 ? (
+                                <div className="space-y-4">
+                                    {topPosts.map((post, index) => (
+                                        <div key={index} className="w-full">
+                                            <PostCard
+                                                variant="compact"
+                                                avatar={'/avatars/01.png'}
+                                                username={post.username || selectedAccount.account_name}
+                                                content={post.text || ''}
+                                                likeCount={post.likeCount}
+                                                commentCount={post.commentCount}
+                                                repostCount={post.repostCount}
+                                                viewCount={post.viewCount}
+                                                timestamp={post.timestamp}
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <div className="space-y-1">
-                                    <div className="text-2xl font-bold">
-                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                                    </div>
-                                    <div className="flex items-center text-sm">
-                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                            }`}>
-                                            {card.change}
-                                        </span>
-                                        <span className="text-muted-foreground ml-1">
-                                            {card.description}
-                                        </span>
-                                    </div>
+                                <div className="text-center py-8">
+                                    <p className="text-muted-foreground">
+                                        선택된 기간에 포스트 데이터가 없습니다.
+                                    </p>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
-                ))}
-            </div>
-
-            {/* 차트 그리드 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 메인 차트 카드 */}
-                <Card className="lg:col-span-2">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-                        <div className="space-y-1">
-                            <CardTitle className="text-2xl font-bold">Daily Trends</CardTitle>
-                            <CardDescription>
-                                Over selected time period
-                            </CardDescription>
-                        </div>
-                        <div className="flex gap-2">
-                            {metricOptions.map((option) => (
-                                <button
-                                    key={option.id}
-                                    onClick={() => setSelectedMetric(option.id)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedMetric === option.id
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted hover:bg-muted-foreground/10'
-                                        }`}
-                                >
-                                    {option.icon}
-                                    {option.label}
-                                </button>
-                            ))}
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="h-[400px] flex items-center justify-center">
-                                <div className="space-y-3 w-full">
-                                    <Skeleton className="h-4 w-full" />
-                                    <Skeleton className="h-4 w-3/4" />
-                                    <Skeleton className="h-[300px] w-full" />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="h-[400px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={chartData}>
-                                        <defs>
-                                            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
-                                        <XAxis
-                                            dataKey="name"
-                                            stroke="#6b7280"
-                                            fontSize={12}
-                                        />
-                                        <YAxis
-                                            stroke="#6b7280"
-                                            fontSize={12}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: '#fff',
-                                                border: '1px solid #e0e4e7',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                                            }}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey={selectedMetric}
-                                            stroke="#3b82f6"
-                                            strokeWidth={3}
-                                            fill="url(#colorGradient)"
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 파이 차트 카드 */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-xl font-bold">Engagement Breakdown</CardTitle>
-                        <CardDescription>
-                            Distribution of engagement types
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="h-[300px] flex items-center justify-center">
-                                <Skeleton className="h-[200px] w-[200px] rounded-full" />
-                            </div>
-                        ) : (
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={pieData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={100}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {pieData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            // metric name에 따른 툴팁 포맷팅
-                                            formatter={(value: any) => {
-                                                const metric = pieData.find(item => item.value === value);
-                                                return [`${value}%`, metric?.name || 'metric'];
-                                            }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                                <div className="mt-4 grid grid-cols-2 gap-2">
-                                    {pieData.map((item) => (
-                                        <div key={item.name} className="flex items-center gap-2">
-                                            <div
-                                                className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: item.color }}
-                                            />
-                                            <span className="text-sm font-medium">{item.name}</span>
-                                            <span className="text-sm text-muted-foreground ml-auto">
-                                                {item.value}%
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Top Posts 섹션 */}
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-                    <div className="space-y-1">
-                        <CardTitle className="text-xl font-bold">Top 3 Posts</CardTitle>
-                        <CardDescription>
-                            Your best performing posts this period
-                        </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setSelectedTopPostMetric('views')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedTopPostMetric === 'views'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            <Eye className="w-4 h-4" />
-                            Views
-                        </button>
-                        <button
-                            onClick={() => setSelectedTopPostMetric('engagement')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedTopPostMetric === 'engagement'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            <TrendingUp className="w-4 h-4" />
-                            Engagement Rate
-                        </button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-6">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="space-y-3">
-                                    <div className="flex items-center space-x-4">
-                                        <Skeleton className="h-12 w-12 rounded-full" />
-                                        <div className="space-y-2 flex-1">
-                                            <Skeleton className="h-4 w-full" />
-                                            <Skeleton className="h-4 w-3/4" />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {sortedTopPosts.map((post, index) => (
-                                <div key={post.id} className="relative">
-                                    <div className="absolute -left-4 top-4 flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full text-sm font-bold">
-                                        {index + 1}
-                                    </div>
-                                    <PostCard
-                                        variant="compact"
-                                        avatar={post.avatar}
-                                        username={post.username}
-                                        content={post.content}
-                                        viewCount={post.viewCount}
-                                        likeCount={post.likeCount}
-                                        commentCount={post.commentCount}
-                                        repostCount={post.repostCount}
-                                        shareCount={post.shareCount}
-                                    />
-                                    {selectedTopPostMetric === 'engagement' && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <Badge variant="secondary" className="text-xs">
-                                                Engagement Rate: {post.engagementRate}%
-                                            </Badge>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                </>
+            )}
         </div>
     );
 } 

@@ -6,7 +6,7 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
@@ -16,6 +16,7 @@ import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useMobileSidebar } from '@/contexts/MobileSidebarContext';
 
 interface RightSidebarProps {
   className?: string;
@@ -29,6 +30,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
+  const { isRightSidebarOpen, openRightSidebar, closeRightSidebar, isMobile } = useMobileSidebar();
   const pathname = usePathname();
 
   // Text content
@@ -47,30 +49,29 @@ export function RightSidebar({ className }: RightSidebarProps) {
   >("TEXT");
   const { currentSocialId, currentUsername } = useSocialAccountStore();
 
-  // // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
-  // useEffect(() => {
-  //   if (selectedPosts.length === 2) {
-  //     // 첫 번째 포스트에 type이 없으면 'format'으로 설정
-  //     if (!selectedPosts[0].type) {
-  //       updatePostType(selectedPosts[0].id, "topic");
-  //     }
-  //     // 두 번째 포스트에 type이 없으면 'content'로 설정
-  //     if (!selectedPosts[1].type) {
-  //       updatePostType(selectedPosts[1].id, "ingredient");
-  //     }
-  //     // 두 포스트의 type이 같으면, 나중에 추가된 포스트를 다른 type으로 설정
-  //     else if (selectedPosts[0].type === selectedPosts[1].type) {
-  //       const newType =
-  //         selectedPosts[0].type === "topic" ? "ingredient" : "topic";
-  //       updatePostType(selectedPosts[1].id, newType);
-  //     }
-  //   }
-  // }, [selectedPosts.length, selectedPosts]);
+  // 모바일에서는 isRightSidebarOpen 상태 사용, 데스크톱에서는 기존 isCollapsed 사용
+  const isVisible = isMobile ? isRightSidebarOpen : !isCollapsed;
+  const toggleSidebar = isMobile ?
+    (isRightSidebarOpen ? closeRightSidebar : openRightSidebar) :
+    () => setIsCollapsed(prev => !prev);
 
   // selectedPosts가 추가될때만 사이드바 펼치기
   useEffect(() => {
-    setIsCollapsed(false);
-  }, [selectedPosts.length]);
+    if (isMobile) {
+      if (selectedPosts.length > 0) {
+        openRightSidebar();
+      }
+    } else {
+      setIsCollapsed(false);
+    }
+  }, [selectedPosts.length, isMobile, openRightSidebar]);
+
+  // 모바일에서 오버레이 클릭 시 사이드바 닫기
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && isMobile) {
+      closeRightSidebar();
+    }
+  };
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
@@ -289,7 +290,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   }, [writingContent, activePostId]);
 
   // canComposeWithAI 로직 수정 (type 제거)
-  const canComposeWithAI = selectedPosts.length === 2;
+  const canComposeWithAI = selectedPosts.length >= 2;
 
   const handleComposeWithAI = async () => {
     if (!canComposeWithAI) return;
@@ -436,72 +437,212 @@ export function RightSidebar({ className }: RightSidebarProps) {
     setActivePostId(postId);
   };
 
-  // UI
-
-  // Collapsed 상태일 때 floating 버튼
-  if (isCollapsed) {
-    return (
+  return (
+    <>
+      {/* 데스크톱 RightSidebar */}
       <div className={cn(
-        "fixed top-10 right-12 z-50 rounded-full cursor-pointer border border-muted bg-background shadow-md shadow-muted-foreground/10 p-2 flex items-center justify-center transition-all duration-300 hover:bg-muted-foreground/10",
-        isCollapsed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-      )}
-        onClick={() => setIsCollapsed(false)}
-      >
-        <div className="flex items-center gap-1">
-          <NextImage src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
-        </div>
-        {/* <span className="text-sm font-medium text-muted-foreground mr-2">
-          Salt AI
-        </span> */}
-        {/* {selectedPosts.length === 0 && (
-          <h2 className="text-sm font-medium text-muted-foreground mr-2">
-            Add post to start!
-          </h2>
+        "bg-muted h-[calc(100vh-48px)] mt-6 rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
+        !isCollapsed ? "w-[380px]" : "w-[50px]",
+        className
+      )}>
+        {isCollapsed ? (
+          /* Collapsed state - show only toggle button */
+          <div className="flex flex-col h-full p-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCollapsed(false)}
+              className="h-10 w-10 shrink-0"
+            >
+              <PanelLeftClose className="h-6 w-6 text-muted-foreground" />
+            </Button>
+
+            {/* 우측 하단 이미지 버튼 */}
+            <div className="mt-auto mb-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsCollapsed(false)}
+                className="h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20"
+              >
+                <NextImage
+                  src="/avatars/01.png"
+                  alt="Profile"
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <RightSidebarContent
+            selectedPosts={selectedPosts}
+            writingContent={writingContent}
+            setWritingContent={setWritingContent}
+            showAiInput={showAiInput}
+            setShowAiInput={setShowAiInput}
+            activePostId={activePostId}
+            selectedMedia={selectedMedia}
+            handleMediaChange={handleMediaChange}
+            handlePostClick={handlePostClick}
+            removePost={removePost}
+            pathname={pathname}
+            scheduleTime={scheduleTime}
+            handleSaveToDraft={handleSaveToDraft}
+            handleSchedule={handleSchedule}
+            handlePublish={handlePublish}
+            handleComposeWithAI={handleComposeWithAI}
+            canComposeWithAI={canComposeWithAI}
+            isComposing={isComposing}
+            fetchPublishTimes={fetchPublishTimes}
+            toggleSidebar={() => setIsCollapsed(true)}
+            isMobile={false}
+          />
         )}
+      </div>
+
+      {/* 모바일 바텀시트 */}
+      {isMobile && (
+        <>
+          {/* 오버레이 */}
+          {isRightSidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50 md:hidden"
+              onClick={handleOverlayClick}
+            />
+          )}
+
+          {/* 바텀시트 */}
+          <div className={cn(
+            "fixed bottom-0 left-0 right-0 z-50 transform bg-background transition-transform duration-300 ease-in-out md:hidden",
+            "max-h-[80vh] rounded-t-xl border-t shadow-lg",
+            isRightSidebarOpen ? "translate-y-0" : "translate-y-full"
+          )}>
+            <RightSidebarContent
+              selectedPosts={selectedPosts}
+              writingContent={writingContent}
+              setWritingContent={setWritingContent}
+              showAiInput={showAiInput}
+              setShowAiInput={setShowAiInput}
+              activePostId={activePostId}
+              selectedMedia={selectedMedia}
+              handleMediaChange={handleMediaChange}
+              handlePostClick={handlePostClick}
+              removePost={removePost}
+              pathname={pathname}
+              scheduleTime={scheduleTime}
+              handleSaveToDraft={handleSaveToDraft}
+              handleSchedule={handleSchedule}
+              handlePublish={handlePublish}
+              handleComposeWithAI={handleComposeWithAI}
+              canComposeWithAI={canComposeWithAI}
+              isComposing={isComposing}
+              fetchPublishTimes={fetchPublishTimes}
+              toggleSidebar={closeRightSidebar}
+              isMobile={true}
+            />
+          </div>
+
+          {/* 모바일 토글 버튼 (우측 하단) */}
+          {!isRightSidebarOpen && (
+            <Button
+              variant="default"
+              size="icon"
+              onClick={openRightSidebar}
+              className="fixed bottom-4 right-4 z-30 h-14 w-14 rounded-full shadow-lg"
+            >
+              <NextImage
+                src="/avatars/01.png"
+                alt="Profile"
+                width={40}
+                height={40}
+                className="rounded-full"
+              />
+            </Button>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+// RightSidebar 콘텐츠 분리 컴포넌트
+function RightSidebarContent({
+  selectedPosts,
+  writingContent,
+  setWritingContent,
+  showAiInput,
+  setShowAiInput,
+  activePostId,
+  selectedMedia,
+  handleMediaChange,
+  handlePostClick,
+  removePost,
+  pathname,
+  scheduleTime,
+  handleSaveToDraft,
+  handleSchedule,
+  handlePublish,
+  handleComposeWithAI,
+  canComposeWithAI,
+  isComposing,
+  fetchPublishTimes,
+  toggleSidebar,
+  isMobile,
+}: {
+  selectedPosts: any[];
+  writingContent: string;
+  setWritingContent: (content: string) => void;
+  showAiInput: boolean;
+  setShowAiInput: (show: boolean) => void;
+  activePostId: string | null;
+  selectedMedia: string[];
+  handleMediaChange: (media: string[]) => void;
+  handlePostClick: (postId: string) => void;
+  removePost: (postId: string) => void;
+  pathname: string;
+  scheduleTime: string | null;
+  handleSaveToDraft: () => void;
+  handleSchedule: () => void;
+  handlePublish: () => void;
+  handleComposeWithAI: () => void;
+  canComposeWithAI: boolean;
+  isComposing: boolean;
+  fetchPublishTimes: () => void;
+  toggleSidebar: () => void;
+  isMobile: boolean;
+}) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-background">
         {selectedPosts.length > 0 && (
-          <h2 className="text-sm font-medium text-muted-foreground mr-2">
+          <h2 className="text-sm font-medium text-muted-foreground">
             Selected Posts ({selectedPosts.length}/3)
           </h2>
-        )} */}
-      </div>
-    );
-  }
+        )}
 
-  // 펼쳐진 상태일 때 기존 사이드바
-  return (
-    <div
-      className={cn(
-        "overflow-hidden h-[calc(100vh-48px)] w-[390px] mt-6 mr-6 flex flex-col rounded-xl border bg-background",
-        className
-      )}
-    >
-      <div className="flex-1 overflow-auto p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4">
-          <div className="flex items-center gap-1">
-            <NextImage src="/Salt-AI.svg" alt="Salt AI" width={48} height={48} />
-          </div>
-          {selectedPosts.length === 0 && (
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Add post to start!
-            </h2>
-          )}
-          {selectedPosts.length > 0 && (
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Selected Posts ({selectedPosts.length}/3)
-            </h2>
-          )}
-          {/* 토글 버튼 */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(true)}
-            className="h-8 w-8 shrink-0 ml-auto"
-          >
+        {/* 모바일에서는 아래로 내리기 버튼, 데스크톱에서는 닫기 버튼 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="h-8 w-8 shrink-0 ml-auto"
+        >
+          {isMobile ? (
+            <ChevronDown className="h-6 w-6 text-muted-foreground" />
+          ) : (
             <PanelRightClose className="h-6 w-6 text-muted-foreground" />
-          </Button>
-        </div>
+          )}
+        </Button>
+      </div>
 
+      {/* Scrollable Content */}
+      <div className={cn(
+        "flex-1 overflow-y-auto p-4",
+        isMobile && "max-h-[60vh]"
+      )}>
         {/* Selected Posts Section */}
         <div className="space-y-4">
           {/* Empty PostCard when no posts are selected */}
@@ -546,12 +687,15 @@ export function RightSidebar({ className }: RightSidebarProps) {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-white px-4 text-sm text-gray-400">Add contents from</span>
+              <span className="bg-background px-4 text-sm text-gray-400">Add contents from</span>
             </div>
           </div>
 
           {/* Navigation Buttons */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className={cn(
+            "grid gap-2",
+            isMobile ? "grid-cols-1" : "grid-cols-2"
+          )}>
             <Link
               href="/contents-cooker/topic-finder"
               className={cn(
@@ -569,23 +713,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
               )} />
               <span className="text-xs">Topic Finder</span>
             </Link>
-            {/* <Link
-              href="/contents-cooker/post-radar"
-              className={cn(
-                "flex flex-col items-center p-4 rounded-xl transition-colors",
-                pathname === "/contents-cooker/post-radar"
-                  ? "bg-gray-300 text-gray-900"
-                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
-              )}
-            >
-              <Radio className={cn(
-                "w-6 h-6 mb-2",
-                pathname === "/contents-cooker/post-radar"
-                  ? "text-gray-900"
-                  : "text-muted-foreground"
-              )} />
-              <span className="text-xs">Post Radar</span>
-            </Link> */}
             <Link
               href="/contents-cooker/saved"
               className={cn(
@@ -605,13 +732,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
             </Link>
           </div>
         </div>
-
-
       </div>
 
       {/* Bottom Buttons - Default */}
       {selectedPosts.length < 2 && (
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-2 border-t bg-background">
           <Button
             variant="outline"
             size="xl"
@@ -622,7 +747,10 @@ export function RightSidebar({ className }: RightSidebarProps) {
             Save to Draft
           </Button>
 
-          <div className="flex gap-2">
+          <div className={cn(
+            "flex gap-2",
+            isMobile && "flex-col"
+          )}>
             <div className="flex-1 flex items-center gap-2 relative">
               <Button
                 variant="default"
@@ -670,7 +798,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
       {/* Bottom Buttons - Compose */}
       {selectedPosts.length > 1 && (
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-2 border-t bg-background">
           <Button
             variant="default"
             size="xl"
