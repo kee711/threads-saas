@@ -87,7 +87,7 @@ export function Sidebar({ className }: SidebarProps) {
       isExpandable: true,
       subItems: [
         { name: 'Topic Finder', href: '/contents-cooker/topic-finder', icon: TrendingUp },
-        { name: 'Post Radar', href: '/contents-cooker/post-radar', icon: Newspaper },
+        // { name: 'Post Radar', href: '/contents-cooker/post-radar', icon: Newspaper },
         { name: 'Saved', href: '/contents-cooker/saved', icon: FileEdit },
       ],
     },
@@ -101,11 +101,11 @@ export function Sidebar({ className }: SidebarProps) {
       href: '/statistics',
       icon: BarChart2,
     },
-    {
-      name: 'Comments',
-      href: '/comments',
-      icon: MessageSquare,
-    },
+    // {
+    //   name: 'Comments',
+    //   href: '/comments',
+    //   icon: MessageSquare,
+    // },
   ];
 
   // 테마에 따라 적절한 로고 이미지 선택

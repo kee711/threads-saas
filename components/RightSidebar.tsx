@@ -471,7 +471,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   return (
     <div
       className={cn(
-        "transition-transform duration-300 overflow-hidden h-[calc(100vh-48px)] mt-6 mr-6 flex flex-col rounded-xl border bg-background",
+        "overflow-hidden h-[calc(100vh-48px)] w-[390px] mt-6 mr-6 flex flex-col rounded-xl border bg-background",
         className
       )}
     >
@@ -546,12 +546,12 @@ export function RightSidebar({ className }: RightSidebarProps) {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-white px-4 text-sm text-gray-400">Or get from</span>
+              <span className="bg-white px-4 text-sm text-gray-400">Add contents from</span>
             </div>
           </div>
 
           {/* Navigation Buttons */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Link
               href="/contents-cooker/topic-finder"
               className={cn(
@@ -569,7 +569,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
               )} />
               <span className="text-xs">Topic Finder</span>
             </Link>
-            <Link
+            {/* <Link
               href="/contents-cooker/post-radar"
               className={cn(
                 "flex flex-col items-center p-4 rounded-xl transition-colors",
@@ -585,7 +585,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
                   : "text-muted-foreground"
               )} />
               <span className="text-xs">Post Radar</span>
-            </Link>
+            </Link> */}
             <Link
               href="/contents-cooker/saved"
               className={cn(
