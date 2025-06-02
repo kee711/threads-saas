@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/PostCard";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import useStatisticsStore from "@/stores/useStatisticsStore";
 import {
     LineChart,
     Line,
@@ -40,55 +41,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// 타입 정의
-interface InsightsData {
-    name: string;
-    period: string;
-    values?: Array<{ value: number; end_time?: string }>;
-    total_value?: { value: number };
-    title: string;
-    description: string;
-    id: string;
-}
-
+// 타입 정의는 store에서 import
 interface MetricOption {
     id: string;
     label: string;
     icon: React.ReactNode;
-}
-
-// Threads Post 타입 (API에서 가져온 데이터)
-interface ThreadsPost {
-    id: string;
-    media_product_type: string;
-    media_type: string;
-    media_url?: string;
-    permalink: string;
-    owner?: {
-        id: string;
-    };
-    username: string;
-    text: string;
-    timestamp: string;
-    shortcode: string;
-    thumbnail_url?: string;
-    children?: string[];
-    is_quote_post: boolean;
-    quoted_post?: string;
-    reposted_post?: string;
-    alt_text?: string;
-    link_attachment_url?: string;
-    gif_url?: string;
-}
-
-// Insights와 결합된 포스트 타입
-interface PostWithInsights extends ThreadsPost {
-    viewCount: number;
-    likeCount: number;
-    commentCount: number; // replies
-    repostCount: number;
-    shareCount: number;
-    engagementRate: number;
 }
 
 interface TopPost {
@@ -109,106 +66,10 @@ interface DateRange {
     days: number;
 }
 
-// 캐시 관련 타입 정의
-interface CachedStatisticsData {
-    timestamp: number;
-    accountId: string;
-    dateRange: number;
-    userInsights: InsightsData[];
-    topPosts: PostWithInsights[];
-    version: string;
-}
-
-// 캐시 유틸리티 함수들
-const CACHE_VERSION = '1.0';
-const CACHE_DURATION_MINUTES = 5; // 5분 캐시
-const MAX_CACHE_ENTRIES = 15; // 최대 15개 캐시 엔트리
-
-const getCacheKey = (accountId: string, dateRange: number): string => {
-    return `statistics_cache_${accountId}_${dateRange}`;
-};
-
-const getCachedData = (accountId: string, dateRange: number): CachedStatisticsData | null => {
-    try {
-        const cacheKey = getCacheKey(accountId, dateRange);
-        const cached = localStorage.getItem(cacheKey);
-        if (!cached) return null;
-
-        const data: CachedStatisticsData = JSON.parse(cached);
-
-        // 버전 체크
-        if (data.version !== CACHE_VERSION) {
-            localStorage.removeItem(cacheKey);
-            return null;
-        }
-
-        return data;
-    } catch (error) {
-        console.error('캐시 데이터 읽기 실패:', error);
-        return null;
-    }
-};
-
-const setCachedData = (accountId: string, dateRange: number, userInsights: InsightsData[], topPosts: PostWithInsights[]): void => {
-    try {
-        const cacheKey = getCacheKey(accountId, dateRange);
-        const data: CachedStatisticsData = {
-            timestamp: Date.now(),
-            accountId,
-            dateRange,
-            userInsights,
-            topPosts,
-            version: CACHE_VERSION
-        };
-
-        localStorage.setItem(cacheKey, JSON.stringify(data));
-
-        // 오래된 캐시 정리
-        clearOldCache();
-    } catch (error) {
-        console.error('캐시 데이터 저장 실패:', error);
-    }
-};
-
-const isCacheValid = (cacheData: CachedStatisticsData): boolean => {
-    const now = Date.now();
-    const cacheAge = now - cacheData.timestamp;
-    const maxAge = CACHE_DURATION_MINUTES * 60 * 1000; // 밀리초로 변환
-
-    return cacheAge < maxAge;
-};
-
-const clearOldCache = (): void => {
-    try {
-        const keys = Object.keys(localStorage).filter(key => key.startsWith('statistics_cache_'));
-
-        if (keys.length <= MAX_CACHE_ENTRIES) return;
-
-        // 캐시 엔트리들을 타임스탬프로 정렬
-        const cacheEntries = keys.map(key => {
-            try {
-                const data = JSON.parse(localStorage.getItem(key) || '{}');
-                return { key, timestamp: data.timestamp || 0 };
-            } catch {
-                return { key, timestamp: 0 };
-            }
-        }).sort((a, b) => a.timestamp - b.timestamp);
-
-        // 오래된 것부터 삭제 (최신 MAX_CACHE_ENTRIES개만 유지)
-        const entriesToDelete = cacheEntries.slice(0, cacheEntries.length - MAX_CACHE_ENTRIES);
-        entriesToDelete.forEach(entry => {
-            localStorage.removeItem(entry.key);
-        });
-    } catch (error) {
-        console.error('캐시 정리 실패:', error);
-    }
-};
-
 // 환경변수로 Mock 데이터 사용 여부 결정
-// NEXT_PUBLIC_USE_MOCK_DATA=true면 Mock 데이터 사용, false면 실제 API 데이터 사용
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
 
-// 더미 데이터 (실제 API 연동 시 교체)
+// 더미 데이터
 const mockChartData = [
     { name: '월', views: 4000, engagement: 2400, likes: 1200, replies: 450 },
     { name: '화', views: 3000, engagement: 1398, likes: 1100, replies: 380 },
@@ -282,260 +143,22 @@ const dateRanges: DateRange[] = [
 export default function StatisticsPage() {
     const { data: session } = useSession();
     const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [isFromCache, setIsFromCache] = useState(false); // 캐시에서 로드된 데이터인지 표시
-    const [userInsights, setUserInsights] = useState<InsightsData[]>([]);
+    const statisticsStore = useStatisticsStore();
+
+    // 로컬 상태
     const [selectedMetric, setSelectedMetric] = useState('views');
     const [selectedTopPostMetric, setSelectedTopPostMetric] = useState('views');
     const [selectedDateRange, setSelectedDateRange] = useState(30);
-
-    // 클라이언트사이드에서만 계정 상태를 확인하기 위한 state
     const [isClient, setIsClient] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<any>(null);
-    const [topPosts, setTopPosts] = useState<PostWithInsights[]>([]);
 
-    // API 호출 함수를 useCallback으로 메모이제이션
-    const fetchUserInsights = useCallback(async (metrics: string[]) => {
-        try {
-            // 선택된 계정이 없으면 에러
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
+    // Store에서 현재 계정/날짜범위의 데이터 가져오기
+    const currentData = selectedAccount ?
+        statisticsStore.getCachedData(selectedAccount.social_id, selectedDateRange) : null;
 
-            const since = Math.floor(Date.now() / 1000) - (selectedDateRange * 24 * 60 * 60);
-            const until = Math.floor(Date.now() / 1000);
-
-            // 선택된 계정의 social_id를 user_id로 사용
-            const userId = selectedAccount.social_id;
-
-            // Time Series 메트릭과 Total Value 메트릭을 분리해서 호출
-            const allInsights: InsightsData[] = [];
-
-            // 1. Time Series 메트릭 (views) - since/until 사용
-            const timeSeriesMetrics = metrics.filter(m => m === 'views');
-            if (timeSeriesMetrics.length > 0) {
-                console.log(`Fetching Time Series metrics: ${timeSeriesMetrics.join(', ')}`);
-                const timeSeriesResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${timeSeriesMetrics.join(',')}&since=${since}&until=${until}`
-                );
-                if (timeSeriesResponse.ok) {
-                    const timeSeriesData = await timeSeriesResponse.json();
-                    console.log('Time Series data:', timeSeriesData);
-                    allInsights.push(...(timeSeriesData.data || []));
-                } else {
-                    console.error('Time Series API error:', await timeSeriesResponse.text());
-                }
-            }
-
-            // 2. Total Value 메트릭 (likes, replies, reposts, quotes) - since/until 사용
-            const totalValueMetrics = metrics.filter(m => ['likes', 'replies', 'reposts', 'quotes'].includes(m));
-            if (totalValueMetrics.length > 0) {
-                console.log(`Fetching Total Value metrics: ${totalValueMetrics.join(', ')}`);
-                const totalValueResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${totalValueMetrics.join(',')}&since=${since}&until=${until}`
-                );
-                if (totalValueResponse.ok) {
-                    const totalValueData = await totalValueResponse.json();
-                    console.log('Total Value data:', totalValueData);
-                    allInsights.push(...(totalValueData.data || []));
-                } else {
-                    console.error('Total Value API error:', await totalValueResponse.text());
-                }
-            }
-
-            // 3. 독립 메트릭 (followers_count) - since/until 사용하지 않음
-            const independentMetrics = metrics.filter(m => m === 'followers_count');
-            if (independentMetrics.length > 0) {
-                console.log(`Fetching Independent metrics: ${independentMetrics.join(', ')}`);
-                const independentResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${independentMetrics.join(',')}`
-                );
-                if (independentResponse.ok) {
-                    const independentData = await independentResponse.json();
-                    console.log('Independent data:', independentData);
-                    allInsights.push(...(independentData.data || []));
-                } else {
-                    console.error('Independent API error:', await independentResponse.text());
-                }
-            }
-
-            console.log('All insights combined:', allInsights);
-            return allInsights;
-        } catch (error) {
-            console.error('Error fetching insights:', error);
-            return [];
-        }
-    }, [selectedAccount, selectedDateRange]);
-
-    // 사용자 포스트 가져오기
-    const fetchUserPosts = useCallback(async (limit = 20): Promise<ThreadsPost[]> => {
-        try {
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
-
-            const userId = selectedAccount.social_id;
-            const response = await fetch(
-                `/api/user-posts?user_id=${userId}&limit=${limit}`
-            );
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch user posts');
-            }
-
-            const data = await response.json();
-            return data.data || [];
-        } catch (error) {
-            console.error('Error fetching user posts:', error);
-            return [];
-        }
-    }, [selectedAccount]);
-
-    // 개별 포스트의 insights 가져오기
-    const fetchPostInsights = useCallback(async (postId: string): Promise<any> => {
-        try {
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
-
-            const userId = selectedAccount.social_id;
-            const response = await fetch(
-                `/api/insights?type=media&media_id=${postId}&owner_user_id=${userId}&metric=views,likes,replies,reposts,shares`
-            );
-
-            if (!response.ok) {
-                console.error(`Failed to fetch insights for post ${postId}`);
-                return null;
-            }
-
-            const data = await response.json();
-            return data.data || [];
-        } catch (error) {
-            console.error(`Error fetching insights for post ${postId}:`, error);
-            return null;
-        }
-    }, [selectedAccount]);
-
-    // 포스트와 insights를 결합하여 Top Posts 생성
-    const fetchTopPostsWithInsights = useCallback(async (): Promise<PostWithInsights[]> => {
-        try {
-            // 1. 사용자 포스트 가져오기 (최근 20개)
-            const posts = await fetchUserPosts(20);
-            if (posts.length === 0) {
-                return [];
-            }
-
-            // 2. 각 포스트의 insights 병렬로 가져오기
-            const postsWithInsights: PostWithInsights[] = [];
-
-            // Promise.all로 병렬 처리하되, 실패한 것들은 제외
-            const insightsPromises = posts.map(async (post) => {
-                const insights = await fetchPostInsights(post.id);
-                if (!insights) return null;
-
-                // insights 데이터에서 메트릭 추출
-                const getMetricValue = (metricName: string): number => {
-                    const metric = insights.find((item: any) => item.name === metricName);
-                    return metric?.total_value?.value || 0;
-                };
-
-                const viewCount = getMetricValue('views');
-                const likeCount = getMetricValue('likes');
-                const replyCount = getMetricValue('replies');
-                const repostCount = getMetricValue('reposts');
-                const shareCount = getMetricValue('shares');
-
-                // engagement rate 계산: (likes + replies + reposts + shares) / views * 100
-                const totalEngagement = likeCount + replyCount + repostCount + shareCount;
-                const engagementRate = viewCount > 0 ? (totalEngagement / viewCount) * 100 : 0;
-
-                return {
-                    ...post,
-                    viewCount,
-                    likeCount,
-                    commentCount: replyCount,
-                    repostCount,
-                    shareCount,
-                    engagementRate: Math.round(engagementRate * 100) / 100, // 소수점 2자리
-                } as PostWithInsights;
-            });
-
-            const results = await Promise.all(insightsPromises);
-
-            // null이 아닌 결과들만 필터링
-            results.forEach(result => {
-                if (result) postsWithInsights.push(result);
-            });
-
-            return postsWithInsights;
-        } catch (error) {
-            console.error('Error fetching top posts with insights:', error);
-            return [];
-        }
-    }, [fetchUserPosts, fetchPostInsights]);
-
-    // 데이터 로딩 함수를 useCallback으로 메모이제이션
-    const loadData = useCallback(async (forceRefresh = false, showRefresh = false) => {
-        if (!selectedAccount) return;
-
-        const accountId = selectedAccount.social_id;
-
-        // 강제 새로고침이 아닌 경우 캐시 먼저 확인
-        if (!forceRefresh) {
-            const cachedData = getCachedData(accountId, selectedDateRange);
-
-            if (cachedData && isCacheValid(cachedData)) {
-                console.log('캐시에서 데이터 로드:', cachedData);
-                // 캐시 데이터 즉시 표시
-                setUserInsights(cachedData.userInsights);
-                setTopPosts(cachedData.topPosts);
-                setIsFromCache(true);
-                setLoading(false);
-
-                // 백그라운드에서 새 데이터 로드 (사용자에게는 보이지 않음)
-                loadFreshData(accountId, false);
-                return;
-            }
-        }
-
-        // 캐시가 없거나 만료된 경우, 또는 강제 새로고침인 경우
-        await loadFreshData(accountId, showRefresh);
-    }, [selectedAccount, selectedDateRange, fetchUserInsights, fetchTopPostsWithInsights]);
-
-    // 새로운 데이터를 API에서 가져오는 함수
-    const loadFreshData = useCallback(async (accountId: string, showRefresh: boolean) => {
-        if (showRefresh) {
-            setRefreshing(true);
-        } else if (!isFromCache) {
-            setLoading(true);
-        }
-
-        // 시뮬레이션된 로딩 지연 (실제로는 API 호출)
-        await new Promise(resolve => setTimeout(resolve, showRefresh ? 500 : 1000));
-
-        try {
-            // User insights 조회 (더 많은 메트릭 포함)
-            const insights = await fetchUserInsights(['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count']);
-
-            // Top Posts 가져오기
-            const freshTopPosts = await fetchTopPostsWithInsights();
-
-            // 새 데이터 설정
-            setUserInsights(insights);
-            setTopPosts(freshTopPosts);
-
-            // 캐시에 저장
-            setCachedData(accountId, selectedDateRange, insights, freshTopPosts);
-
-            setIsFromCache(false);
-        } catch (error) {
-            console.error('Error loading fresh data:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [isFromCache, fetchUserInsights, fetchTopPostsWithInsights, selectedDateRange]);
+    const userInsights = currentData?.userInsights || [];
+    const topPosts = currentData?.topPosts || [];
+    const isFromCache = currentData && statisticsStore.isCacheValid(selectedAccount?.social_id, selectedDateRange);
 
     // 클라이언트 마운트 후 계정 정보 설정
     useEffect(() => {
@@ -548,26 +171,40 @@ export default function StatisticsPage() {
         if (session && selectedAccount && isClient) {
             loadData();
         }
-    }, [session, selectedAccount, isClient, loadData]);
+    }, [session, selectedAccount, isClient]);
 
-    // 날짜 범위가 변경될 때 데이터 다시 로딩
+    // 날짜 범위 변경 시 데이터 로딩
     useEffect(() => {
         if (session && selectedAccount && isClient) {
-            setIsFromCache(false); // 캐시 상태 초기화
             loadData();
         }
     }, [selectedDateRange]);
 
-    // 새로고침 핸들러 (강제 새로고침)
-    const handleRefresh = () => {
-        if (selectedAccount) {
-            loadData(true, true); // forceRefresh=true, showRefresh=true
+    const loadData = async (forceRefresh = false) => {
+        if (!selectedAccount) return;
+
+        try {
+            statisticsStore.setLoading(true);
+            await statisticsStore.loadData(selectedAccount.social_id, selectedDateRange, forceRefresh);
+        } catch (error) {
+            console.error('Error loading statistics data:', error);
+        } finally {
+            statisticsStore.setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        try {
+            statisticsStore.setRefreshing(true);
+            await loadData(true);
+        } finally {
+            statisticsStore.setRefreshing(false);
         }
     };
 
     // 인사이트 데이터에서 값 추출
-    const getInsightValue = (insights: InsightsData[], metricName: string): number => {
-        const insight = insights.find(item => item.name === metricName);
+    const getInsightValue = (metricName: string): number => {
+        const insight = userInsights.find(item => item.name === metricName);
         if (!insight) return 0;
 
         if (insight.total_value) {
@@ -582,7 +219,7 @@ export default function StatisticsPage() {
     };
 
     // 실제 API 데이터에서 차트 데이터 생성
-    const generateChartData = useCallback(() => {
+    const generateChartData = () => {
         // 환경변수로 Mock 데이터 강제 사용
         if (USE_MOCK_DATA || !userInsights || userInsights.length === 0) {
             return mockChartData;
@@ -596,10 +233,10 @@ export default function StatisticsPage() {
         }
 
         // likes, replies, reposts, quotes는 Total Value 메트릭이므로 총합만 있음
-        const totalLikes = getInsightValue(userInsights, 'likes');
-        const totalReplies = getInsightValue(userInsights, 'replies');
-        const totalReposts = getInsightValue(userInsights, 'reposts');
-        const totalQuotes = getInsightValue(userInsights, 'quotes');
+        const totalLikes = getInsightValue('likes');
+        const totalReplies = getInsightValue('replies');
+        const totalReposts = getInsightValue('reposts');
+        const totalQuotes = getInsightValue('quotes');
         const totalEngagement = totalLikes + totalReplies + totalReposts + totalQuotes;
 
         // Time Series 데이터에서 차트 데이터 생성
@@ -641,19 +278,19 @@ export default function StatisticsPage() {
         }
 
         return chartData;
-    }, [userInsights, selectedDateRange]);
+    };
 
     // 실제 API 데이터에서 파이 차트 데이터 생성
-    const generatePieData = useCallback(() => {
+    const generatePieData = () => {
         // 환경변수로 Mock 데이터 강제 사용
         if (USE_MOCK_DATA || !userInsights || userInsights.length === 0) {
             return mockPieData;
         }
 
-        const likes = getInsightValue(userInsights, 'likes');
-        const replies = getInsightValue(userInsights, 'replies');
-        const reposts = getInsightValue(userInsights, 'reposts');
-        const quotes = getInsightValue(userInsights, 'quotes');
+        const likes = getInsightValue('likes');
+        const replies = getInsightValue('replies');
+        const reposts = getInsightValue('reposts');
+        const quotes = getInsightValue('quotes');
 
         const total = likes + replies + reposts + quotes;
 
@@ -667,7 +304,7 @@ export default function StatisticsPage() {
             { name: 'Reposts', value: Math.round((reposts / total) * 100), color: '#10b981' },
             { name: 'Quotes', value: Math.round((quotes / total) * 100), color: '#f59e0b' },
         ];
-    }, [userInsights]);
+    };
 
     // 차트와 파이 데이터 생성
     const chartData = generateChartData();
@@ -677,7 +314,7 @@ export default function StatisticsPage() {
     const metricCards = [
         {
             title: "Total Views",
-            value: getInsightValue(userInsights, 'views') || 'No data',
+            value: getInsightValue('views') || 'No data',
             change: "+12.5%",
             changeType: "positive" as const,
             icon: <Eye className="w-5 h-5" />,
@@ -685,7 +322,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Followers",
-            value: getInsightValue(userInsights, 'followers_count') || 'No data',
+            value: getInsightValue('followers_count') || 'No data',
             change: "+12.5%",
             changeType: "positive" as const,
             icon: <Users className="w-5 h-5" />,
@@ -693,7 +330,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Likes",
-            value: getInsightValue(userInsights, 'likes') || 'No data',
+            value: getInsightValue('likes') || 'No data',
             change: "+8.2%",
             changeType: "positive" as const,
             icon: <Heart className="w-5 h-5" />,
@@ -701,7 +338,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Replies",
-            value: getInsightValue(userInsights, 'replies') || 'No data',
+            value: getInsightValue('replies') || 'No data',
             change: "+3.1%",
             changeType: "positive" as const,
             icon: <MessageCircle className="w-5 h-5" />,
@@ -709,7 +346,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Reposts",
-            value: getInsightValue(userInsights, 'reposts') || 'No data',
+            value: getInsightValue('reposts') || 'No data',
             change: "+3.1%",
             changeType: "positive" as const,
             icon: <Repeat className="w-5 h-5" />,
@@ -717,7 +354,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Quotes",
-            value: getInsightValue(userInsights, 'quotes') || 'No data',
+            value: getInsightValue('quotes') || 'No data',
             change: "+3.1%",
             changeType: "positive" as const,
             icon: <Quote className="w-5 h-5" />,
@@ -737,7 +374,7 @@ export default function StatisticsPage() {
             id: post.id,
             content: post.text || 'No content available',
             username: post.username,
-            avatar: '/avatars/01.png', // 기본 아바타 (실제로는 프로필 이미지 API 필요)
+            avatar: '/avatars/01.png', // 기본 아바타
             viewCount: post.viewCount,
             likeCount: post.likeCount,
             commentCount: post.commentCount,
@@ -758,8 +395,7 @@ export default function StatisticsPage() {
     // 초기 로딩 중이거나 클라이언트가 아직 마운트되지 않은 경우
     if (!isClient || !selectedAccount) {
         return (
-            <div className="space-y-6 p-6">
-                {/* Loading State */}
+            <div className="space-y-6 p-4 md:p-6">
                 <div className="space-y-4">
                     <div className="h-8 bg-gray-200 rounded animate-pulse" />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -826,10 +462,10 @@ export default function StatisticsPage() {
                         variant="outline"
                         size="sm"
                         onClick={handleRefresh}
-                        disabled={refreshing}
+                        disabled={statisticsStore.refreshing}
                         className="w-full sm:w-auto"
                     >
-                        {refreshing ? (
+                        {statisticsStore.refreshing ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                             <RefreshCw className="h-4 w-4" />
@@ -839,7 +475,7 @@ export default function StatisticsPage() {
                 </div>
             </div>
 
-            {loading ? (
+            {statisticsStore.loading && !isFromCache ? (
                 /* Loading State */
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -869,25 +505,17 @@ export default function StatisticsPage() {
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     {card.title}
                                                 </p>
-                                                {loading ? (
-                                                    <div className="space-y-1">
-                                                        <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
-                                                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center text-sm">
+                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                            {card.change}
+                                                        </span>
+                                                        <span className="text-muted-foreground ml-1">
+                                                            {card.description}
+                                                        </span>
                                                     </div>
-                                                ) : (
-                                                    <div className="space-y-1">
-
-                                                        <div className="flex items-center text-sm">
-                                                            <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                                                }`}>
-                                                                {card.change}
-                                                            </span>
-                                                            <span className="text-muted-foreground ml-1">
-                                                                {card.description}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                </div>
                                             </div>
                                             <div className="h-6 w-6 text-muted-foreground">
                                                 {card.icon}
@@ -908,27 +536,20 @@ export default function StatisticsPage() {
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     {card.title}
                                                 </p>
-                                                {loading ? (
-                                                    <div className="space-y-1">
-                                                        <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
-                                                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                                                <div className="space-y-1">
+                                                    <div className="text-xl md:text-2xl font-bold">
+                                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
                                                     </div>
-                                                ) : (
-                                                    <div className="space-y-1">
-                                                        <div className="text-xl md:text-2xl font-bold">
-                                                            {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                                                        </div>
-                                                        <div className="flex items-center text-sm">
-                                                            <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                                                }`}>
-                                                                {card.change}
-                                                            </span>
-                                                            <span className="text-muted-foreground ml-1">
-                                                                {card.description}
-                                                            </span>
-                                                        </div>
+                                                    <div className="flex items-center text-sm">
+                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                            {card.change}
+                                                        </span>
+                                                        <span className="text-muted-foreground ml-1">
+                                                            {card.description}
+                                                        </span>
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
                                             <div className="h-6 w-6 text-muted-foreground">
                                                 {card.icon}
@@ -1048,26 +669,20 @@ export default function StatisticsPage() {
                             </p>
                         </CardHeader>
                         <CardContent>
-                            {loading ? (
+                            {topPosts.length > 0 ? (
                                 <div className="space-y-4">
-                                    {[...Array(3)].map((_, i) => (
-                                        <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
-                                    ))}
-                                </div>
-                            ) : topPosts.length > 0 ? (
-                                <div className="space-y-4">
-                                    {topPosts.map((post, index) => (
+                                    {sortedTopPosts.map((post, index) => (
                                         <div key={index} className="w-full">
                                             <PostCard
                                                 variant="compact"
                                                 avatar={'/avatars/01.png'}
                                                 username={post.username || selectedAccount.account_name}
-                                                content={post.text || ''}
+                                                content={post.content || ''}
                                                 likeCount={post.likeCount}
                                                 commentCount={post.commentCount}
                                                 repostCount={post.repostCount}
                                                 viewCount={post.viewCount}
-                                                timestamp={post.timestamp}
+                                                timestamp={new Date().toISOString()}
                                             />
                                         </div>
                                     ))}
