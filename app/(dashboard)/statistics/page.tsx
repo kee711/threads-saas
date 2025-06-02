@@ -35,7 +35,8 @@ import {
     Calendar,
     Download,
     RefreshCw,
-    Loader2
+    Loader2,
+    Quote
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -107,6 +108,101 @@ interface DateRange {
     label: string;
     days: number;
 }
+
+// 캐시 관련 타입 정의
+interface CachedStatisticsData {
+    timestamp: number;
+    accountId: string;
+    dateRange: number;
+    userInsights: InsightsData[];
+    topPosts: PostWithInsights[];
+    version: string;
+}
+
+// 캐시 유틸리티 함수들
+const CACHE_VERSION = '1.0';
+const CACHE_DURATION_MINUTES = 5; // 5분 캐시
+const MAX_CACHE_ENTRIES = 15; // 최대 15개 캐시 엔트리
+
+const getCacheKey = (accountId: string, dateRange: number): string => {
+    return `statistics_cache_${accountId}_${dateRange}`;
+};
+
+const getCachedData = (accountId: string, dateRange: number): CachedStatisticsData | null => {
+    try {
+        const cacheKey = getCacheKey(accountId, dateRange);
+        const cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+
+        const data: CachedStatisticsData = JSON.parse(cached);
+
+        // 버전 체크
+        if (data.version !== CACHE_VERSION) {
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        return data;
+    } catch (error) {
+        console.error('캐시 데이터 읽기 실패:', error);
+        return null;
+    }
+};
+
+const setCachedData = (accountId: string, dateRange: number, userInsights: InsightsData[], topPosts: PostWithInsights[]): void => {
+    try {
+        const cacheKey = getCacheKey(accountId, dateRange);
+        const data: CachedStatisticsData = {
+            timestamp: Date.now(),
+            accountId,
+            dateRange,
+            userInsights,
+            topPosts,
+            version: CACHE_VERSION
+        };
+
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+
+        // 오래된 캐시 정리
+        clearOldCache();
+    } catch (error) {
+        console.error('캐시 데이터 저장 실패:', error);
+    }
+};
+
+const isCacheValid = (cacheData: CachedStatisticsData): boolean => {
+    const now = Date.now();
+    const cacheAge = now - cacheData.timestamp;
+    const maxAge = CACHE_DURATION_MINUTES * 60 * 1000; // 밀리초로 변환
+
+    return cacheAge < maxAge;
+};
+
+const clearOldCache = (): void => {
+    try {
+        const keys = Object.keys(localStorage).filter(key => key.startsWith('statistics_cache_'));
+
+        if (keys.length <= MAX_CACHE_ENTRIES) return;
+
+        // 캐시 엔트리들을 타임스탬프로 정렬
+        const cacheEntries = keys.map(key => {
+            try {
+                const data = JSON.parse(localStorage.getItem(key) || '{}');
+                return { key, timestamp: data.timestamp || 0 };
+            } catch {
+                return { key, timestamp: 0 };
+            }
+        }).sort((a, b) => a.timestamp - b.timestamp);
+
+        // 오래된 것부터 삭제 (최신 MAX_CACHE_ENTRIES개만 유지)
+        const entriesToDelete = cacheEntries.slice(0, cacheEntries.length - MAX_CACHE_ENTRIES);
+        entriesToDelete.forEach(entry => {
+            localStorage.removeItem(entry.key);
+        });
+    } catch (error) {
+        console.error('캐시 정리 실패:', error);
+    }
+};
 
 // 환경변수로 Mock 데이터 사용 여부 결정
 // NEXT_PUBLIC_USE_MOCK_DATA=true면 Mock 데이터 사용, false면 실제 API 데이터 사용
@@ -188,6 +284,7 @@ export default function StatisticsPage() {
     const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [isFromCache, setIsFromCache] = useState(false); // 캐시에서 로드된 데이터인지 표시
     const [userInsights, setUserInsights] = useState<InsightsData[]>([]);
     const [selectedMetric, setSelectedMetric] = useState('views');
     const [selectedTopPostMetric, setSelectedTopPostMetric] = useState('views');
@@ -379,10 +476,38 @@ export default function StatisticsPage() {
     }, [fetchUserPosts, fetchPostInsights]);
 
     // 데이터 로딩 함수를 useCallback으로 메모이제이션
-    const loadData = useCallback(async (showRefresh = false) => {
+    const loadData = useCallback(async (forceRefresh = false, showRefresh = false) => {
+        if (!selectedAccount) return;
+
+        const accountId = selectedAccount.social_id;
+
+        // 강제 새로고침이 아닌 경우 캐시 먼저 확인
+        if (!forceRefresh) {
+            const cachedData = getCachedData(accountId, selectedDateRange);
+
+            if (cachedData && isCacheValid(cachedData)) {
+                console.log('캐시에서 데이터 로드:', cachedData);
+                // 캐시 데이터 즉시 표시
+                setUserInsights(cachedData.userInsights);
+                setTopPosts(cachedData.topPosts);
+                setIsFromCache(true);
+                setLoading(false);
+
+                // 백그라운드에서 새 데이터 로드 (사용자에게는 보이지 않음)
+                loadFreshData(accountId, false);
+                return;
+            }
+        }
+
+        // 캐시가 없거나 만료된 경우, 또는 강제 새로고침인 경우
+        await loadFreshData(accountId, showRefresh);
+    }, [selectedAccount, selectedDateRange, fetchUserInsights, fetchTopPostsWithInsights]);
+
+    // 새로운 데이터를 API에서 가져오는 함수
+    const loadFreshData = useCallback(async (accountId: string, showRefresh: boolean) => {
         if (showRefresh) {
             setRefreshing(true);
-        } else {
+        } else if (!isFromCache) {
             setLoading(true);
         }
 
@@ -392,18 +517,25 @@ export default function StatisticsPage() {
         try {
             // User insights 조회 (더 많은 메트릭 포함)
             const insights = await fetchUserInsights(['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count']);
-            setUserInsights(insights);
 
             // Top Posts 가져오기
-            const topPosts = await fetchTopPostsWithInsights();
-            setTopPosts(topPosts);
+            const freshTopPosts = await fetchTopPostsWithInsights();
+
+            // 새 데이터 설정
+            setUserInsights(insights);
+            setTopPosts(freshTopPosts);
+
+            // 캐시에 저장
+            setCachedData(accountId, selectedDateRange, insights, freshTopPosts);
+
+            setIsFromCache(false);
         } catch (error) {
-            console.error('Error loading insights:', error);
+            console.error('Error loading fresh data:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [fetchUserInsights, fetchTopPostsWithInsights]);
+    }, [isFromCache, fetchUserInsights, fetchTopPostsWithInsights, selectedDateRange]);
 
     // 클라이언트 마운트 후 계정 정보 설정
     useEffect(() => {
@@ -418,10 +550,18 @@ export default function StatisticsPage() {
         }
     }, [session, selectedAccount, isClient, loadData]);
 
-    // 새로고침 핸들러
+    // 날짜 범위가 변경될 때 데이터 다시 로딩
+    useEffect(() => {
+        if (session && selectedAccount && isClient) {
+            setIsFromCache(false); // 캐시 상태 초기화
+            loadData();
+        }
+    }, [selectedDateRange]);
+
+    // 새로고침 핸들러 (강제 새로고침)
     const handleRefresh = () => {
         if (selectedAccount) {
-            loadData(true);
+            loadData(true, true); // forceRefresh=true, showRefresh=true
         }
     };
 
@@ -536,6 +676,14 @@ export default function StatisticsPage() {
     // 메트릭 카드 데이터
     const metricCards = [
         {
+            title: "Total Views",
+            value: getInsightValue(userInsights, 'views') || 'No data',
+            change: "+12.5%",
+            changeType: "positive" as const,
+            icon: <Eye className="w-5 h-5" />,
+            description: "views"
+        },
+        {
             title: "Total Followers",
             value: getInsightValue(userInsights, 'followers_count') || 'No data',
             change: "+12.5%",
@@ -557,6 +705,22 @@ export default function StatisticsPage() {
             change: "+3.1%",
             changeType: "positive" as const,
             icon: <MessageCircle className="w-5 h-5" />,
+            description: `in last ${selectedDateRange} days`
+        },
+        {
+            title: "Total Reposts",
+            value: getInsightValue(userInsights, 'reposts') || 'No data',
+            change: "+3.1%",
+            changeType: "positive" as const,
+            icon: <Repeat className="w-5 h-5" />,
+            description: `in last ${selectedDateRange} days`
+        },
+        {
+            title: "Total Quotes",
+            value: getInsightValue(userInsights, 'quotes') || 'No data',
+            change: "+3.1%",
+            changeType: "positive" as const,
+            icon: <Quote className="w-5 h-5" />,
             description: `in last ${selectedDateRange} days`
         },
     ];
@@ -624,7 +788,14 @@ export default function StatisticsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
+                        {isFromCache && (
+                            <Badge variant="secondary" className="text-xs">
+                                캐시됨
+                            </Badge>
+                        )}
+                    </div>
                     <p className="text-muted-foreground mt-1">
                         {selectedAccount.account_name}의 성과 분석
                     </p>
@@ -684,44 +855,89 @@ export default function StatisticsPage() {
             ) : (
                 <>
                     {/* Metrics Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {metricCards.map((card, index) => (
-                            <Card key={index}>
-                                <CardContent className="p-4 md:p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-medium text-muted-foreground">
-                                                {card.title}
-                                            </p>
-                                            {loading ? (
-                                                <div className="space-y-1">
-                                                    <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
-                                                    <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-1">
-                                                    <div className="text-xl md:text-2xl font-bold">
-                                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                    <div className="space-y-4">
+                        {/* First row: 2 cards on lg+ screens */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {metricCards.slice(0, 2).map((card, index) => (
+                                <Card key={index}>
+                                    <CardContent className="p-4 md:p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="text-xl md:text-2xl font-bold">
+                                                {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    {card.title}
+                                                </p>
+                                                {loading ? (
+                                                    <div className="space-y-1">
+                                                        <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
+                                                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
                                                     </div>
-                                                    <div className="flex items-center text-sm">
-                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                                            }`}>
-                                                            {card.change}
-                                                        </span>
-                                                        <span className="text-muted-foreground ml-1">
-                                                            {card.description}
-                                                        </span>
+                                                ) : (
+                                                    <div className="space-y-1">
+
+                                                        <div className="flex items-center text-sm">
+                                                            <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                                }`}>
+                                                                {card.change}
+                                                            </span>
+                                                            <span className="text-muted-foreground ml-1">
+                                                                {card.description}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
+                                            <div className="h-6 w-6 text-muted-foreground">
+                                                {card.icon}
+                                            </div>
                                         </div>
-                                        <div className="h-6 w-6 text-muted-foreground">
-                                            {card.icon}
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+
+                        {/* Second row: 4 columns on lg+ screens */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {metricCards.slice(2).map((card, index) => (
+                                <Card key={index + 2}>
+                                    <CardContent className="p-4 md:p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    {card.title}
+                                                </p>
+                                                {loading ? (
+                                                    <div className="space-y-1">
+                                                        <div className="h-8 bg-gray-200 rounded animate-pulse w-20" />
+                                                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-1">
+                                                        <div className="text-xl md:text-2xl font-bold">
+                                                            {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                                                        </div>
+                                                        <div className="flex items-center text-sm">
+                                                            <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                                }`}>
+                                                                {card.change}
+                                                            </span>
+                                                            <span className="text-muted-foreground ml-1">
+                                                                {card.description}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="h-6 w-6 text-muted-foreground">
+                                                {card.icon}
+                                            </div>
                                         </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Charts Section */}
@@ -730,7 +946,7 @@ export default function StatisticsPage() {
                         <Card>
                             <CardHeader className="pb-2">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                    <CardTitle className="text-lg">Performance Over Time</CardTitle>
+                                    <CardTitle className="text-lg">Performance</CardTitle>
                                     <div className="flex flex-wrap gap-2">
                                         {metricOptions.map((option) => (
                                             <Button
