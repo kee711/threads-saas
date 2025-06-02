@@ -60,10 +60,10 @@ export function RightSidebar({ className }: RightSidebarProps) {
       if (selectedPosts.length > 0 && !isRightSidebarOpen) {
         toggleSidebar();
       }
-    } else {
-      setIsCollapsed(false);
+    } else if (selectedPosts.length > 0 && isCollapsed) {
+      toggleSidebar();
     }
-  }, [selectedPosts.length, isMobile, isCollapsed]);
+  }, [selectedPosts.length]);
 
   // 모바일에서 오버레이 클릭 시 사이드바 닫기
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -446,33 +446,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
       )}>
         {isCollapsed ? (
           /* Collapsed state - show only toggle button */
-          <div className="flex flex-col h-full p-2">
+          <div className="flex flex-col h-full p-2 cursor-pointer" onClick={() => setIsCollapsed(false)}>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setIsCollapsed(false)}
               className="h-10 w-10 shrink-0"
             >
               <PanelLeftClose className="h-6 w-6 text-muted-foreground" />
             </Button>
-
-            {/* 우측 하단 이미지 버튼 */}
-            <div className="mt-auto mb-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsCollapsed(false)}
-                className="h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20"
-              >
-                <NextImage
-                  src="/welcome-chef.png"
-                  alt="Profile"
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
-              </Button>
-            </div>
           </div>
         ) : (
           <RightSidebarContent

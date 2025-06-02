@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/PostCard";
@@ -424,21 +423,16 @@ export default function StatisticsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
-                        {isFromCache && (
-                            <Badge variant="secondary" className="text-xs">
-                                캐시됨
-                            </Badge>
-                        )}
+                        <div className="text-muted-foreground text-sm font-semibold rounded-full bg-muted px-2 py-1 w-fit">
+                            @{selectedAccount.username}
+                        </div>
                     </div>
-                    <p className="text-muted-foreground mt-1">
-                        {selectedAccount.account_name}의 성과 분석
-                    </p>
                 </div>
 
                 {/* Controls */}
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex gap-3">
                     {/* Date Range Selector */}
                     <div className="flex border rounded-lg bg-muted p-1 w-full sm:w-auto">
                         {dateRanges.map((range) => (
@@ -458,20 +452,20 @@ export default function StatisticsPage() {
                     </div>
 
                     {/* Refresh Button */}
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRefresh}
-                        disabled={statisticsStore.refreshing}
-                        className="w-full sm:w-auto"
-                    >
-                        {statisticsStore.refreshing ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <RefreshCw className="h-4 w-4" />
-                        )}
-                        새로고침
-                    </Button>
+                    <div className="flex border rounded-lg bg-muted p-1 w-fit sm:w-auto">
+                        <button
+                            onClick={handleRefresh}
+                            disabled={statisticsStore.refreshing}
+                            className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex-1 sm:flex-none text-muted-foreground hover:text-foreground disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {statisticsStore.refreshing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <RefreshCw className="h-4 w-4" />
+                            )}
+                            Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -493,22 +487,22 @@ export default function StatisticsPage() {
                     {/* Metrics Cards */}
                     <div className="space-y-4">
                         {/* First row: 2 cards on lg+ screens */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                             {metricCards.slice(0, 2).map((card, index) => (
                                 <Card key={index} className="bg-muted">
                                     <CardContent>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-col">
+                                        <div className="flex flex-col space-y-1 items-center">
+                                            <div className="flex items-center justify-between w-full">
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     {card.title}
                                                 </p>
-                                                <div className="text-xl md:text-2xl font-bold">
-                                                    {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1 flex flex-col items-end text-right">
                                                 <div className="h-6 w-6 text-muted-foreground">
                                                     {card.icon}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1 flex flex-col md:flex-row items-start md:justify-between md:items-end text-right w-full">
+                                                <div className="text-xl md:text-2xl font-bold">
+                                                    {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
                                                 </div>
                                                 <div className="flex items-center text-sm">
                                                     <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
@@ -678,7 +672,7 @@ export default function StatisticsPage() {
                                             <PostCard
                                                 variant="compact"
                                                 avatar={'/avatars/01.png'}
-                                                username={post.username || selectedAccount.account_name}
+                                                username={post.username || selectedAccount.username}
                                                 content={post.content || ''}
                                                 likeCount={post.likeCount}
                                                 commentCount={post.commentCount}
