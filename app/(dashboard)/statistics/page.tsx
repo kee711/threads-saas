@@ -423,17 +423,12 @@ export default function StatisticsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
-                        {isFromCache && (
-                            <Badge variant="secondary" className="text-xs">
-                                캐시됨
-                            </Badge>
-                        )}
+                        <div className="text-muted-foreground text-sm font-semibold rounded-full bg-muted px-2 py-1 w-fit">
+                            @{selectedAccount.username}
+                        </div>
                     </div>
-                    <p className="text-muted-foreground mt-1">
-                        {selectedAccount.account_name}의 성과 분석
-                    </p>
                 </div>
 
                 {/* Controls */}
@@ -677,7 +672,7 @@ export default function StatisticsPage() {
                                             <PostCard
                                                 variant="compact"
                                                 avatar={'/avatars/01.png'}
-                                                username={post.username || selectedAccount.account_name}
+                                                username={post.username || selectedAccount.username}
                                                 content={post.content || ''}
                                                 likeCount={post.likeCount}
                                                 commentCount={post.commentCount}
