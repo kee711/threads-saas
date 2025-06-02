@@ -47,7 +47,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
-  const { currentSocialId, currentUsername } = useSocialAccountStore();
 
   // 모바일에서는 isRightSidebarOpen 상태 사용, 데스크톱에서는 기존 isCollapsed 사용
   const isVisible = isMobile ? isRightSidebarOpen : !isCollapsed;
@@ -58,18 +57,18 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // selectedPosts가 추가될때만 사이드바 펼치기
   useEffect(() => {
     if (isMobile) {
-      if (selectedPosts.length > 0) {
-        openRightSidebar();
+      if (selectedPosts.length > 0 && !isRightSidebarOpen) {
+        toggleSidebar();
       }
     } else {
       setIsCollapsed(false);
     }
-  }, [selectedPosts.length, isMobile, openRightSidebar]);
+  }, [selectedPosts.length, isMobile, isCollapsed]);
 
   // 모바일에서 오버레이 클릭 시 사이드바 닫기
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && isMobile) {
-      closeRightSidebar();
+      toggleSidebar();
     }
   };
 
@@ -466,7 +465,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
                 className="h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20"
               >
                 <NextImage
-                  src="/avatars/01.png"
+                  src="/welcome-chef.png"
                   alt="Profile"
                   width={32}
                   height={32}
@@ -498,6 +497,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
             fetchPublishTimes={fetchPublishTimes}
             toggleSidebar={() => setIsCollapsed(true)}
             isMobile={false}
+            getSelectedAccount={getSelectedAccount}
           />
         )}
       </div>
@@ -541,6 +541,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
               fetchPublishTimes={fetchPublishTimes}
               toggleSidebar={closeRightSidebar}
               isMobile={true}
+              getSelectedAccount={getSelectedAccount}
             />
           </div>
 
@@ -590,6 +591,7 @@ function RightSidebarContent({
   fetchPublishTimes,
   toggleSidebar,
   isMobile,
+  getSelectedAccount,
 }: {
   selectedPosts: any[];
   writingContent: string;
@@ -612,11 +614,17 @@ function RightSidebarContent({
   fetchPublishTimes: () => void;
   toggleSidebar: () => void;
   isMobile: boolean;
+  getSelectedAccount: () => any;
 }) {
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden rounded-l-xl border border-gray-200 shadow-lg">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-background">
+      <div className="flex items-center justify-between p-4 bg-background">
+        {selectedPosts.length === 0 && (
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Write or Add contents
+          </h2>
+        )}
         {selectedPosts.length > 0 && (
           <h2 className="text-sm font-medium text-muted-foreground">
             Selected Posts ({selectedPosts.length}/3)
@@ -640,8 +648,8 @@ function RightSidebarContent({
 
       {/* Scrollable Content */}
       <div className={cn(
-        "flex-1 overflow-y-auto p-4",
-        isMobile && "max-h-[60vh]"
+        "flex-1 overflow-y-auto p-4 bg-background",
+        isMobile && "max-h-[60vh"
       )}>
         {/* Selected Posts Section */}
         <div className="space-y-4">
@@ -649,8 +657,8 @@ function RightSidebarContent({
           {selectedPosts.length === 0 ? (
             <PostCard
               variant="writing"
-              avatar="/avatars/01.png"
-              username="Username"
+              avatar={getSelectedAccount()?.threads_profile_picture_url}
+              username={getSelectedAccount()?.username}
               content={writingContent}
               onAiClick={() => setShowAiInput(!showAiInput)}
               onContentChange={setWritingContent}
@@ -667,8 +675,8 @@ function RightSidebarContent({
               >
                 <PostCard
                   variant={post.id === activePostId ? "writing" : "compact"}
-                  avatar='' // 현재 사용자 계정 프로필 이미지
-                  username="Example" // 현재 사용자 계정 이름
+                  avatar={getSelectedAccount()?.threads_profile_picture_url}
+                  username={getSelectedAccount()?.username}
                   content={post.id === activePostId ? writingContent : post.content}
                   url={post.url}
                   onMinus={() => removePost(post.id)}
@@ -693,11 +701,11 @@ function RightSidebarContent({
 
           {/* Navigation Buttons */}
           <div className={cn(
-            "grid gap-2",
-            isMobile ? "grid-cols-1" : "grid-cols-2"
+            "grid gap-2 grid-cols-2"
           )}>
             <Link
               href="/contents-cooker/topic-finder"
+              onClick={() => toggleSidebar()}
               className={cn(
                 "flex flex-col items-center p-4 rounded-xl transition-colors",
                 pathname === "/contents-cooker/topic-finder"
@@ -715,6 +723,7 @@ function RightSidebarContent({
             </Link>
             <Link
               href="/contents-cooker/saved"
+              onClick={() => toggleSidebar()}
               className={cn(
                 "flex flex-col items-center p-4 rounded-xl transition-colors",
                 pathname === "/contents-cooker/saved"
@@ -741,16 +750,16 @@ function RightSidebarContent({
             variant="outline"
             size="xl"
             className="w-full"
-            onClick={handleSaveToDraft}
+            onClick={() => {
+              handleSaveToDraft();
+              toggleSidebar();
+            }}
             disabled={!writingContent}
           >
             Save to Draft
           </Button>
 
-          <div className={cn(
-            "flex gap-2",
-            isMobile && "flex-col"
-          )}>
+          <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 relative">
               <Button
                 variant="default"

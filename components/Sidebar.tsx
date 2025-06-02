@@ -164,8 +164,7 @@ export function Sidebar({ className }: SidebarProps) {
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}>
             {/* 닫기 버튼 */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">메뉴</h2>
+            <div className="absolute top-0 right-0 items-center justify-between p-4 border-b">
               <Button
                 variant="ghost"
                 size="icon"
@@ -176,7 +175,7 @@ export function Sidebar({ className }: SidebarProps) {
               </Button>
             </div>
 
-            <div className="h-[calc(100%-60px)] overflow-y-auto">
+            <div className="h-screen overflow-y-auto">
               <SidebarContent
                 navigation={navigation}
                 logoSrc={logoSrc}

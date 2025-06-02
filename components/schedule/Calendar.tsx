@@ -267,7 +267,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                     <div
                       key={dayOffset}
                       className={cn(
-                        "min-h-[180px] p-3 border border-transparent rounded transition-colors duration-150 ease-in-out",
+                        "min-h-[100px] md:min-h-[180px] md:p-3 border border-transparent rounded transition-colors duration-150 ease-in-out",
                         isDropTarget && "border-primary bg-primary/10"
                       )}
                       onDragOver={(e) => handleDragOver(e, currentDate)}
@@ -277,12 +277,12 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                       <div className="text-sm font-medium text-muted-foreground mb-3">
                         {format(currentDate, 'd')}
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1 md:space-y-2">
                         {dayEvents.map((event) => (
                           <div
                             key={event.id}
                             className={cn(
-                              'relative rounded-md p-3 text-sm hover:opacity-75 transition-colors cursor-pointer border',
+                              'relative rounded-md px-1 py-2 md:p-3 text-sm hover:opacity-75 transition-colors cursor-pointer border',
                               event.status === 'scheduled'
                                 ? 'bg-blue-50 border-blue-200 text-foreground cursor-grab hover:bg-blue-100'
                                 : 'bg-gray-50 border-gray-200 text-foreground hover:bg-gray-100',
@@ -298,15 +298,15 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                           >
                             <div
                               className={cn(
-                                "absolute top-2 right-2 h-2 w-2 rounded-full",
+                                "absolute bottom-2 md:top-2 right-1 md:right-2 h-1.5 w-1.5 md:h-2 md:w-2 rounded-full",
                                 event.status === 'scheduled'
                                   ? "bg-red-500 animate-pulse"
                                   : "bg-green-500"
                               )}
                             />
                             <div className="font-semibold text-xs mb-1">{event.time}</div>
-                            <div className="flex items-start gap-2">
-                              <div className="flex-shrink-0 mt-0.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-shrink-0 mt-0.5 hidden md:block">
                                 {event.media_type === 'IMAGE' && <Image className="w-3 h-3" />}
                                 {event.media_type === 'VIDEO' && <Video className="w-3 h-3" />}
                                 {event.media_type === 'TEXT' && <FileText className="w-3 h-3" />}
@@ -317,7 +317,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                                   className="text-xs leading-relaxed break-words"
                                   style={{
                                     display: '-webkit-box',
-                                    WebkitLineClamp: 3,
+                                    WebkitLineClamp: 1,
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden',
                                     wordBreak: 'break-word',

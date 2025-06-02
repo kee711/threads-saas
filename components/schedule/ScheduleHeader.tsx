@@ -85,7 +85,7 @@ export function ScheduleHeader({
         </div>
 
         {/* Controls */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex gap-2 sm:items-center sm:gap-4">
           {/* Change Publish Time */}
           <ChangePublishTimeDialog />
 

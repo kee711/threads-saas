@@ -495,30 +495,30 @@ export default function StatisticsPage() {
                         {/* First row: 2 cards on lg+ screens */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {metricCards.slice(0, 2).map((card, index) => (
-                                <Card key={index}>
-                                    <CardContent className="p-4 md:p-6">
+                                <Card key={index} className="bg-muted">
+                                    <CardContent>
                                         <div className="flex items-center justify-between">
-                                            <div className="text-xl md:text-2xl font-bold">
-                                                {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                                            </div>
-                                            <div className="space-y-1">
+                                            <div className="flex flex-col">
                                                 <p className="text-sm font-medium text-muted-foreground">
                                                     {card.title}
                                                 </p>
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center text-sm">
-                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                                            }`}>
-                                                            {card.change}
-                                                        </span>
-                                                        <span className="text-muted-foreground ml-1">
-                                                            {card.description}
-                                                        </span>
-                                                    </div>
+                                                <div className="text-xl md:text-2xl font-bold">
+                                                    {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
                                                 </div>
                                             </div>
-                                            <div className="h-6 w-6 text-muted-foreground">
-                                                {card.icon}
+                                            <div className="space-y-1 flex flex-col items-end text-right">
+                                                <div className="h-6 w-6 text-muted-foreground">
+                                                    {card.icon}
+                                                </div>
+                                                <div className="flex items-center text-sm">
+                                                    <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                        }`}>
+                                                        {card.change}
+                                                    </span>
+                                                    <span className="text-muted-foreground ml-1">
+                                                        {card.description}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </CardContent>
@@ -530,12 +530,17 @@ export default function StatisticsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             {metricCards.slice(2).map((card, index) => (
                                 <Card key={index + 2}>
-                                    <CardContent className="p-4 md:p-6">
+                                    <CardContent>
                                         <div className="flex items-center justify-between">
-                                            <div className="space-y-1">
-                                                <p className="text-sm font-medium text-muted-foreground">
-                                                    {card.title}
-                                                </p>
+                                            <div className="space-y-1 w-full">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-sm font-medium text-muted-foreground">
+                                                        {card.title}
+                                                    </p>
+                                                    <div className="h-6 w-6 text-muted-foreground flex items-center">
+                                                        {card.icon}
+                                                    </div>
+                                                </div>
                                                 <div className="space-y-1">
                                                     <div className="text-xl md:text-2xl font-bold">
                                                         {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
@@ -550,9 +555,6 @@ export default function StatisticsPage() {
                                                         </span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="h-6 w-6 text-muted-foreground">
-                                                {card.icon}
                                             </div>
                                         </div>
                                     </CardContent>
