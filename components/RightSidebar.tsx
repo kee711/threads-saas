@@ -6,13 +6,17 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
 import { schedulePost, publishPost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import NextImage from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useMobileSidebar } from '@/contexts/MobileSidebarContext';
 
 interface RightSidebarProps {
   className?: string;
@@ -21,9 +25,14 @@ interface RightSidebarProps {
 export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
+  const { isRightSidebarOpen, openRightSidebar, closeRightSidebar, isMobile } = useMobileSidebar();
+  const pathname = usePathname();
+
   // Text content
   const [writingContent, setWritingContent] = useState("");
   const [hasUnsavedContent, setHasUnsavedContent] = useState(false);
@@ -34,30 +43,30 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
 
   // 이미지 관련 상태
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
 
-  // selectedPosts가 2개가 되었을 때 첫 번째 포스트의 type을 'format', 두 번째 포스트의 type을 'content'로 설정
+  // 모바일에서는 isRightSidebarOpen 상태 사용, 데스크톱에서는 기존 isCollapsed 사용
+  const isVisible = isMobile ? isRightSidebarOpen : !isCollapsed;
+  const toggleSidebar = isMobile ?
+    (isRightSidebarOpen ? closeRightSidebar : openRightSidebar) :
+    () => setIsCollapsed(prev => !prev);
+
+  // selectedPosts가 추가될때만 사이드바 펼치기
   useEffect(() => {
-    if (selectedPosts.length === 2) {
-      // 첫 번째 포스트에 type이 없으면 'format'으로 설정
-      if (!selectedPosts[0].type) {
-        updatePostType(selectedPosts[0].id, "format");
-      }
-      // 두 번째 포스트에 type이 없으면 'content'로 설정
-      if (!selectedPosts[1].type) {
-        updatePostType(selectedPosts[1].id, "content");
-      }
-      // 두 포스트의 type이 같으면, 나중에 추가된 포스트를 다른 type으로 설정
-      else if (selectedPosts[0].type === selectedPosts[1].type) {
-        const newType =
-          selectedPosts[0].type === "format" ? "content" : "format";
-        updatePostType(selectedPosts[1].id, newType);
-      }
+    if (selectedPosts.length > 0 && !isRightSidebarOpen && isCollapsed) {
+      toggleSidebar();
     }
-  }, [selectedPosts.length, selectedPosts]);
+  }, [selectedPosts.length]);
+
+  // 모바일에서 오버레이 클릭 시 사이드바 닫기
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && isMobile) {
+      toggleSidebar();
+    }
+  };
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
@@ -120,14 +129,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
       addPost({
         id: tempId,
         content: writingContent,
-        username: "Username",
-        timestamp: new Date().toISOString(),
-        viewCount: 0,
-        likeCount: 0,
-        commentCount: 0,
-        repostCount: 0,
-        shareCount: 0,
-        avatar: "/avatars/01.png",
       });
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
@@ -167,8 +168,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // 이미지가 추가되거나 제거될 때 미디어 타입 업데이트
   useEffect(() => {
-    if (selectedImages.length > 0) {
-      if (selectedImages.length > 1) {
+    if (selectedMedia.length > 0) {
+      if (selectedMedia.length > 1) {
         setSelectedMediaType("CAROUSEL");
       } else {
         setSelectedMediaType("IMAGE");
@@ -176,12 +177,30 @@ export function RightSidebar({ className }: RightSidebarProps) {
     } else {
       setSelectedMediaType("TEXT");
     }
-  }, [selectedImages]);
+  }, [selectedMedia]);
 
   // 이미지 변경 핸들러
-  const handleImagesChange = (images: string[]) => {
-    console.log("이미지 변경됨:", images);
-    setSelectedImages(images);
+  const handleMediaChange = (media: string[]) => {
+    console.log("미디어 변경됨:", media);
+    setSelectedMedia(media);
+
+    // 미디어 타입 자동 감지
+    if (media.length === 0) {
+      setSelectedMediaType("TEXT");
+    } else if (media.length === 1) {
+      // 단일 파일의 경우 확장자로 타입 판단
+      const imageUrl = media[0];
+      const extension = imageUrl.split('.').pop()?.toLowerCase();
+
+      if (extension && ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(extension)) {
+        setSelectedMediaType("VIDEO");
+      } else {
+        setSelectedMediaType("IMAGE");
+      }
+    } else {
+      // 복수 파일의 경우 캐러셀로 처리
+      setSelectedMediaType("CAROUSEL");
+    }
   };
 
   function findAvailablePublishTime(
@@ -245,31 +264,42 @@ export function RightSidebar({ className }: RightSidebarProps) {
     return null; // 가능한 시간 없음
   }
 
-  // Compose
-  const canComposeWithAI =
-    selectedPosts.length === 2 &&
-    selectedPosts.every((post) => post.type) &&
-    selectedPosts.some((post) => post.type === "format") &&
-    selectedPosts.some((post) => post.type === "content");
+  // activePostId가 변경될 때 writingContent 업데이트
+  useEffect(() => {
+    if (activePostId) {
+      const activePost = selectedPosts.find(post => post.id === activePostId);
+      if (activePost) {
+        setWritingContent(activePost.content);
+      }
+    }
+  }, [activePostId, selectedPosts]);
+
+  // writingContent가 변경될 때 active 포스트 업데이트
+  useEffect(() => {
+    if (activePostId && writingContent) {
+      const updatedPosts = selectedPosts.map(post =>
+        post.id === activePostId ? { ...post, content: writingContent } : post
+      );
+      // TODO: 포스트 업데이트 로직 구현
+    }
+  }, [writingContent, activePostId]);
+
+  // canComposeWithAI 로직 수정 (type 제거)
+  const canComposeWithAI = selectedPosts.length >= 2;
 
   const handleComposeWithAI = async () => {
     if (!canComposeWithAI) return;
 
-    const formatPost = selectedPosts.find((post) => post.type === "format");
-    const contentPost = selectedPosts.find((post) => post.type === "content");
-
-    if (!formatPost || !contentPost) return;
-
     try {
       setIsComposing(true);
-      const { content, error } = await composeWithAI(formatPost, contentPost);
+      const { content, error } = await composeWithAI(selectedPosts[0], selectedPosts[1]);
 
       if (error) throw new Error(error);
 
       // 선택된 포스트 초기화
       selectedPosts.forEach((post) => removePost(post.id));
 
-      // 생성된 콘텐츠를 writing PostCard에 저장, useEffect 통해 localStorage에 저장
+      // 생성된 콘텐츠를 writing PostCard에 저장
       setWritingContent(content);
       setHasUnsavedContent(true);
 
@@ -344,14 +374,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
         writingContent,
         scheduleTime,
         selectedMediaType,
-        selectedImages
+        selectedMedia
       );
 
       if (result?.error) throw result.error;
 
       // 스케줄 성공 시 초기화
       setWritingContent("");
-      setSelectedImages([]);
+      setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
       toast.success("예약이 완료되었습니다.");
@@ -370,14 +400,14 @@ export function RightSidebar({ className }: RightSidebarProps) {
         content: writingContent,
         mediaType:
           selectedMediaType === "CAROUSEL" ? "IMAGE" : selectedMediaType,
-        images: selectedImages,
+        media_urls: selectedMedia,
       });
 
       if (result && "error" in result && result.error) throw result.error;
 
       // 발행 성공 시 초기화
       setWritingContent("");
-      setSelectedImages([]);
+      setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
       toast.success("발행이 완료되었습니다.");
@@ -387,155 +417,339 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
-  // Improve Post 기능
-  const [isImproving, setIsImproving] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-
-  const handleImprovePost = async () => {
-    if (!writingContent) {
-      toast.error("개선할 콘텐츠가 없습니다.");
-      return;
+  // activePostId 업데이트 useEffect
+  useEffect(() => {
+    if (selectedPosts.length > 0) {
+      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
+      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
+    } else {
+      setActivePostId(null);
     }
+  }, [selectedPosts.length]);
 
-    try {
-      setIsImproving(true);
-      const { content, error } = await improvePost(writingContent);
-
-      if (error) throw new Error(error);
-
-      // 개선된 콘텐츠로 업데이트
-      setWritingContent(content);
-      toast.success("콘텐츠가 성공적으로 개선되었습니다.");
-    } catch (error) {
-      console.error("Error improving content:", error);
-      toast.error(
-        error instanceof Error ? error.message : "콘텐츠 개선에 실패했습니다."
-      );
-    } finally {
-      setIsImproving(false);
-    }
+  // 포스트 클릭 핸들러
+  const handlePostClick = (postId: string) => {
+    setActivePostId(postId);
   };
 
-  // UI
-
   return (
-    <div
-      className={cn(
-        "flex h-[calc(100vh-48px)] mt-6 mr-6 w-[390px] flex-col rounded-xl border bg-background",
+    <>
+      {/* 데스크톱 RightSidebar */}
+      <div className={cn(
+        "bg-muted h-[calc(100vh-48px)] mt-6 rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
+        !isCollapsed ? "w-[380px]" : "w-[50px]",
         className
-      )}
-    >
-      <div className="flex-1 overflow-auto p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4">
-          <h1 className="text-2xl font-semibold">Create New</h1>
-          {selectedPosts.length > 0 && (
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Selected Posts ({selectedPosts.length}/2)
-            </h2>
-          )}
-        </div>
+      )}>
+        {isCollapsed ? (
+          /* Collapsed state - show only toggle button */
+          <div className="flex flex-col h-full p-2 cursor-pointer" onClick={() => toggleSidebar()}>
+            <Button
+              variant="ghost"
+              size="icon"
 
+              className="h-10 w-10 shrink-0"
+            >
+              <PanelLeftClose className="h-6 w-6 text-muted-foreground" />
+            </Button>
+
+            {/* 우측 하단 이미지 버튼
+            <div className="mt-auto mb-4">
+              <Button
+                variant="ghost"
+                size="icon"
+
+                className="h-10 w-10 rounded-full bg-primary/10 hover:bg-primary/20"
+              >
+                <NextImage
+                  src="/welcome-chef.png"
+                  alt="Profile"
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+              </Button>
+            </div> */}
+          </div>
+        ) : (
+          <RightSidebarContent
+            selectedPosts={selectedPosts}
+            writingContent={writingContent}
+            setWritingContent={setWritingContent}
+            showAiInput={showAiInput}
+            setShowAiInput={setShowAiInput}
+            activePostId={activePostId}
+            selectedMedia={selectedMedia}
+            handleMediaChange={handleMediaChange}
+            handlePostClick={handlePostClick}
+            removePost={removePost}
+            pathname={pathname}
+            scheduleTime={scheduleTime}
+            handleSaveToDraft={handleSaveToDraft}
+            handleSchedule={handleSchedule}
+            handlePublish={handlePublish}
+            handleComposeWithAI={handleComposeWithAI}
+            canComposeWithAI={canComposeWithAI}
+            isComposing={isComposing}
+            fetchPublishTimes={fetchPublishTimes}
+            toggleSidebar={() => setIsCollapsed(true)}
+            isMobile={false}
+            getSelectedAccount={getSelectedAccount}
+          />
+        )}
+      </div>
+
+      {/* 모바일 바텀시트 */}
+      {isMobile && (
+        <>
+          {/* 오버레이 */}
+          {isRightSidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50 md:hidden"
+              onClick={handleOverlayClick}
+            />
+          )}
+
+          {/* 바텀시트 */}
+          <div className={cn(
+            "fixed bottom-0 left-0 right-0 z-50 transform bg-background transition-transform duration-300 ease-in-out md:hidden",
+            "max-h-[80vh] rounded-t-xl border-t shadow-lg",
+            isRightSidebarOpen ? "translate-y-0" : "translate-y-full"
+          )}>
+            <RightSidebarContent
+              selectedPosts={selectedPosts}
+              writingContent={writingContent}
+              setWritingContent={setWritingContent}
+              showAiInput={showAiInput}
+              setShowAiInput={setShowAiInput}
+              activePostId={activePostId}
+              selectedMedia={selectedMedia}
+              handleMediaChange={handleMediaChange}
+              handlePostClick={handlePostClick}
+              removePost={removePost}
+              pathname={pathname}
+              scheduleTime={scheduleTime}
+              handleSaveToDraft={handleSaveToDraft}
+              handleSchedule={handleSchedule}
+              handlePublish={handlePublish}
+              handleComposeWithAI={handleComposeWithAI}
+              canComposeWithAI={canComposeWithAI}
+              isComposing={isComposing}
+              fetchPublishTimes={fetchPublishTimes}
+              toggleSidebar={closeRightSidebar}
+              isMobile={true}
+              getSelectedAccount={getSelectedAccount}
+            />
+          </div>
+
+          모바일 토글 버튼 (우측 하단)
+          {!isRightSidebarOpen && (
+            <Button
+              variant="default"
+              size="icon"
+              onClick={openRightSidebar}
+              className="fixed bottom-4 right-4 z-30 h-14 w-14 rounded-full shadow-lg"
+            >
+              <NextImage
+                src="/avatars/01.png"
+                alt="Profile"
+                width={40}
+                height={40}
+                className="rounded-full"
+              />
+            </Button>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+// RightSidebar 콘텐츠 분리 컴포넌트
+function RightSidebarContent({
+  selectedPosts,
+  writingContent,
+  setWritingContent,
+  showAiInput,
+  setShowAiInput,
+  activePostId,
+  selectedMedia,
+  handleMediaChange,
+  handlePostClick,
+  removePost,
+  pathname,
+  scheduleTime,
+  handleSaveToDraft,
+  handleSchedule,
+  handlePublish,
+  handleComposeWithAI,
+  canComposeWithAI,
+  isComposing,
+  fetchPublishTimes,
+  toggleSidebar,
+  isMobile,
+  getSelectedAccount,
+}: {
+  selectedPosts: any[];
+  writingContent: string;
+  setWritingContent: (content: string) => void;
+  showAiInput: boolean;
+  setShowAiInput: (show: boolean) => void;
+  activePostId: string | null;
+  selectedMedia: string[];
+  handleMediaChange: (media: string[]) => void;
+  handlePostClick: (postId: string) => void;
+  removePost: (postId: string) => void;
+  pathname: string;
+  scheduleTime: string | null;
+  handleSaveToDraft: () => void;
+  handleSchedule: () => void;
+  handlePublish: () => void;
+  handleComposeWithAI: () => void;
+  canComposeWithAI: boolean;
+  isComposing: boolean;
+  fetchPublishTimes: () => void;
+  toggleSidebar: () => void;
+  isMobile: boolean;
+  getSelectedAccount: () => any;
+}) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden rounded-l-xl border border-gray-200 shadow-lg">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 bg-background">
+        {selectedPosts.length === 0 && (
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Write or Add contents
+          </h2>
+        )}
+        {selectedPosts.length > 0 && (
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Selected Posts ({selectedPosts.length}/3)
+          </h2>
+        )}
+
+        {/* 모바일에서는 아래로 내리기 버튼, 데스크톱에서는 닫기 버튼 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => toggleSidebar()}
+          className="h-8 w-8 shrink-0 ml-auto"
+        >
+          {isMobile ? (
+            <ChevronDown className="h-6 w-6 text-muted-foreground" />
+          ) : (
+            <PanelRightClose className="h-6 w-6 text-muted-foreground" />
+          )}
+        </Button>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className={cn(
+        "flex-1 overflow-y-auto p-4 bg-background",
+        isMobile && "max-h-[60vh"
+      )}>
         {/* Selected Posts Section */}
-        <div className="space-y-4 mb-4">
+        <div className="space-y-4">
           {/* Empty PostCard when no posts are selected */}
           {selectedPosts.length === 0 ? (
             <PostCard
               variant="writing"
-              avatar="/avatars/01.png"
-              username="Username"
+              avatar={getSelectedAccount()?.threads_profile_picture_url}
+              username={getSelectedAccount()?.username}
               content={writingContent}
               onAiClick={() => setShowAiInput(!showAiInput)}
               onContentChange={setWritingContent}
-              images={selectedImages}
-              onImagesChange={handleImagesChange}
+              media={selectedMedia}
+              onMediaChange={handleMediaChange}
             />
           ) : (
             /* Selected Posts */
             selectedPosts.map((post, index) => (
-              <PostCard
+              <div
                 key={post.id}
-                variant={selectedPosts.length >= 2 ? "compact" : "writing"}
-                avatar={post.avatar}
-                username={post.username}
-                content={
-                  selectedPosts.length >= 2 ? post.content : writingContent
-                }
-                timestamp={post.timestamp}
-                viewCount={post.viewCount}
-                likeCount={post.likeCount}
-                commentCount={post.commentCount}
-                repostCount={post.repostCount}
-                shareCount={post.shareCount}
-                topComment={post.topComment}
-                url={post.url}
-                onSelect={(type) => updatePostType(post.id, type)}
-                onMinus={() => removePost(post.id)}
-                onAiClick={() => setShowAiInput(!showAiInput)}
-                order={index}
-                onContentChange={
-                  selectedPosts.length >= 2 ? undefined : setWritingContent
-                }
-                images={selectedPosts.length >= 2 ? [] : selectedImages}
-                onImagesChange={
-                  selectedPosts.length >= 2 ? undefined : handleImagesChange
-                }
-              />
+                onClick={() => handlePostClick(post.id)}
+                className="cursor-pointer"
+              >
+                <PostCard
+                  variant={post.id === activePostId ? "writing" : "compact"}
+                  avatar={getSelectedAccount()?.threads_profile_picture_url}
+                  username={getSelectedAccount()?.username}
+                  content={post.id === activePostId ? writingContent : post.content}
+                  url={post.url}
+                  onMinus={() => removePost(post.id)}
+                  onAiClick={() => setShowAiInput(!showAiInput)}
+                  order={index}
+                  onContentChange={post.id === activePostId ? setWritingContent : undefined}
+                  media={post.id === activePostId ? selectedMedia : []}
+                  onMediaChange={post.id === activePostId ? handleMediaChange : undefined}
+                />
+              </div>
             ))
           )}
-        </div>
-
-        {/* AI Input Dropdown */}
-        {showAiInput && (
-          <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
-            <Input
-              placeholder="Input Prompt"
-              className="w-full"
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Add Hook
-              </Button>
+          {/* Divider with Text */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Expand Post
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex-1"
-                onClick={handleImprovePost}
-                disabled={isImproving || !writingContent}
-              >
-                {isImproving ? "개선 중..." : "Improve Post"}
-              </Button>
-              <Button variant="ghost" size="sm" className="flex-1">
-                Improve Post
-              </Button>
+            <div className="relative flex justify-center">
+              <span className="bg-background px-4 text-sm text-gray-400">Add contents from</span>
             </div>
           </div>
-        )}
+
+          {/* Navigation Buttons */}
+          <div className={cn(
+            "grid gap-2 grid-cols-2"
+          )}>
+            <Link
+              href="/contents-cooker/topic-finder"
+              onClick={() => toggleSidebar()}
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents-cooker/topic-finder"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <TextSearch className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents-cooker/topic-finder"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Topic Finder</span>
+            </Link>
+            <Link
+              href="/contents-cooker/saved"
+              onClick={() => toggleSidebar()}
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents-cooker/saved"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <PencilLine className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents-cooker/saved"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Saved</span>
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* Bottom Buttons - Default */}
       {selectedPosts.length < 2 && (
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-2 border-t bg-background">
           <Button
             variant="outline"
             size="xl"
             className="w-full"
-            onClick={handleSaveToDraft}
+            onClick={() => {
+              handleSaveToDraft();
+              toggleSidebar();
+            }}
             disabled={!writingContent}
           >
             Save to Draft
@@ -589,7 +803,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
       {/* Bottom Buttons - Compose */}
       {selectedPosts.length > 1 && (
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-2 border-t bg-background">
           <Button
             variant="default"
             size="xl"
