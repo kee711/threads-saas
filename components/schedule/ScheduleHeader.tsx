@@ -45,7 +45,7 @@ export function ScheduleHeader({
   }
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       {/* View Toggle */}
       <div className="flex items-center gap-2 text-xl font-semibold">
         <button
@@ -70,51 +70,55 @@ export function ScheduleHeader({
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center gap-4">
-        {/* Scheduled Count */}
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <CalendarIcon className="h-4 w-4" />
-          <span>{scheduledCount} Scheduled</span>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        {/* Scheduled & Posted Count */}
+        <div className="flex items-center gap-4 text-sm sm:text-base">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <CalendarIcon className="h-4 w-4" />
+            <span>{scheduledCount} Scheduled</span>
+          </div>
+
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Send className="h-4 w-4" />
+            <span>{postedCount} Posted</span>
+          </div>
         </div>
 
-        {/* Posted Count */}
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Send className="h-4 w-4" />
-          <span>{postedCount} Posted</span>
+        {/* Controls */}
+        <div className="flex gap-2 sm:items-center sm:gap-4">
+          {/* Change Publish Time */}
+          <ChangePublishTimeDialog />
+
+          {/* Month/Date Selector */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-2 w-full sm:w-auto">
+                {view === 'list' && selectedDate
+                  ? format(selectedDate, 'yyyy년 MM월 dd일', { locale: ko })
+                  : format(month, 'yyyy년 MM월', { locale: ko })}
+                <ChevronDown className="h-4 w-4 ml-auto sm:ml-2" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-auto" align="end">
+              {view === 'list' ? (
+                <ShadcnCalendar
+                  mode="single"
+                  selected={selectedDate}  // undefined 아님! 무조건 있어야 함
+                  onSelect={handleListDateSelect}  // undefined 아님!
+                  month={month}
+                  onMonthChange={handleMonthOnlyChange}
+                  numberOfMonths={1}
+                />
+              ) : (
+                <ShadcnCalendar
+                  month={month}
+                  onMonthChange={handleMonthOnlyChange}
+                  numberOfMonths={1}
+                />
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
-
-        {/* Change Publish Time */}
-        <ChangePublishTimeDialog />
-
-        {/* Month/Date Selector */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              {view === 'list' && selectedDate
-                ? format(selectedDate, 'yyyy년 MM월 dd일', { locale: ko })
-                : format(month, 'yyyy년 MM월', { locale: ko })}
-              <ChevronDown className="h-4 w-4 ml-auto" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="p-0 w-auto" align="end">
-            {view === 'list' ? (
-              <ShadcnCalendar
-                mode="single"
-                selected={selectedDate}  // undefined 아님! 무조건 있어야 함
-                onSelect={handleListDateSelect}  // undefined 아님!
-                month={month}
-                onMonthChange={handleMonthOnlyChange}
-                numberOfMonths={1}
-              />
-            ) : (
-              <ShadcnCalendar
-                month={month}
-                onMonthChange={handleMonthOnlyChange}
-                numberOfMonths={1}
-              />
-            )}
-          </PopoverContent>
-        </Popover>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/PostCard";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import useStatisticsStore from "@/stores/useStatisticsStore";
 import {
     LineChart,
     Line,
@@ -34,58 +35,17 @@ import {
     Share,
     Calendar,
     Download,
-    RefreshCw
+    RefreshCw,
+    Loader2,
+    Quote
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// 타입 정의
-interface InsightsData {
-    name: string;
-    period: string;
-    values?: Array<{ value: number; end_time?: string }>;
-    total_value?: { value: number };
-    title: string;
-    description: string;
-    id: string;
-}
-
+// 타입 정의는 store에서 import
 interface MetricOption {
     id: string;
     label: string;
     icon: React.ReactNode;
-}
-
-// Threads Post 타입 (API에서 가져온 데이터)
-interface ThreadsPost {
-    id: string;
-    media_product_type: string;
-    media_type: string;
-    media_url?: string;
-    permalink: string;
-    owner?: {
-        id: string;
-    };
-    username: string;
-    text: string;
-    timestamp: string;
-    shortcode: string;
-    thumbnail_url?: string;
-    children?: string[];
-    is_quote_post: boolean;
-    quoted_post?: string;
-    reposted_post?: string;
-    alt_text?: string;
-    link_attachment_url?: string;
-    gif_url?: string;
-}
-
-// Insights와 결합된 포스트 타입
-interface PostWithInsights extends ThreadsPost {
-    viewCount: number;
-    likeCount: number;
-    commentCount: number; // replies
-    repostCount: number;
-    shareCount: number;
-    engagementRate: number;
 }
 
 interface TopPost {
@@ -107,10 +67,9 @@ interface DateRange {
 }
 
 // 환경변수로 Mock 데이터 사용 여부 결정
-// NEXT_PUBLIC_USE_MOCK_DATA=true면 Mock 데이터 사용, false면 실제 API 데이터 사용
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
 
-// 더미 데이터 (실제 API 연동 시 교체)
+// 더미 데이터
 const mockChartData = [
     { name: '월', views: 4000, engagement: 2400, likes: 1200, replies: 450 },
     { name: '화', views: 3000, engagement: 1398, likes: 1100, replies: 380 },
@@ -184,224 +143,22 @@ const dateRanges: DateRange[] = [
 export default function StatisticsPage() {
     const { data: session } = useSession();
     const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [userInsights, setUserInsights] = useState<InsightsData[]>([]);
+    const statisticsStore = useStatisticsStore();
+
+    // 로컬 상태
     const [selectedMetric, setSelectedMetric] = useState('views');
     const [selectedTopPostMetric, setSelectedTopPostMetric] = useState('views');
     const [selectedDateRange, setSelectedDateRange] = useState(30);
-
-    // 클라이언트사이드에서만 계정 상태를 확인하기 위한 state
     const [isClient, setIsClient] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<any>(null);
-    const [topPosts, setTopPosts] = useState<PostWithInsights[]>([]);
 
-    // API 호출 함수를 useCallback으로 메모이제이션
-    const fetchUserInsights = useCallback(async (metrics: string[]) => {
-        try {
-            // 선택된 계정이 없으면 에러
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
+    // Store에서 현재 계정/날짜범위의 데이터 가져오기
+    const currentData = selectedAccount ?
+        statisticsStore.getCachedData(selectedAccount.social_id, selectedDateRange) : null;
 
-            const since = Math.floor(Date.now() / 1000) - (selectedDateRange * 24 * 60 * 60);
-            const until = Math.floor(Date.now() / 1000);
-
-            // 선택된 계정의 social_id를 user_id로 사용
-            const userId = selectedAccount.social_id;
-
-            // Time Series 메트릭과 Total Value 메트릭을 분리해서 호출
-            const allInsights: InsightsData[] = [];
-
-            // 1. Time Series 메트릭 (views) - since/until 사용
-            const timeSeriesMetrics = metrics.filter(m => m === 'views');
-            if (timeSeriesMetrics.length > 0) {
-                console.log(`Fetching Time Series metrics: ${timeSeriesMetrics.join(', ')}`);
-                const timeSeriesResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${timeSeriesMetrics.join(',')}&since=${since}&until=${until}`
-                );
-                if (timeSeriesResponse.ok) {
-                    const timeSeriesData = await timeSeriesResponse.json();
-                    console.log('Time Series data:', timeSeriesData);
-                    allInsights.push(...(timeSeriesData.data || []));
-                } else {
-                    console.error('Time Series API error:', await timeSeriesResponse.text());
-                }
-            }
-
-            // 2. Total Value 메트릭 (likes, replies, reposts, quotes) - since/until 사용
-            const totalValueMetrics = metrics.filter(m => ['likes', 'replies', 'reposts', 'quotes'].includes(m));
-            if (totalValueMetrics.length > 0) {
-                console.log(`Fetching Total Value metrics: ${totalValueMetrics.join(', ')}`);
-                const totalValueResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${totalValueMetrics.join(',')}&since=${since}&until=${until}`
-                );
-                if (totalValueResponse.ok) {
-                    const totalValueData = await totalValueResponse.json();
-                    console.log('Total Value data:', totalValueData);
-                    allInsights.push(...(totalValueData.data || []));
-                } else {
-                    console.error('Total Value API error:', await totalValueResponse.text());
-                }
-            }
-
-            // 3. 독립 메트릭 (followers_count) - since/until 사용하지 않음
-            const independentMetrics = metrics.filter(m => m === 'followers_count');
-            if (independentMetrics.length > 0) {
-                console.log(`Fetching Independent metrics: ${independentMetrics.join(', ')}`);
-                const independentResponse = await fetch(
-                    `/api/insights?type=user&user_id=${userId}&metric=${independentMetrics.join(',')}`
-                );
-                if (independentResponse.ok) {
-                    const independentData = await independentResponse.json();
-                    console.log('Independent data:', independentData);
-                    allInsights.push(...(independentData.data || []));
-                } else {
-                    console.error('Independent API error:', await independentResponse.text());
-                }
-            }
-
-            console.log('All insights combined:', allInsights);
-            return allInsights;
-        } catch (error) {
-            console.error('Error fetching insights:', error);
-            return [];
-        }
-    }, [selectedAccount, selectedDateRange]);
-
-    // 사용자 포스트 가져오기
-    const fetchUserPosts = useCallback(async (limit = 20): Promise<ThreadsPost[]> => {
-        try {
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
-
-            const userId = selectedAccount.social_id;
-            const response = await fetch(
-                `/api/user-posts?user_id=${userId}&limit=${limit}`
-            );
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch user posts');
-            }
-
-            const data = await response.json();
-            return data.data || [];
-        } catch (error) {
-            console.error('Error fetching user posts:', error);
-            return [];
-        }
-    }, [selectedAccount]);
-
-    // 개별 포스트의 insights 가져오기
-    const fetchPostInsights = useCallback(async (postId: string): Promise<any> => {
-        try {
-            if (!selectedAccount) {
-                throw new Error('No account selected');
-            }
-
-            const userId = selectedAccount.social_id;
-            const response = await fetch(
-                `/api/insights?type=media&media_id=${postId}&owner_user_id=${userId}&metric=views,likes,replies,reposts,shares`
-            );
-
-            if (!response.ok) {
-                console.error(`Failed to fetch insights for post ${postId}`);
-                return null;
-            }
-
-            const data = await response.json();
-            return data.data || [];
-        } catch (error) {
-            console.error(`Error fetching insights for post ${postId}:`, error);
-            return null;
-        }
-    }, [selectedAccount]);
-
-    // 포스트와 insights를 결합하여 Top Posts 생성
-    const fetchTopPostsWithInsights = useCallback(async (): Promise<PostWithInsights[]> => {
-        try {
-            // 1. 사용자 포스트 가져오기 (최근 20개)
-            const posts = await fetchUserPosts(20);
-            if (posts.length === 0) {
-                return [];
-            }
-
-            // 2. 각 포스트의 insights 병렬로 가져오기
-            const postsWithInsights: PostWithInsights[] = [];
-
-            // Promise.all로 병렬 처리하되, 실패한 것들은 제외
-            const insightsPromises = posts.map(async (post) => {
-                const insights = await fetchPostInsights(post.id);
-                if (!insights) return null;
-
-                // insights 데이터에서 메트릭 추출
-                const getMetricValue = (metricName: string): number => {
-                    const metric = insights.find((item: any) => item.name === metricName);
-                    return metric?.total_value?.value || 0;
-                };
-
-                const viewCount = getMetricValue('views');
-                const likeCount = getMetricValue('likes');
-                const replyCount = getMetricValue('replies');
-                const repostCount = getMetricValue('reposts');
-                const shareCount = getMetricValue('shares');
-
-                // engagement rate 계산: (likes + replies + reposts + shares) / views * 100
-                const totalEngagement = likeCount + replyCount + repostCount + shareCount;
-                const engagementRate = viewCount > 0 ? (totalEngagement / viewCount) * 100 : 0;
-
-                return {
-                    ...post,
-                    viewCount,
-                    likeCount,
-                    commentCount: replyCount,
-                    repostCount,
-                    shareCount,
-                    engagementRate: Math.round(engagementRate * 100) / 100, // 소수점 2자리
-                } as PostWithInsights;
-            });
-
-            const results = await Promise.all(insightsPromises);
-
-            // null이 아닌 결과들만 필터링
-            results.forEach(result => {
-                if (result) postsWithInsights.push(result);
-            });
-
-            return postsWithInsights;
-        } catch (error) {
-            console.error('Error fetching top posts with insights:', error);
-            return [];
-        }
-    }, [fetchUserPosts, fetchPostInsights]);
-
-    // 데이터 로딩 함수를 useCallback으로 메모이제이션
-    const loadData = useCallback(async (showRefresh = false) => {
-        if (showRefresh) {
-            setRefreshing(true);
-        } else {
-            setLoading(true);
-        }
-
-        // 시뮬레이션된 로딩 지연 (실제로는 API 호출)
-        await new Promise(resolve => setTimeout(resolve, showRefresh ? 500 : 1000));
-
-        try {
-            // User insights 조회 (더 많은 메트릭 포함)
-            const insights = await fetchUserInsights(['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count']);
-            setUserInsights(insights);
-
-            // Top Posts 가져오기
-            const topPosts = await fetchTopPostsWithInsights();
-            setTopPosts(topPosts);
-        } catch (error) {
-            console.error('Error loading insights:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [fetchUserInsights, fetchTopPostsWithInsights]);
+    const userInsights = currentData?.userInsights || [];
+    const topPosts = currentData?.topPosts || [];
+    const isFromCache = currentData && statisticsStore.isCacheValid(selectedAccount?.social_id, selectedDateRange);
 
     // 클라이언트 마운트 후 계정 정보 설정
     useEffect(() => {
@@ -414,18 +171,40 @@ export default function StatisticsPage() {
         if (session && selectedAccount && isClient) {
             loadData();
         }
-    }, [session, selectedAccount, isClient, loadData]);
+    }, [session, selectedAccount, isClient]);
 
-    // 새로고침 핸들러
-    const handleRefresh = () => {
-        if (selectedAccount) {
-            loadData(true);
+    // 날짜 범위 변경 시 데이터 로딩
+    useEffect(() => {
+        if (session && selectedAccount && isClient) {
+            loadData();
+        }
+    }, [selectedDateRange]);
+
+    const loadData = async (forceRefresh = false) => {
+        if (!selectedAccount) return;
+
+        try {
+            statisticsStore.setLoading(true);
+            await statisticsStore.loadData(selectedAccount.social_id, selectedDateRange, forceRefresh);
+        } catch (error) {
+            console.error('Error loading statistics data:', error);
+        } finally {
+            statisticsStore.setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        try {
+            statisticsStore.setRefreshing(true);
+            await loadData(true);
+        } finally {
+            statisticsStore.setRefreshing(false);
         }
     };
 
     // 인사이트 데이터에서 값 추출
-    const getInsightValue = (insights: InsightsData[], metricName: string): number => {
-        const insight = insights.find(item => item.name === metricName);
+    const getInsightValue = (metricName: string): number => {
+        const insight = userInsights.find(item => item.name === metricName);
         if (!insight) return 0;
 
         if (insight.total_value) {
@@ -440,7 +219,7 @@ export default function StatisticsPage() {
     };
 
     // 실제 API 데이터에서 차트 데이터 생성
-    const generateChartData = useCallback(() => {
+    const generateChartData = () => {
         // 환경변수로 Mock 데이터 강제 사용
         if (USE_MOCK_DATA || !userInsights || userInsights.length === 0) {
             return mockChartData;
@@ -454,10 +233,10 @@ export default function StatisticsPage() {
         }
 
         // likes, replies, reposts, quotes는 Total Value 메트릭이므로 총합만 있음
-        const totalLikes = getInsightValue(userInsights, 'likes');
-        const totalReplies = getInsightValue(userInsights, 'replies');
-        const totalReposts = getInsightValue(userInsights, 'reposts');
-        const totalQuotes = getInsightValue(userInsights, 'quotes');
+        const totalLikes = getInsightValue('likes');
+        const totalReplies = getInsightValue('replies');
+        const totalReposts = getInsightValue('reposts');
+        const totalQuotes = getInsightValue('quotes');
         const totalEngagement = totalLikes + totalReplies + totalReposts + totalQuotes;
 
         // Time Series 데이터에서 차트 데이터 생성
@@ -499,19 +278,19 @@ export default function StatisticsPage() {
         }
 
         return chartData;
-    }, [userInsights, selectedDateRange]);
+    };
 
     // 실제 API 데이터에서 파이 차트 데이터 생성
-    const generatePieData = useCallback(() => {
+    const generatePieData = () => {
         // 환경변수로 Mock 데이터 강제 사용
         if (USE_MOCK_DATA || !userInsights || userInsights.length === 0) {
             return mockPieData;
         }
 
-        const likes = getInsightValue(userInsights, 'likes');
-        const replies = getInsightValue(userInsights, 'replies');
-        const reposts = getInsightValue(userInsights, 'reposts');
-        const quotes = getInsightValue(userInsights, 'quotes');
+        const likes = getInsightValue('likes');
+        const replies = getInsightValue('replies');
+        const reposts = getInsightValue('reposts');
+        const quotes = getInsightValue('quotes');
 
         const total = likes + replies + reposts + quotes;
 
@@ -525,7 +304,7 @@ export default function StatisticsPage() {
             { name: 'Reposts', value: Math.round((reposts / total) * 100), color: '#10b981' },
             { name: 'Quotes', value: Math.round((quotes / total) * 100), color: '#f59e0b' },
         ];
-    }, [userInsights]);
+    };
 
     // 차트와 파이 데이터 생성
     const chartData = generateChartData();
@@ -534,8 +313,16 @@ export default function StatisticsPage() {
     // 메트릭 카드 데이터
     const metricCards = [
         {
+            title: "Total Views",
+            value: getInsightValue('views') || 'No data',
+            change: "+12.5%",
+            changeType: "positive" as const,
+            icon: <Eye className="w-5 h-5" />,
+            description: "views"
+        },
+        {
             title: "Total Followers",
-            value: getInsightValue(userInsights, 'followers_count') || 'No data',
+            value: getInsightValue('followers_count') || 'No data',
             change: "+12.5%",
             changeType: "positive" as const,
             icon: <Users className="w-5 h-5" />,
@@ -543,7 +330,7 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Likes",
-            value: getInsightValue(userInsights, 'likes') || 'No data',
+            value: getInsightValue('likes') || 'No data',
             change: "+8.2%",
             changeType: "positive" as const,
             icon: <Heart className="w-5 h-5" />,
@@ -551,10 +338,26 @@ export default function StatisticsPage() {
         },
         {
             title: "Total Replies",
-            value: getInsightValue(userInsights, 'replies') || 'No data',
+            value: getInsightValue('replies') || 'No data',
             change: "+3.1%",
             changeType: "positive" as const,
             icon: <MessageCircle className="w-5 h-5" />,
+            description: `in last ${selectedDateRange} days`
+        },
+        {
+            title: "Total Reposts",
+            value: getInsightValue('reposts') || 'No data',
+            change: "+3.1%",
+            changeType: "positive" as const,
+            icon: <Repeat className="w-5 h-5" />,
+            description: `in last ${selectedDateRange} days`
+        },
+        {
+            title: "Total Quotes",
+            value: getInsightValue('quotes') || 'No data',
+            change: "+3.1%",
+            changeType: "positive" as const,
+            icon: <Quote className="w-5 h-5" />,
             description: `in last ${selectedDateRange} days`
         },
     ];
@@ -571,7 +374,7 @@ export default function StatisticsPage() {
             id: post.id,
             content: post.text || 'No content available',
             username: post.username,
-            avatar: '/avatars/01.png', // 기본 아바타 (실제로는 프로필 이미지 API 필요)
+            avatar: '/avatars/01.png', // 기본 아바타
             viewCount: post.viewCount,
             likeCount: post.likeCount,
             commentCount: post.commentCount,
@@ -590,12 +393,16 @@ export default function StatisticsPage() {
     }).slice(0, 3); // Top 3만 선택
 
     // 초기 로딩 중이거나 클라이언트가 아직 마운트되지 않은 경우
-    if (!isClient) {
+    if (!isClient || !selectedAccount) {
         return (
-            <div className="container mx-auto py-6 space-y-6">
-                <div className="text-center">
-                    <Skeleton className="h-8 w-48 mx-auto mb-4" />
-                    <Skeleton className="h-4 w-64 mx-auto" />
+            <div className="space-y-6 p-4 md:p-6">
+                <div className="space-y-4">
+                    <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
+                        ))}
+                    </div>
                 </div>
             </div>
         );
@@ -612,334 +419,287 @@ export default function StatisticsPage() {
         );
     }
 
-    if (!selectedAccount) {
-        return (
-            <div className="container mx-auto py-6 space-y-6">
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">No Account Selected</h1>
-                    <p className="text-muted-foreground">
-                        Please select a Threads account to view statistics.
-                    </p>
-                    <div className="mt-4">
-                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                            Account Selection Required
-                        </Badge>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="container mx-auto py-6 space-y-6">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 p-4 md:p-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <h1 className="text-3xl font-bold">Statistics</h1>
-                        <Badge variant="secondary" className="text-sm">
-                            @{selectedAccount.username || selectedAccount.social_id}
-                        </Badge>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>
+                        {isFromCache && (
+                            <Badge variant="secondary" className="text-xs">
+                                캐시됨
+                            </Badge>
+                        )}
                     </div>
-                    <p className="text-muted-foreground">
-                        Last {selectedDateRange} days insights for your Threads account
+                    <p className="text-muted-foreground mt-1">
+                        {selectedAccount.account_name}의 성과 분석
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Live Data
-                    </Badge>
+
+                {/* Controls */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Date Range Selector */}
+                    <div className="flex border rounded-lg bg-muted p-1 w-full sm:w-auto">
+                        {dateRanges.map((range) => (
+                            <button
+                                key={range.days}
+                                onClick={() => setSelectedDateRange(range.days)}
+                                className={cn(
+                                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex-1 sm:flex-none",
+                                    selectedDateRange === range.days
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {range.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Refresh Button */}
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={handleRefresh}
-                        disabled={refreshing}
-                        className="flex items-center gap-2"
+                        disabled={statisticsStore.refreshing}
+                        className="w-full sm:w-auto"
                     >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Export
+                        {statisticsStore.refreshing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <RefreshCw className="h-4 w-4" />
+                        )}
+                        새로고침
                     </Button>
                 </div>
             </div>
 
-            {/* 날짜 범위 선택 */}
-            <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Time Range:</span>
-                <div className="flex gap-1">
-                    {dateRanges.map((range) => (
-                        <button
-                            key={range.days}
-                            onClick={() => setSelectedDateRange(range.days)}
-                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${selectedDateRange === range.days
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            {range.label}
-                        </button>
-                    ))}
+            {statisticsStore.loading && !isFromCache ? (
+                /* Loading State */
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-gray-200 rounded-lg h-24 animate-pulse" />
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-gray-200 rounded-lg h-80 animate-pulse" />
+                        <div className="bg-gray-200 rounded-lg h-80 animate-pulse" />
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <>
+                    {/* Metrics Cards */}
+                    <div className="space-y-4">
+                        {/* First row: 2 cards on lg+ screens */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {metricCards.slice(0, 2).map((card, index) => (
+                                <Card key={index} className="bg-muted">
+                                    <CardContent>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    {card.title}
+                                                </p>
+                                                <div className="text-xl md:text-2xl font-bold">
+                                                    {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1 flex flex-col items-end text-right">
+                                                <div className="h-6 w-6 text-muted-foreground">
+                                                    {card.icon}
+                                                </div>
+                                                <div className="flex items-center text-sm">
+                                                    <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                        }`}>
+                                                        {card.change}
+                                                    </span>
+                                                    <span className="text-muted-foreground ml-1">
+                                                        {card.description}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
 
-            {/* 메트릭 카드들 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {metricCards.map((card, index) => (
-                    <Card key={index} className="relative overflow-hidden">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                {card.title}
-                            </CardTitle>
-                            <div className="p-2 bg-muted rounded-full">
-                                {card.icon}
-                            </div>
+                        {/* Second row: 4 columns on lg+ screens */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {metricCards.slice(2).map((card, index) => (
+                                <Card key={index + 2}>
+                                    <CardContent>
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1 w-full">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-sm font-medium text-muted-foreground">
+                                                        {card.title}
+                                                    </p>
+                                                    <div className="h-6 w-6 text-muted-foreground flex items-center">
+                                                        {card.icon}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="text-xl md:text-2xl font-bold">
+                                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                                                    </div>
+                                                    <div className="flex items-center text-sm">
+                                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                            {card.change}
+                                                        </span>
+                                                        <span className="text-muted-foreground ml-1">
+                                                            {card.description}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Line Chart */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <CardTitle className="text-lg">Performance</CardTitle>
+                                    <div className="flex flex-wrap gap-2">
+                                        {metricOptions.map((option) => (
+                                            <Button
+                                                key={option.id}
+                                                variant={selectedMetric === option.id ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setSelectedMetric(option.id)}
+                                                className="text-xs h-8"
+                                            >
+                                                {option.icon}
+                                                <span className="ml-1">{option.label}</span>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-64 md:h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData}>
+                                            <defs>
+                                                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
+                                            <XAxis
+                                                dataKey="name"
+                                                stroke="#6b7280"
+                                                fontSize={12}
+                                            />
+                                            <YAxis
+                                                stroke="#6b7280"
+                                                fontSize={12}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: '#fff',
+                                                    border: '1px solid #e0e4e7',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                                                }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey={selectedMetric}
+                                                stroke="#3b82f6"
+                                                strokeWidth={3}
+                                                fill="url(#colorGradient)"
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Pie Chart */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Engagement Breakdown</CardTitle>
+                                <p className="text-sm text-muted-foreground">
+                                    지난 {selectedDateRange}일 동안의 인게이지먼트 분포
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-64 md:h-80">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={pieData}
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={80}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                                label={({ name, value }) => `${name}: ${value}%`}
+                                            >
+                                                {pieData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip
+                                                formatter={(value: any) => [`${value}%`, 'Percentage']}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Top Posts Section */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">Top Posts</CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                지난 {selectedDateRange}일 동안 가장 높은 성과를 기록한 포스트
+                            </p>
                         </CardHeader>
                         <CardContent>
-                            {loading ? (
-                                <div className="space-y-2">
-                                    <Skeleton className="h-8 w-24" />
-                                    <Skeleton className="h-4 w-16" />
+                            {topPosts.length > 0 ? (
+                                <div className="space-y-4">
+                                    {sortedTopPosts.map((post, index) => (
+                                        <div key={index} className="w-full">
+                                            <PostCard
+                                                variant="compact"
+                                                avatar={'/avatars/01.png'}
+                                                username={post.username || selectedAccount.account_name}
+                                                content={post.content || ''}
+                                                likeCount={post.likeCount}
+                                                commentCount={post.commentCount}
+                                                repostCount={post.repostCount}
+                                                viewCount={post.viewCount}
+                                                timestamp={new Date().toISOString()}
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <div className="space-y-1">
-                                    <div className="text-2xl font-bold">
-                                        {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-                                    </div>
-                                    <div className="flex items-center text-sm">
-                                        <span className={`font-medium ${card.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                            }`}>
-                                            {card.change}
-                                        </span>
-                                        <span className="text-muted-foreground ml-1">
-                                            {card.description}
-                                        </span>
-                                    </div>
+                                <div className="text-center py-8">
+                                    <p className="text-muted-foreground">
+                                        선택된 기간에 포스트 데이터가 없습니다.
+                                    </p>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
-                ))}
-            </div>
-
-            {/* 차트 그리드 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 메인 차트 카드 */}
-                <Card className="lg:col-span-2">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-                        <div className="space-y-1">
-                            <CardTitle className="text-2xl font-bold">Daily Trends</CardTitle>
-                            <CardDescription>
-                                Over selected time period
-                            </CardDescription>
-                        </div>
-                        <div className="flex gap-2">
-                            {metricOptions.map((option) => (
-                                <button
-                                    key={option.id}
-                                    onClick={() => setSelectedMetric(option.id)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedMetric === option.id
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted hover:bg-muted-foreground/10'
-                                        }`}
-                                >
-                                    {option.icon}
-                                    {option.label}
-                                </button>
-                            ))}
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="h-[400px] flex items-center justify-center">
-                                <div className="space-y-3 w-full">
-                                    <Skeleton className="h-4 w-full" />
-                                    <Skeleton className="h-4 w-3/4" />
-                                    <Skeleton className="h-[300px] w-full" />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="h-[400px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={chartData}>
-                                        <defs>
-                                            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
-                                        <XAxis
-                                            dataKey="name"
-                                            stroke="#6b7280"
-                                            fontSize={12}
-                                        />
-                                        <YAxis
-                                            stroke="#6b7280"
-                                            fontSize={12}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: '#fff',
-                                                border: '1px solid #e0e4e7',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                                            }}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey={selectedMetric}
-                                            stroke="#3b82f6"
-                                            strokeWidth={3}
-                                            fill="url(#colorGradient)"
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 파이 차트 카드 */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-xl font-bold">Engagement Breakdown</CardTitle>
-                        <CardDescription>
-                            Distribution of engagement types
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="h-[300px] flex items-center justify-center">
-                                <Skeleton className="h-[200px] w-[200px] rounded-full" />
-                            </div>
-                        ) : (
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={pieData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={100}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {pieData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            // metric name에 따른 툴팁 포맷팅
-                                            formatter={(value: any) => {
-                                                const metric = pieData.find(item => item.value === value);
-                                                return [`${value}%`, metric?.name || 'metric'];
-                                            }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                                <div className="mt-4 grid grid-cols-2 gap-2">
-                                    {pieData.map((item) => (
-                                        <div key={item.name} className="flex items-center gap-2">
-                                            <div
-                                                className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: item.color }}
-                                            />
-                                            <span className="text-sm font-medium">{item.name}</span>
-                                            <span className="text-sm text-muted-foreground ml-auto">
-                                                {item.value}%
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Top Posts 섹션 */}
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-                    <div className="space-y-1">
-                        <CardTitle className="text-xl font-bold">Top 3 Posts</CardTitle>
-                        <CardDescription>
-                            Your best performing posts this period
-                        </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setSelectedTopPostMetric('views')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedTopPostMetric === 'views'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            <Eye className="w-4 h-4" />
-                            Views
-                        </button>
-                        <button
-                            onClick={() => setSelectedTopPostMetric('engagement')}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedTopPostMetric === 'engagement'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted-foreground/10'
-                                }`}
-                        >
-                            <TrendingUp className="w-4 h-4" />
-                            Engagement Rate
-                        </button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-6">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="space-y-3">
-                                    <div className="flex items-center space-x-4">
-                                        <Skeleton className="h-12 w-12 rounded-full" />
-                                        <div className="space-y-2 flex-1">
-                                            <Skeleton className="h-4 w-full" />
-                                            <Skeleton className="h-4 w-3/4" />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {sortedTopPosts.map((post, index) => (
-                                <div key={post.id} className="relative">
-                                    <div className="absolute -left-4 top-4 flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full text-sm font-bold">
-                                        {index + 1}
-                                    </div>
-                                    <PostCard
-                                        variant="compact"
-                                        avatar={post.avatar}
-                                        username={post.username}
-                                        content={post.content}
-                                        viewCount={post.viewCount}
-                                        likeCount={post.likeCount}
-                                        commentCount={post.commentCount}
-                                        repostCount={post.repostCount}
-                                        shareCount={post.shareCount}
-                                    />
-                                    {selectedTopPostMetric === 'engagement' && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <Badge variant="secondary" className="text-xs">
-                                                Engagement Rate: {post.engagementRate}%
-                                            </Badge>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                </>
+            )}
         </div>
     );
 } 
