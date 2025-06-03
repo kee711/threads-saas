@@ -88,7 +88,16 @@ const useStatisticsStore = create<StatisticsStore>()((set, get) => ({
   // 캐시 관리 함수들
   getCachedData: (accountId: string, dateRange: number) => {
     const key = getCacheKey(accountId, dateRange);
-    return get().cache.get(key) || null;
+    const currentCache = get().cache;
+
+    // Map 객체 안전성 검사 (모바일 환경 대응)
+    if (!currentCache || typeof currentCache.get !== 'function') {
+      console.warn('Cache Map is corrupted during read, reinitializing...');
+      set({ cache: new Map() });
+      return null;
+    }
+
+    return currentCache.get(key) || null;
   },
 
   setCachedData: (accountId: string, dateRange: number, userInsights: InsightsData[], topPosts: PostWithInsights[]) => {
@@ -96,18 +105,30 @@ const useStatisticsStore = create<StatisticsStore>()((set, get) => ({
     const data: CachedStatisticsData = {
       accountId,
       dateRange,
-      userInsights,
-      topPosts,
+      userInsights: userInsights || [],
+      topPosts: topPosts || [],
       lastUpdated: Date.now()
     };
 
-    const newCache = new Map(get().cache);
+    const currentCache = get().cache;
+
+    // Map 객체 안전성 검사 (모바일 환경 대응)
+    if (!currentCache || typeof currentCache.set !== 'function') {
+      console.warn('Cache Map is corrupted, reinitializing...');
+      set({ cache: new Map([[key, data]]) });
+      return;
+    }
+
+    const newCache = new Map(currentCache);
     newCache.set(key, data);
 
-    // 캐시 크기 제한 (최대 20개)
+    // 캐시 크기 제한 (최대 20개) - 모바일 메모리 고려
     if (newCache.size > 20) {
-      const oldestKey = Array.from(newCache.keys())[0];
-      newCache.delete(oldestKey);
+      const keys = Array.from(newCache.keys());
+      if (keys.length > 0) {
+        const oldestKey = keys[0];
+        newCache.delete(oldestKey);
+      }
     }
 
     set({ cache: newCache });
