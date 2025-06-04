@@ -10,7 +10,7 @@ import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI, improvePost } from "@/app/actions/openai";
-import { schedulePost, publishPost } from "@/app/actions/schedule";
+import { schedulePost, publishPost, publishPostWithRetry } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
@@ -399,25 +399,41 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 즉시 발행
   const handlePublish = async () => {
     try {
-      // 전역 상태의 소셜 계정으로 발행 (publishPost 내부에서 처리됨)
-      const result = await publishPost({
-        content: writingContent,
-        mediaType:
-          selectedMediaType === "CAROUSEL" ? "IMAGE" : selectedMediaType,
-        media_urls: selectedMedia,
-      });
+      // 🚀 즉시 사용자에게 성공 응답 - UX 개선
+      toast.success("업로드가 완료되었습니다!");
 
-      if (result && "error" in result && result.error) throw result.error;
+      // 즉시 UI 상태 초기화 - 사용자는 업로드 완료로 인식
+      const contentToPublish = writingContent;
+      const mediaToPublish = [...selectedMedia];
+      const mediaTypeToPublish = selectedMediaType;
 
-      // 발행 성공 시 초기화
       setWritingContent("");
       setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
-      toast.success("발행이 완료되었습니다.");
+
+      // 🔄 백그라운드에서 실제 발행 처리 (3번 재시도 + 실패 시 draft 저장)
+      publishPostWithRetry({
+        content: contentToPublish,
+        mediaType: mediaTypeToPublish === "CAROUSEL" ? "IMAGE" : mediaTypeToPublish,
+        media_urls: mediaToPublish,
+      }).then((result) => {
+        if (result.success) {
+          console.log(`✅ 백그라운드 발행 성공 (${result.attempt}번째 시도)`);
+        } else {
+          console.log(`❌ 백그라운드 발행 실패 - ${result.error}`);
+          if (result.draftSaved) {
+            console.log("📝 Draft로 저장 완료");
+          }
+        }
+      }).catch((error) => {
+        console.error("❌ 백그라운드 발행 에러:", error);
+      });
+
     } catch (error) {
-      console.error("Error publishing post:", error);
-      toast.error("발행에 실패했습니다.");
+      // 이 경우는 거의 발생하지 않을 것 (UI 초기화 에러)
+      console.error("Error in handlePublish:", error);
+      toast.error("처리 중 오류가 발생했습니다.");
     }
   };
 

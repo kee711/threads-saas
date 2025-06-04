@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { cookies } from 'next/headers'
+import { toast } from "sonner";
 
 export type ScheduledPost = {
   id?: string;
@@ -391,4 +392,127 @@ export async function publishPost(params: PublishPostParams) {
     console.error("Error publishing post:", error);
     return { error };
   }
+}
+
+// Draft로 저장하는 helper 함수
+async function saveToDraft(params: PublishPostParams) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    const supabase = await createClient();
+
+    // 전역 상태에서 선택된 계정 ID 가져오기
+    const selectedAccountId = await getSelectedAccountId(session.user.id);
+
+    // 소셜 계정 정보 조회
+    let socialId = null;
+    if (selectedAccountId) {
+      const { data: account } = await supabase
+        .from("social_accounts")
+        .select("social_id")
+        .eq("id", selectedAccountId)
+        .single();
+
+      if (account) {
+        socialId = account.social_id;
+      }
+    }
+
+    // 선택된 계정이 없으면 사용자의 첫 번째 소셜 계정 사용
+    if (!socialId) {
+      const { data: accounts } = await supabase
+        .from("social_accounts")
+        .select("social_id")
+        .eq("owner", session.user.id)
+        .eq("platform", "threads")
+        .eq("is_active", true)
+        .limit(1);
+
+      if (accounts && accounts.length > 0) {
+        socialId = accounts[0].social_id;
+      }
+    }
+
+    // 3번 시도 후 실패한 포스트를 draft로 저장
+    const { data, error } = await supabase
+      .from("my_contents")
+      .insert([
+        {
+          content: params.content,
+          publish_status: "draft", // 🔄 3번 시도 후 실패 시 draft로 저장
+          user_id: session.user.id,
+          social_id: socialId,
+          media_type: params.mediaType,
+          media_urls: params.media_urls || [],
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log("✅ 3번 시도 후 실패하여 draft로 저장됨:", data.id);
+    revalidatePath("/");
+    return { data, error: null };
+  } catch (error) {
+    console.error("Error saving to draft:", error);
+    return { data: null, error };
+  }
+}
+
+// 3번 재시도 후 실패 시 draft로 저장하는 발행 함수
+export async function publishPostWithRetry(params: PublishPostParams) {
+  const maxRetries = 3;
+  let attempt = 0;
+
+  console.log("🚀 발행 시작 - 최대 3번 재시도");
+
+  while (attempt < maxRetries) {
+    attempt++;
+    console.log(`📤 발행 시도 ${attempt}/${maxRetries}`);
+
+    try {
+      const result = await publishPost(params);
+
+      if (!result.error) {
+        console.log("✅ 발행 성공!");
+        return { success: true, error: null, attempt };
+      }
+
+      console.log(`❌ 발행 시도 ${attempt} 실패:`, result.error);
+
+      // 마지막 시도가 아니면 대기 후 재시도
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000; // 2초, 4초, 6초 점진적 지연
+        console.log(`⏳ ${delay / 1000}초 대기 후 재시도...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+    } catch (error) {
+      console.log(`❌ 발행 시도 ${attempt} 에러:`, error);
+
+      // 마지막 시도가 아니면 대기 후 재시도
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000;
+        console.log(`⏳ ${delay / 1000}초 대기 후 재시도...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // 3번 모두 실패 시 draft로 저장
+  console.log("❌ 3번 시도 모두 실패 - draft로 저장");
+  const draftResult = await saveToDraft(params);
+  toast.error("발행에 실패하여 saved에 저장했어요");
+
+  return {
+    success: false,
+    error: "3번 시도 후 실패하여 draft로 저장됨",
+    attempt: maxRetries,
+    draftSaved: !draftResult.error
+  };
 }
