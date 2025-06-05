@@ -6,6 +6,7 @@ import { ContentCategory, ContentItem, ContentListProps } from './types';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
 import { getContents, ContentSource } from '@/app/actions/content';
 import { toast } from 'sonner';
+import { useSession } from 'next-auth/react';
 
 export function ContentList({ category, title }: ContentListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -14,11 +15,21 @@ export function ContentList({ category, title }: ContentListProps) {
   const addPost = useSelectedPostsStore(state => state.addPost);
   const selectedPosts = useSelectedPostsStore(state => state.selectedPosts);
 
+  // 🔐 사용자 세션 확인
+  const { data: session, status } = useSession();
+
   useEffect(() => {
+    // 로그인 상태 확인
+    if (status === 'loading') return; // 로딩 중에는 실행하지 않음
+    if (status === 'unauthenticated') {
+      setContents([]);
+      return;
+    }
+
     async function fetchContents() {
       setIsLoading(true);
       try {
-        // 카테고리에 따라 데이터 조회
+        // 카테고리에 따라 데이터 조회 (서버에서 RLS 적용됨)
         const params: { source: ContentSource; category: ContentCategory } = {
           source: category === 'external' ? 'external' : 'my',
           category
@@ -37,7 +48,7 @@ export function ContentList({ category, title }: ContentListProps) {
     }
 
     fetchContents();
-  }, [category]);
+  }, [category, status]); // status를 의존성에 추가
 
   // 컨텐츠 목록 토글
   const toggleExpand = () => {
@@ -48,6 +59,17 @@ export function ContentList({ category, title }: ContentListProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
+
+  // 로그인하지 않은 경우 메시지 표시
+  if (status === 'unauthenticated') {
+    return (
+      <div className="pt-6">
+        <div className="text-center text-muted-foreground">
+          🔒 컨텐츠를 보려면 로그인이 필요합니다.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-6">
@@ -61,7 +83,7 @@ export function ContentList({ category, title }: ContentListProps) {
               <div key={content.id} className="break-inside-avoid mb-6">
                 <PostCard
                   variant="default"
-                  username="minsung.dev"
+                  username={session?.user?.name || "user"}
                   content={content.content}
                   url={content.url}
                   onAdd={() => addPost({

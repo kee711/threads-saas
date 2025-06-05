@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { getContents, updateContent } from '@/app/actions/content' // ⭐ 서버 액션 import
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { PostCard } from '@/components/PostCard'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ScheduleHeader } from './ScheduleHeader'
 import { List } from './List'
 import { EditPostModal } from './EditPostModal'
@@ -35,6 +35,8 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [draggedEvent, setDraggedEvent] = useState<Event | null>(null)
   const [dropTargetDate, setDropTargetDate] = useState<Date | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const listContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -130,15 +132,30 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     }
   }
 
-  const handleEventDelete = async (eventId: string) => {
-    try {
-      const { error } = await deleteSchedule(eventId) // 서버 액션으로 삭제
+  const handleEventDelete = (eventId: string) => {
+    const event = events.find(e => e.id === eventId)
+    if (event) {
+      setEventToDelete(event)
+      setIsDeleteDialogOpen(true)
+    }
+  }
 
-      if (!error) {
-        setEvents(events.filter(event => event.id !== eventId))
+  const confirmDelete = async () => {
+    if (!eventToDelete) return
+
+    try {
+      const { error } = await deleteSchedule(eventToDelete.id)
+
+      if (error) {
+        throw error
       }
+
+      setEvents(events.filter(event => event.id !== eventToDelete.id))
+      setIsDeleteDialogOpen(false)
+      setEventToDelete(null)
     } catch (error) {
       console.error('Error deleting event:', error)
+      // 필요시 toast 알림 추가
     }
   }
 
@@ -352,11 +369,34 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
       <EditPostModal
         isOpen={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
+        onOpenChange={(isOpen) => {
+          setIsEditModalOpen(isOpen)
+          if (!isOpen) {
+            setSelectedEvent(null)
+          }
+        }}
         event={selectedEvent}
         onEventUpdate={handleEventUpdate}
         onEventDelete={handleEventDelete}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정을 취소하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              예약된 게시물 일정이 취소되며, 게시물은 초안으로 저장됩니다.
+              이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

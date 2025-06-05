@@ -36,7 +36,11 @@ export default async function RootLayout({
             )}
           </Providers>
         </SessionProvider>
-        <Toaster />
+        <Toaster
+          position="bottom-center"
+          richColors
+          closeButton
+        />
       </body>
     </html>
   );
