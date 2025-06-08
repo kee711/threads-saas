@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { format, isSameDay, startOfMonth } from 'date-fns'
-import { Clock, Plus, Edit, Check, Trash2 } from 'lucide-react'
+import { Clock, Plus, Edit, Check, Trash2, Image, Video, FileText, Images } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { getContents, updateContent } from '@/app/actions/content' // ⭐ 서버 액션 import
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { PostCard } from '@/components/PostCard'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ScheduleHeader } from './ScheduleHeader'
 import { List } from './List'
 import { EditPostModal } from './EditPostModal'
@@ -35,21 +35,26 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [draggedEvent, setDraggedEvent] = useState<Event | null>(null)
   const [dropTargetDate, setDropTargetDate] = useState<Date | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const listContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const { data, error } = await getContents({ status: 'scheduled' }); // ⭐ 서버 액션 사용
+        const { data, error } = await getContents({});
         if (error) throw error;
 
         if (data) {
           const formattedEvents = data.map((content: any) => ({
             id: content.id,
             title: content.content,
-            date: new Date(content.scheduled_at || content.created_at),
-            time: format(new Date(content.scheduled_at || content.created_at), 'HH:mm'),
-            status: content.publish_status
+            date: new Date(content.scheduled_at),
+            time: format(new Date(content.scheduled_at), 'HH:mm'),
+            status: content.publish_status,
+            media_type: content.media_type || 'TEXT',
+            media_urls: content.media_urls || [],
+            is_carousel: content.is_carousel || false
           }));
           setEvents(formattedEvents);
         } else {
@@ -127,15 +132,30 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     }
   }
 
-  const handleEventDelete = async (eventId: string) => {
-    try {
-      const { error } = await deleteSchedule(eventId) // 서버 액션으로 삭제
+  const handleEventDelete = (eventId: string) => {
+    const event = events.find(e => e.id === eventId)
+    if (event) {
+      setEventToDelete(event)
+      setIsDeleteDialogOpen(true)
+    }
+  }
 
-      if (!error) {
-        setEvents(events.filter(event => event.id !== eventId))
+  const confirmDelete = async () => {
+    if (!eventToDelete) return
+
+    try {
+      const { error } = await deleteSchedule(eventToDelete.id)
+
+      if (error) {
+        throw error
       }
+
+      setEvents(events.filter(event => event.id !== eventToDelete.id))
+      setIsDeleteDialogOpen(false)
+      setEventToDelete(null)
     } catch (error) {
       console.error('Error deleting event:', error)
+      // 필요시 toast 알림 추가
     }
   }
 
@@ -211,7 +231,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   }
 
   const scheduledCount = events.filter(event => event.status === 'scheduled').length
-
+  const postedCount = events.filter(event => event.status === 'posted').length
   const firstDayOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
   const lastDayOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)
 
@@ -227,6 +247,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
         view={view}
         setView={setView}
         scheduledCount={scheduledCount}
+        postedCount={postedCount}
         month={month}
         selectedDate={selectedDate}
         onMonthChange={handleMonthChange}
@@ -234,7 +255,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       />
 
       {view === 'calendar' ? (
-        <div className="bg-card">
+        <div className="bg-card h-[calc(100vh-9rem)] overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
           <div className="rounded-lg py-1 px-3 grid grid-cols-7 gap-px mb-2 bg-muted text-muted-foreground">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
               <div key={day} className="p-2 text-md font-medium">
@@ -263,26 +284,25 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                     <div
                       key={dayOffset}
                       className={cn(
-                        "min-h-[150px] p-2 border border-transparent rounded transition-colors duration-150 ease-in-out",
-                        !isCurrentMonth && "opacity-40",
+                        "min-h-[100px] md:min-h-[180px] md:p-3 border border-transparent rounded transition-colors duration-150 ease-in-out",
                         isDropTarget && "border-primary bg-primary/10"
                       )}
                       onDragOver={(e) => handleDragOver(e, currentDate)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, currentDate)}
                     >
-                      <div className="text-sm text-muted-foreground mb-2">
+                      <div className="text-sm font-medium text-muted-foreground mb-3">
                         {format(currentDate, 'd')}
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 md:space-y-2">
                         {dayEvents.map((event) => (
                           <div
                             key={event.id}
                             className={cn(
-                              'rounded-md p-2 text-sm hover:opacity-75 transition-colors cursor-pointer',
+                              'relative rounded-md px-1 py-2 md:p-3 text-sm hover:opacity-75 transition-colors cursor-pointer border',
                               event.status === 'scheduled'
-                                ? 'bg-blue-100 text-foreground cursor-grab'
-                                : 'bg-gray-150 text-muted-foreground',
+                                ? 'bg-blue-50 border-blue-200 text-foreground cursor-grab hover:bg-blue-100'
+                                : 'bg-gray-50 border-gray-200 text-foreground hover:bg-gray-100',
                               draggedEvent?.id === event.id && "opacity-50 ring-2 ring-primary ring-offset-2"
                             )}
                             onClick={() => handleEventClick(event)}
@@ -293,9 +313,37 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                               setDropTargetDate(null)
                             }}
                           >
-                            <div className="font-semibold">{event.time}</div>
-                            <div className="truncate">
-                              {event.title}
+                            <div
+                              className={cn(
+                                "absolute bottom-2 md:top-2 right-1 md:right-2 h-1.5 w-1.5 md:h-2 md:w-2 rounded-full",
+                                event.status === 'scheduled'
+                                  ? "bg-red-500 animate-pulse"
+                                  : "bg-green-500"
+                              )}
+                            />
+                            <div className="font-semibold text-xs mb-1">{event.time}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-shrink-0 mt-0.5 hidden md:block">
+                                {event.media_type === 'IMAGE' && <Image className="w-3 h-3" />}
+                                {event.media_type === 'VIDEO' && <Video className="w-3 h-3" />}
+                                {event.media_type === 'TEXT' && <FileText className="w-3 h-3" />}
+                                {event.media_type === 'CAROUSEL' && <Images className="w-3 h-3" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div
+                                  className="text-xs leading-relaxed break-words"
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 1,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    wordBreak: 'break-word',
+                                    hyphens: 'auto'
+                                  }}
+                                >
+                                  {event.title}
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -308,7 +356,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
           </div>
         </div>
       ) : (
-        <div ref={listContainerRef} className="h-[calc(100vh-200px)] overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <div ref={listContainerRef} className="h-[calc(100vh-9rem)] overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
           <List
             events={events}
             month={month}
@@ -321,11 +369,34 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
       <EditPostModal
         isOpen={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
+        onOpenChange={(isOpen) => {
+          setIsEditModalOpen(isOpen)
+          if (!isOpen) {
+            setSelectedEvent(null)
+          }
+        }}
         event={selectedEvent}
         onEventUpdate={handleEventUpdate}
         onEventDelete={handleEventDelete}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정을 취소하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              예약된 게시물 일정이 취소되며, 게시물은 초안으로 저장됩니다.
+              이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

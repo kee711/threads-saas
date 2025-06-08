@@ -9,6 +9,16 @@ const config: NextConfig = {
     THREADS_CLIENT_ID: process.env.THREADS_CLIENT_ID,
     THREADS_CLIENT_SECRET: process.env.THREADS_CLIENT_SECRET,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   eslint: {
     // Vercel 배포 시 ESLint 검사를 건너뜁니다.
     ignoreDuringBuilds: true,
@@ -17,7 +27,7 @@ const config: NextConfig = {
     // Vercel 배포 시 TypeScript 검사를 건너뜁니다.
     ignoreBuildErrors: true,
   },
-  webpack: (config) => {
+  webpack: (config, { dev }) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -25,6 +35,25 @@ const config: NextConfig = {
       path: false,
       os: false,
     };
+
+    // Only include stagewise in development mode
+    if (!dev) {
+      config.module.rules.push({
+        test: /@stagewise/,
+        loader: 'ignore-loader',
+      });
+    }
+
+    if (dev) {
+      // StagewiseToolbar 설정
+      config.module.rules.push({
+        test: /\.m?js/,
+        resolve: {
+          fullySpecified: false,
+        },
+      });
+    }
+
     return config;
   },
 };

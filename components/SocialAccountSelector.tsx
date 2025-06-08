@@ -16,6 +16,7 @@ import useSocialAccountStore from '@/stores/useSocialAccountStore';
 import { createClient } from '@/lib/supabase/client';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { OnboardingModal } from './OnboardingModal';
 
 interface SocialAccountSelectorProps {
   className?: string;
@@ -23,6 +24,8 @@ interface SocialAccountSelectorProps {
 
 export function SocialAccountSelector({ className }: SocialAccountSelectorProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [newAccountId, setNewAccountId] = useState<string | null>(null);
   const { data: session } = useSession();
   const {
     accounts,
@@ -31,7 +34,8 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
     currentUsername,
     setAccounts,
     setSelectedAccount,
-    setCurrentAccountInfo
+    setCurrentAccountInfo,
+    setAccountDetails
   } = useSocialAccountStore();
 
   // 소셜 계정 목록 가져오기 및 마지막 선택 계정 정보 불러오기
@@ -105,6 +109,36 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
     window.location.href = '/api/threads/oauth';
   };
 
+  // URL 파라미터 체크하여 계정 추가 완료 시 온보딩 모달 표시
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const accountAdded = urlParams.get('account_added');
+      const accountId = urlParams.get('account_id');
+
+      if (accountAdded === 'true' && accountId) {
+        // URL 파라미터 제거 (히스토리 상태 변경)
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+
+        setNewAccountId(accountId);
+        setShowOnboarding(true);
+
+        // 새 계정이 선택되도록 설정
+        if (accounts.length > 0) {
+          const newAccount = accounts.find(acc => acc.id === accountId);
+          if (newAccount) {
+            setSelectedAccount(newAccount.id);
+            setCurrentAccountInfo(
+              newAccount.social_id,
+              newAccount.username || newAccount.social_id
+            );
+          }
+        }
+      }
+    }
+  }, [accounts]);
+
   // 컴포넌트 마운트시 데이터 가져오기
   useEffect(() => {
     console.log("SocialAccountSelector 마운트, 세션:", session?.user?.id);
@@ -149,6 +183,22 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
       selectedAccount.social_id,
       selectedAccount.username || selectedAccount.social_id
     );
+    // account_info, account_tags도 가져와서 저장
+    try {
+      const supabase = createClient();
+      const { data: details, error: detailsError } = await supabase
+        .from('social_accounts')
+        .select('account_info, account_tags')
+        .eq('id', accountId)
+        .single();
+      if (!detailsError && details) {
+        setAccountDetails(details.account_info || '', details.account_tags || []);
+      } else {
+        setAccountDetails('', []);
+      }
+    } catch (err) {
+      setAccountDetails('', []);
+    }
 
     // DB의 user_profiles 테이블에도 선택된 계정 ID 저장
     try {
@@ -170,6 +220,14 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
       console.error('소셜 계정 선택 처리 오류:', error);
       toast.error('계정 선택 처리 중 오류가 발생했습니다.');
     }
+  };
+
+  // 온보딩 모달 닫기 핸들러
+  const handleCloseOnboarding = () => {
+    setShowOnboarding(false);
+    setNewAccountId(null);
+    // 계정 목록 새로고침
+    fetchSocialAccounts();
   };
 
   // 현재 선택된 계정 정보 가져오기
@@ -228,6 +286,15 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      {/* 온보딩 모달 */}
+      {showOnboarding && newAccountId && (
+        <OnboardingModal
+          open={showOnboarding}
+          onClose={handleCloseOnboarding}
+          socialAccountId={newAccountId}
+        />
+      )}
     </div>
   );
 } 

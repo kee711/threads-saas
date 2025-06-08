@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { PostCard } from '@/components/PostCard'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
@@ -74,8 +73,8 @@ export function EditPostModal({
 
   const handleDelete = () => {
     if (!event) return
-    onEventDelete(event.id)
-    onOpenChange(false)
+    onOpenChange(false) // 먼저 EditPostModal 닫기
+    onEventDelete(event.id) // 삭제 요청
   }
 
   if (!event) return null
@@ -142,40 +141,20 @@ export function EditPostModal({
         </div>
 
         <DialogFooter className="flex justify-between items-center pt-4 border-t">
-          <div>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+          <div className="flex justify-between w-full">
+            <Button variant="destructive" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Schedule
             </Button>
-          </div>
 
-          <div className="flex gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Schedule
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>일정을 취소하시겠습니까?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    예약된 게시물 일정이 취소되며, 게시물은 초안으로 저장됩니다.
-                    이 작업은 되돌릴 수 없습니다.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>취소</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>
-                    확인
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-            <Button onClick={handleSaveChanges}>
-              Change Schedule
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveChanges}>
+                Change Schedule
+              </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
