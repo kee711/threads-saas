@@ -74,7 +74,7 @@ export function List({
     setDraggedEvent(null)
     setDropTargetDate(null)
 
-    if (!eventDataString) return
+    if (!eventDataString || eventDataString === 'undefined' || eventDataString === 'null') return
 
     try {
       const eventData = JSON.parse(eventDataString) as Event

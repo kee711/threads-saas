@@ -59,7 +59,7 @@ export function TestimonialsSection({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground dark:text-muted-foreground">"{t.text}"</p>
+                  <p className="text-muted-foreground dark:text-muted-foreground">&ldquo;{t.text}&rdquo;</p>
                 </CardContent>
                 <CardFooter className="mt-auto">
                   <div className="flex items-center gap-4">

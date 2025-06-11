@@ -28,6 +28,8 @@ export function MobileSidebarProvider({ children }: { children: ReactNode }) {
 
   // 화면 크기 변화 감지
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768); // md 브레이크포인트
 
@@ -55,6 +57,8 @@ export function MobileSidebarProvider({ children }: { children: ReactNode }) {
 
   // ESC 키로 사이드바 닫기
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSidebarOpen(false);

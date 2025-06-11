@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
     if (isNewAccount) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/settings?account_added=true&account_id=${accountId}`);
     } else {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}`);
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents-cooker/topic-finder`);
     }
   } catch (error) {
     console.error("Threads OAuth 콜백 처리 중 오류:", error);
