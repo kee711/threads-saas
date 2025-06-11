@@ -74,13 +74,19 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
-    const savedContent = localStorage.getItem("draftContent");
-    console.log("localStorage에서 불러온 내용:", savedContent);
-    console.log("현재 selectedPosts:", selectedPosts);
-    if (savedContent && selectedPosts.length === 0) {
-      console.log("writingContent 설정:", savedContent);
-      setHasUnsavedContent(true);
-      setWritingContent(savedContent);
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const savedContent = localStorage.getItem("draftContent");
+      console.log("localStorage에서 불러온 내용:", savedContent);
+      console.log("현재 selectedPosts:", selectedPosts);
+      if (savedContent && selectedPosts.length === 0) {
+        console.log("writingContent 설정:", savedContent);
+        setHasUnsavedContent(true);
+        setWritingContent(savedContent);
+      }
+    } catch (error) {
+      console.warn('localStorage access failed:', error);
     }
   }, []);
 
@@ -110,15 +116,26 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // writingContent가 변경될 때마다 hasUnsavedContent 업데이트와 localStorage 저장
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     console.log("writingContent 변경됨:", writingContent);
     console.log("selectedPosts.length:", selectedPosts.length);
     if (writingContent && selectedPosts.length === 0) {
       console.log("localStorage에 저장:", writingContent);
-      setHasUnsavedContent(true);
-      localStorage.setItem("draftContent", writingContent);
+      try {
+        setHasUnsavedContent(true);
+        localStorage.setItem("draftContent", writingContent);
+      } catch (error) {
+        console.warn('localStorage save failed:', error);
+      }
     } else if (!writingContent) {
       console.log("localStorage 삭제");
-      localStorage.removeItem("draftContent");
+      try {
+        localStorage.removeItem("draftContent");
+        setHasUnsavedContent(false);
+      } catch (error) {
+        console.warn('localStorage remove failed:', error);
+      }
     }
   }, [writingContent, selectedPosts.length]);
 

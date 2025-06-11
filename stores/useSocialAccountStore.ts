@@ -158,6 +158,13 @@ const useSocialAccountStore = create<SocialAccountStore>()(
     }),
     {
       name: 'social-account-store',
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('Failed to rehydrate social account store:', error);
+          // Clear corrupted data
+          localStorage.removeItem('social-account-store');
+        }
+      },
     }
   )
 )

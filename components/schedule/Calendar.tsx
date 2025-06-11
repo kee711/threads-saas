@@ -172,7 +172,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     setDraggedEvent(null);
     setDropTargetDate(null);
 
-    if (!eventDataString) return;
+    if (!eventDataString || eventDataString === 'undefined' || eventDataString === 'null') return;
     try {
       const parsedEventData = JSON.parse(eventDataString) as Omit<Event, 'date'> & { date: string }; // date가 string임을 명시
 
