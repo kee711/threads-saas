@@ -345,9 +345,10 @@ function SidebarContent({
                   {session.user?.name
                     ? session.user.name
                       .split(' ')
+                      .filter(n => n.length > 0)
                       .map((n: string) => n[0])
                       .join('')
-                      .toUpperCase()
+                      .toUpperCase() || '??'
                     : '??'}
                 </AvatarFallback>
               </Avatar>

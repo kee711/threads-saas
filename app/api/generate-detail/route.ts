@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { COMMON_DETAIL_SETTINGS, USER_SETTINGS, GIVEN_TOPIC } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
+import { handleOptions, handleCors } from '@/lib/utils/cors';
 
 export const runtime = 'edge';
 
@@ -35,5 +36,10 @@ export async function POST(req: NextRequest) {
     const data = await openaiRes.json();
     const text = data.choices?.[0]?.message?.content || '';
 
-    return NextResponse.json({ detail: text });
+    const response = NextResponse.json({ detail: text });
+    return handleCors(response);
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 } 

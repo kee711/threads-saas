@@ -246,7 +246,18 @@ export function RightSidebar({ className }: RightSidebarProps) {
           }
 
           // 시간 문자열 분석 (시간은 DB에 UTC로 저장되어 있음)
-          const [utcHours, utcMinutes] = time.split(":").map(Number);
+          if (!time || typeof time !== 'string') {
+            console.error("Invalid time format:", time);
+            return null;
+          }
+
+          const timeParts = time.split(":");
+          if (timeParts.length !== 2) {
+            console.error("Invalid time format:", time);
+            return null;
+          }
+
+          const [utcHours, utcMinutes] = timeParts.map(Number);
 
           // 현재 날짜 + dayOffset에 해당하는 날짜 생성
           const date = new Date();

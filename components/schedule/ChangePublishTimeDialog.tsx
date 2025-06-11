@@ -40,7 +40,12 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
         const date = new Date(time)
         return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
       } else if (typeof time === 'string' && time.includes(':')) {
-        const [hours, minutes] = time.split(':').map(Number)
+        const timeParts = time.split(':');
+        if (timeParts.length !== 2) {
+          console.error("Invalid time format:", time);
+          return '00:00';
+        }
+        const [hours, minutes] = timeParts.map(Number)
 
         const date = new Date()
         date.setUTCHours(hours, minutes, 0, 0)
@@ -80,7 +85,18 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
   const saveToDatabase = async () => {
     try {
       const utcTimes = publishTimes.map(localTime => {
-        const [hours, minutes] = localTime.split(':').map(Number)
+        if (!localTime || typeof localTime !== 'string') {
+          console.error("Invalid local time format:", localTime);
+          return '00:00';
+        }
+        
+        const timeParts = localTime.split(':');
+        if (timeParts.length !== 2) {
+          console.error("Invalid local time format:", localTime);
+          return '00:00';
+        }
+        
+        const [hours, minutes] = timeParts.map(Number)
 
         const date = new Date()
         date.setHours(hours, minutes, 0, 0)
