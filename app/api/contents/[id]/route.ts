@@ -59,6 +59,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Failed to update content' }, { status: 500 })
     }
 
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: 'Content not found' }, { status: 404 })
+    }
+
     return NextResponse.json(data[0])
   } catch (error) {
     console.error('Error handling request:', error)

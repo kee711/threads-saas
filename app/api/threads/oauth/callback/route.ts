@@ -174,6 +174,6 @@ export async function GET(req: NextRequest) {
     }
   } catch (error) {
     console.error("Threads OAuth 콜백 처리 중 오류:", error);
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/social-connect?error=unknown`);
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents-cooker/topic-finder`);
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
+import { handleOptions, corsResponse } from '@/lib/utils/cors';
 
 /**
  * Threads Insights API
@@ -201,7 +202,7 @@ export async function GET(request: NextRequest) {
         // 세션 확인
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) {
-            return NextResponse.json(
+            return corsResponse(
                 { error: 'Unauthorized' },
                 { status: 401 }
             );
@@ -217,7 +218,7 @@ export async function GET(request: NextRequest) {
 
         // 필수 파라미터 확인
         if (!type || !metric) {
-            return NextResponse.json(
+            return corsResponse(
                 {
                     error: 'Missing required parameters',
                     message: 'type and metric parameters are required'
@@ -227,7 +228,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (!['media', 'user'].includes(type)) {
-            return NextResponse.json(
+            return corsResponse(
                 {
                     error: 'Invalid type parameter',
                     message: 'type must be either "media" or "user"'
@@ -244,7 +245,7 @@ export async function GET(request: NextRequest) {
             const mediaOwnerUserId = searchParams.get('owner_user_id'); // 미디어 소유자의 user_id 추가
 
             if (!mediaId) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Missing media_id parameter',
                         message: 'media_id is required for media insights'
@@ -254,7 +255,7 @@ export async function GET(request: NextRequest) {
             }
 
             if (!mediaOwnerUserId) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Missing owner_user_id parameter',
                         message: 'owner_user_id is required for media insights to verify ownership'
@@ -265,7 +266,7 @@ export async function GET(request: NextRequest) {
 
             const invalidMetrics = metrics.filter(m => !VALID_MEDIA_METRICS.includes(m as MediaMetric));
             if (invalidMetrics.length > 0) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Invalid metrics for media insights',
                         message: `Invalid metrics: ${invalidMetrics.join(', ')}. Valid metrics: ${VALID_MEDIA_METRICS.join(', ')}`
@@ -277,7 +278,7 @@ export async function GET(request: NextRequest) {
             // Threads 액세스 토큰 조회 (미디어 소유자의 토큰)
             const accessToken = await getThreadsAccessToken(session.user.id, mediaOwnerUserId);
             if (!accessToken) {
-                return NextResponse.json(
+                return corsResponse(
                     { error: 'Threads account not connected or access denied' },
                     { status: 400 }
                 );
@@ -287,15 +288,15 @@ export async function GET(request: NextRequest) {
             const result = await getMediaInsights(mediaId, metrics as MediaMetric[], accessToken);
 
             if ('error' in result) {
-                return NextResponse.json(result, { status: 400 });
+                return corsResponse(result, { status: 400 });
             }
 
-            return NextResponse.json(result);
+            return corsResponse(result);
 
         } else if (type === 'user') {
             const userId = searchParams.get('user_id');
             if (!userId) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Missing user_id parameter',
                         message: 'user_id is required for user insights'
@@ -306,7 +307,7 @@ export async function GET(request: NextRequest) {
 
             const invalidMetrics = metrics.filter(m => !VALID_USER_METRICS.includes(m as UserMetric));
             if (invalidMetrics.length > 0) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Invalid metrics for user insights',
                         message: `Invalid metrics: ${invalidMetrics.join(', ')}. Valid metrics: ${VALID_USER_METRICS.join(', ')}`
@@ -318,7 +319,7 @@ export async function GET(request: NextRequest) {
             // 날짜 파라미터 유효성 검사
             const dateValidation = validateDateParams(since || undefined, until || undefined);
             if (!dateValidation.isValid) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Invalid date parameter',
                         message: dateValidation.error
@@ -329,7 +330,7 @@ export async function GET(request: NextRequest) {
 
             // follower_demographics 메트릭의 경우 breakdown 파라미터 확인
             if (metrics.includes('follower_demographics') && !breakdown) {
-                return NextResponse.json(
+                return corsResponse(
                     {
                         error: 'Missing breakdown parameter',
                         message: 'breakdown parameter is required for follower_demographics metric. Valid values: country, city, age, gender'
@@ -341,7 +342,7 @@ export async function GET(request: NextRequest) {
             // Threads 액세스 토큰 조회
             const accessToken = await getThreadsAccessToken(session.user.id, userId);
             if (!accessToken) {
-                return NextResponse.json(
+                return corsResponse(
                     { error: 'Threads account not connected or access denied' },
                     { status: 400 }
                 );
@@ -358,15 +359,15 @@ export async function GET(request: NextRequest) {
             );
 
             if ('error' in result) {
-                return NextResponse.json(result, { status: 400 });
+                return corsResponse(result, { status: 400 });
             }
 
-            return NextResponse.json(result);
+            return corsResponse(result);
         }
 
     } catch (error) {
         console.error('Error in insights API:', error);
-        return NextResponse.json(
+        return corsResponse(
             {
                 error: 'Internal server error',
                 message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -374,4 +375,8 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 }

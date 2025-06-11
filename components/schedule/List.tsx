@@ -80,7 +80,18 @@ export function List({
       const eventData = JSON.parse(eventDataString) as Event
       if (eventData.status !== 'scheduled') return
 
-      const [hours, minutes] = eventData.time.split(':').map(Number)
+      if (!eventData.time || typeof eventData.time !== 'string') {
+        console.error("Invalid time format:", eventData.time)
+        return
+      }
+
+      const timeParts = eventData.time.split(':')
+      if (timeParts.length !== 2) {
+        console.error("Invalid time format:", eventData.time)
+        return
+      }
+
+      const [hours, minutes] = timeParts.map(Number)
       const newDate = new Date(dropDate)
       newDate.setHours(hours, minutes, 0, 0)
 

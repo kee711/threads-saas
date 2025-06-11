@@ -56,7 +56,18 @@ export function EditPostModal({
   const handleSaveChanges = () => {
     if (!event || !editDate) return
 
-    const [hours, minutes] = editTime.split(':').map(Number)
+    if (!editTime || typeof editTime !== 'string') {
+      console.error("Invalid edit time format:", editTime);
+      return;
+    }
+
+    const timeParts = editTime.split(':');
+    if (timeParts.length !== 2) {
+      console.error("Invalid edit time format:", editTime);
+      return;
+    }
+
+    const [hours, minutes] = timeParts.map(Number)
     const newDate = new Date(editDate)
     newDate.setHours(hours, minutes, 0, 0)
 
