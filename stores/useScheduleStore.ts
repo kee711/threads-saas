@@ -22,6 +22,13 @@ export const useScheduleStore = create<ScheduleStore>()(
     }),
     {
       name: 'schedule-store',
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('Failed to rehydrate schedule store:', error);
+          // Clear corrupted data
+          localStorage.removeItem('schedule-store');
+        }
+      },
     }
   )
 )

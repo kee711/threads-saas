@@ -21,6 +21,10 @@ const handler = NextAuth({
       }
     }),
   ],
+  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, account, profile }) {
       console.log('JWT Callback - Token:', token)
@@ -130,7 +134,7 @@ const handler = NextAuth({
     signIn: '/signin',
     error: '/error',
   },
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
 })
 
 export { handler as GET, handler as POST } 

@@ -111,29 +111,29 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
 
   // URL 파라미터 체크하여 계정 추가 완료 시 온보딩 모달 표시
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const accountAdded = urlParams.get('account_added');
-      const accountId = urlParams.get('account_id');
+    if (typeof window === 'undefined') return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const accountAdded = urlParams.get('account_added');
+    const accountId = urlParams.get('account_id');
 
-      if (accountAdded === 'true' && accountId) {
-        // URL 파라미터 제거 (히스토리 상태 변경)
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
+    if (accountAdded === 'true' && accountId) {
+      // URL 파라미터 제거 (히스토리 상태 변경)
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
 
-        setNewAccountId(accountId);
-        setShowOnboarding(true);
+      setNewAccountId(accountId);
+      setShowOnboarding(true);
 
-        // 새 계정이 선택되도록 설정
-        if (accounts.length > 0) {
-          const newAccount = accounts.find(acc => acc.id === accountId);
-          if (newAccount) {
-            setSelectedAccount(newAccount.id);
-            setCurrentAccountInfo(
-              newAccount.social_id,
-              newAccount.username || newAccount.social_id
-            );
-          }
+      // 새 계정이 선택되도록 설정
+      if (accounts.length > 0) {
+        const newAccount = accounts.find(acc => acc.id === accountId);
+        if (newAccount) {
+          setSelectedAccount(newAccount.id);
+          setCurrentAccountInfo(
+            newAccount.social_id,
+            newAccount.username || newAccount.social_id
+          );
         }
       }
     }

@@ -60,17 +60,29 @@ export function Sidebar({ className }: SidebarProps) {
 
   // Load saved state after initial render
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setOpenItems(JSON.parse(saved));
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        setOpenItems(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.warn('localStorage access failed:', error);
+      // Clear corrupted localStorage data
+      localStorage.removeItem(STORAGE_KEY);
     }
     setMounted(true);
   }, []);
 
   // Persist open items state to localStorage whenever it changes
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(openItems));
+    if (mounted && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(openItems));
+      } catch (error) {
+        console.warn('localStorage save failed:', error);
+      }
     }
   }, [openItems, mounted]);
 
@@ -333,9 +345,10 @@ function SidebarContent({
                   {session.user?.name
                     ? session.user.name
                       .split(' ')
+                      .filter(n => n.length > 0)
                       .map((n: string) => n[0])
                       .join('')
-                      .toUpperCase()
+                      .toUpperCase() || '??'
                     : '??'}
                 </AvatarFallback>
               </Avatar>

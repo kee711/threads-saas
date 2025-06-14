@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { handleOptions, corsResponse } from '@/lib/utils/cors';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
@@ -154,7 +155,7 @@ export async function GET(request: NextRequest) {
     // 세션 확인
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json(
+      return corsResponse(
         { error: 'Unauthorized' },
         { status: 401 }
       );
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
 
     // 필수 파라미터 확인
     if (!userId) {
-      return NextResponse.json(
+      return corsResponse(
         {
           error: 'Missing user_id parameter',
           message: 'user_id is required to fetch user posts'
@@ -183,7 +184,7 @@ export async function GET(request: NextRequest) {
     if (limitParam) {
       const parsedLimit = parseInt(limitParam);
       if (isNaN(parsedLimit) || parsedLimit < 1) {
-        return NextResponse.json(
+        return corsResponse(
           {
             error: 'Invalid limit parameter',
             message: 'limit must be a positive integer'
@@ -197,7 +198,7 @@ export async function GET(request: NextRequest) {
     // Threads 액세스 토큰 조회
     const accessToken = await getThreadsAccessToken(session.user.id, userId);
     if (!accessToken) {
-      return NextResponse.json(
+      return corsResponse(
         { error: 'Threads account not connected or access denied' },
         { status: 400 }
       );
@@ -207,14 +208,14 @@ export async function GET(request: NextRequest) {
     const result = await getUserPosts(userId, accessToken, limit, since || undefined, until || undefined);
 
     if ('error' in result) {
-      return NextResponse.json(result, { status: 400 });
+      return corsResponse(result, { status: 400 });
     }
 
-    return NextResponse.json(result);
+    return corsResponse(result);
 
   } catch (error) {
     console.error('Error in user-posts API:', error);
-    return NextResponse.json(
+    return corsResponse(
       {
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -222,4 +223,8 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 } 

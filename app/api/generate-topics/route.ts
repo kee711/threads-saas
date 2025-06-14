@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { COMMON_SETTINGS, USER_SETTINGS, INSTRUCTIONS } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
+import { handleOptions, handleCors } from '@/lib/utils/cors';
 
 export const runtime = 'edge';
 
@@ -38,8 +39,14 @@ export async function POST(req: NextRequest) {
     // JSON만 추출해서 반환
     try {
         const json = JSON.parse(text);
-        return NextResponse.json(json);
+        const response = NextResponse.json(json);
+        return handleCors(response);
     } catch {
-        return NextResponse.json({ error: 'Invalid JSON from OpenAI', raw: text }, { status: 500 });
+        const response = NextResponse.json({ error: 'Invalid JSON from OpenAI', raw: text }, { status: 500 });
+        return handleCors(response);
     }
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 } 

@@ -37,7 +37,7 @@ ${contentPost.content}
     });
 
     return {
-      content: response.choices[0].message.content || "",
+      content: response.choices?.[0]?.message?.content || "",
       error: null,
     };
   } catch (error) {
@@ -76,7 +76,7 @@ ${content}
     });
 
     return {
-      content: response.choices[0].message.content || "",
+      content: response.choices?.[0]?.message?.content || "",
       error: null,
     };
   } catch (error) {

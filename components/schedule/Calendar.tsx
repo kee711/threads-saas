@@ -172,7 +172,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     setDraggedEvent(null);
     setDropTargetDate(null);
 
-    if (!eventDataString) return;
+    if (!eventDataString || eventDataString === 'undefined' || eventDataString === 'null') return;
     try {
       const parsedEventData = JSON.parse(eventDataString) as Omit<Event, 'date'> & { date: string }; // date가 string임을 명시
 
@@ -185,7 +185,19 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       // 시간을 유지하면서 날짜만 변경
       const existingTime = format(eventData.date, 'HH:mm'); // 이제 eventData.date는 Date 객체
       const newDateTime = new Date(dropDate);
-      const [hours, minutes] = existingTime.split(':').map(Number);
+      
+      if (!existingTime || typeof existingTime !== 'string') {
+        console.error("Invalid existing time format:", existingTime)
+        return
+      }
+
+      const timeParts = existingTime.split(':')
+      if (timeParts.length !== 2) {
+        console.error("Invalid existing time format:", existingTime)
+        return
+      }
+
+      const [hours, minutes] = timeParts.map(Number);
       newDateTime.setHours(hours, minutes, 0, 0); // 시간, 분 설정
 
       const updatedEvent: Event = {
