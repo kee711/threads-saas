@@ -3,9 +3,9 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from 'sonner';
 import { Providers } from './providers'
-import { SessionProvider } from './providers/SessionProvider'
 import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/authOptions'
 // import { StagewiseToolbar } from '@stagewise/toolbar-next'
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,20 +23,18 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession()
+  const session = await getServerSession(authOptions)
 
   return (
     <html lang="ko" suppressHydrationWarning>
       <body className={`h-full ${inter.className}`}>
-        <SessionProvider session={session}>
-          <Providers>
-            {children}
-            {/* Stagewise toolbar temporarily disabled due to JSON parsing error */}
-            {/* {process.env.NODE_ENV === 'development' && (
-              <StagewiseToolbar config={stagewiseConfig} />
-            )} */}
-          </Providers>
-        </SessionProvider>
+        <Providers session={session}>
+          {children}
+          {/* Stagewise toolbar temporarily disabled due to JSON parsing error */}
+          {/* {process.env.NODE_ENV === 'development' && (
+            <StagewiseToolbar config={stagewiseConfig} />
+          )} */}
+        </Providers>
         <Toaster
           position="bottom-center"
           richColors
