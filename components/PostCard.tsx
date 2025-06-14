@@ -42,6 +42,7 @@ interface PostCardProps {
   onContentChange?: (content: string) => void;
   media?: string[];
   onMediaChange?: (media: string[]) => void;
+  onTextareaFocus?: () => void;
 }
 
 // 점수 계산 함수
@@ -88,6 +89,7 @@ export function PostCard({
   onContentChange,
   media = [],
   onMediaChange,
+  onTextareaFocus,
 }: PostCardProps) {
   const [isAiActive, setIsAiActive] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string[]>(media);
@@ -138,11 +140,32 @@ export function PostCard({
 
   // 컨텐츠가 변경될 때마다 높이 조절
   useEffect(() => {
-    textareaRef.current?.focus();
+    if (isWriting && textareaRef.current) {
+      textareaRef.current.focus();
+
+      // 모바일에서 키보드가 나타난 후 스크롤 조정
+      if (window.innerWidth <= 768) { // 모바일 기준
+        setTimeout(() => {
+          if (textareaRef.current) {
+            // 부모에서 전달받은 스크롤 함수가 있으면 호출
+            if (onTextareaFocus) {
+              onTextareaFocus();
+            } else {
+              // 기본 스크롤 동작
+              textareaRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+              });
+            }
+          }
+        }, 300); // 키보드 애니메이션 대기
+      }
+    }
+
     if (isWriting) {
       adjustTextareaHeight();
     }
-  }, [content, isWriting]);
+  }, [content, isWriting, onTextareaFocus]);
 
   // 이미지 추가 기능
   const handleImageClick = () => {
@@ -309,6 +332,7 @@ export function PostCard({
                 }}
                 placeholder={content.length === 0 ? "내용을 작성하세요..." : ""}
                 rows={1}
+                onFocus={onTextareaFocus}
               />
             ) : (
               <div

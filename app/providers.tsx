@@ -1,18 +1,29 @@
 'use client'
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
-import { type ThemeProviderProps } from 'next-themes/dist/types'
+import { SessionProvider } from 'next-auth/react'
+import { ReactNode } from 'react'
 
-// 다크모드 구현
-export function Providers({ children, ...props }: ThemeProviderProps) {
+interface ProvidersProps {
+  children: ReactNode
+  attribute?: string
+  defaultTheme?: string
+  enableSystem?: boolean
+  disableTransitionOnChange?: boolean
+}
+
+// 다크모드 및 세션 구현
+export function Providers({ children, ...props }: ProvidersProps) {
   return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      {...props}
-    >
-      {children}
-    </NextThemesProvider>
+    <SessionProvider>
+      <NextThemesProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        {...props}
+      >
+        {children}
+      </NextThemesProvider>
+    </SessionProvider>
   )
-} 
+}

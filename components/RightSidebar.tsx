@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [isComposing, setIsComposing] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [mobileViewportHeight, setMobileViewportHeight] = useState<number>(0);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
@@ -75,7 +76,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // localStorage에서 임시 저장된 내용 불러오기
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const savedContent = localStorage.getItem("draftContent");
       console.log("localStorage에서 불러온 내용:", savedContent);
@@ -117,7 +118,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // writingContent가 변경될 때마다 hasUnsavedContent 업데이트와 localStorage 저장
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     console.log("writingContent 변경됨:", writingContent);
     console.log("selectedPosts.length:", selectedPosts.length);
     if (writingContent && selectedPosts.length === 0) {
@@ -480,6 +481,43 @@ export function RightSidebar({ className }: RightSidebarProps) {
     setActivePostId(postId);
   };
 
+  // 모바일에서 실제 viewport 높이 계산
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const updateViewportHeight = () => {
+      // Visual Viewport API 사용 (지원되는 경우)
+      if (window.visualViewport) {
+        setMobileViewportHeight(window.visualViewport.height);
+      } else {
+        // fallback: window.innerHeight 사용
+        setMobileViewportHeight(window.innerHeight);
+      }
+    };
+
+    // 초기 설정
+    updateViewportHeight();
+
+    // viewport 변화 감지
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    } else {
+      window.addEventListener('resize', updateViewportHeight);
+      window.addEventListener('orientationchange', updateViewportHeight);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      } else {
+        window.removeEventListener('resize', updateViewportHeight);
+        window.removeEventListener('orientationchange', updateViewportHeight);
+      }
+    };
+  }, [isMobile]);
+
   return (
     <>
       {/* 데스크톱 RightSidebar */}
@@ -523,6 +561,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
             toggleSidebar={() => setIsCollapsed(true)}
             isMobile={false}
             getSelectedAccount={getSelectedAccount}
+            mobileViewportHeight={mobileViewportHeight}
           />
         )}
       </div>
@@ -539,11 +578,18 @@ export function RightSidebar({ className }: RightSidebarProps) {
           )}
 
           {/* 바텀시트 */}
-          <div className={cn(
-            "fixed bottom-0 left-0 right-0 z-50 transform bg-background transition-transform duration-300 ease-in-out md:hidden",
-            "max-h-[80vh] rounded-t-xl border-t shadow-lg",
-            isRightSidebarOpen ? "translate-y-0" : "translate-y-full"
-          )}>
+          <div
+            className={cn(
+              "fixed bottom-0 left-0 right-0 z-50 transform bg-background transition-transform duration-300 ease-in-out md:hidden",
+              "rounded-t-xl border-t shadow-lg",
+              isRightSidebarOpen ? "translate-y-0" : "translate-y-full"
+            )}
+            style={{
+              maxHeight: mobileViewportHeight > 0
+                ? `${Math.min(mobileViewportHeight * 0.85, mobileViewportHeight - 60)}px`
+                : '85dvh'
+            }}
+          >
             <RightSidebarContent
               selectedPosts={selectedPosts}
               writingContent={writingContent}
@@ -567,6 +613,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
               toggleSidebar={closeRightSidebar}
               isMobile={true}
               getSelectedAccount={getSelectedAccount}
+              mobileViewportHeight={mobileViewportHeight}
             />
           </div>
 
@@ -617,6 +664,7 @@ function RightSidebarContent({
   toggleSidebar,
   isMobile,
   getSelectedAccount,
+  mobileViewportHeight,
 }: {
   selectedPosts: any[];
   writingContent: string;
@@ -640,7 +688,48 @@ function RightSidebarContent({
   toggleSidebar: () => void;
   isMobile: boolean;
   getSelectedAccount: () => any;
+  mobileViewportHeight: number;
 }) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // 키보드가 나타났을 때 텍스트 영역을 적절한 위치로 스크롤
+  const handleTextareaFocus = useCallback(() => {
+    if (!isMobile || !scrollContainerRef.current) return;
+
+    setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+
+      // Visual Viewport API를 사용하여 실제 키보드 높이 감지
+      let keyboardHeight = 320; // 기본값
+      if (window.visualViewport) {
+        keyboardHeight = window.innerHeight - window.visualViewport.height;
+      }
+
+      const containerHeight = scrollContainerRef.current.clientHeight;
+      const textarea = scrollContainerRef.current.querySelector('textarea');
+
+      if (textarea) {
+        const textareaRect = textarea.getBoundingClientRect();
+        const containerRect = scrollContainerRef.current.getBoundingClientRect();
+
+        // 텍스트 영역의 상대적 위치 계산
+        const relativeTop = textareaRect.top - containerRect.top;
+        const textareaHeight = textareaRect.height;
+
+        // 키보드 위쪽에 텍스트 영역이 보이도록 스크롤 위치 계산
+        const visibleHeight = containerHeight - Math.max(keyboardHeight - 100, 0); // 바텀시트 하단 여백 고려
+        const targetScrollTop = relativeTop - (visibleHeight - textareaHeight - 50);
+
+        if (targetScrollTop > 0) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollTop + targetScrollTop,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }, 300); // 키보드 애니메이션 완료 대기
+  }, [isMobile]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-l-xl border border-gray-200 shadow-lg">
       {/* Header */}
@@ -672,10 +761,19 @@ function RightSidebarContent({
       </div>
 
       {/* Scrollable Content */}
-      <div className={cn(
-        "flex-1 overflow-y-auto p-4 bg-background",
-        isMobile && "max-h-[60vh"
-      )}>
+      <div
+        ref={scrollContainerRef}
+        className={cn(
+          "flex-1 overflow-y-auto p-4 bg-background"
+        )}
+        style={{
+          maxHeight: isMobile && mobileViewportHeight > 0
+            ? `${mobileViewportHeight * 0.65}px`
+            : isMobile
+              ? '65dvh'
+              : undefined
+        }}
+      >
         {/* Selected Posts Section */}
         <div className="space-y-4">
           {/* Empty PostCard when no posts are selected */}
@@ -689,6 +787,7 @@ function RightSidebarContent({
               onContentChange={setWritingContent}
               media={selectedMedia}
               onMediaChange={handleMediaChange}
+              onTextareaFocus={handleTextareaFocus}
             />
           ) : (
             /* Selected Posts */
@@ -710,6 +809,7 @@ function RightSidebarContent({
                   onContentChange={post.id === activePostId ? setWritingContent : undefined}
                   media={post.id === activePostId ? selectedMedia : []}
                   onMediaChange={post.id === activePostId ? handleMediaChange : undefined}
+                  onTextareaFocus={post.id === activePostId ? handleTextareaFocus : undefined}
                 />
               </div>
             ))
