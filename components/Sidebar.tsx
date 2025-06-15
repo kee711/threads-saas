@@ -18,6 +18,7 @@ import {
   Settings,
   Flame,
   X,
+  TestTube,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ import { useSession, signIn } from 'next-auth/react';
 import { SocialAccountSelector } from '@/components/SocialAccountSelector';
 import { useTheme } from 'next-themes';
 import { useMobileSidebar } from '@/contexts/MobileSidebarContext';
+import useSocialAccountStore from '@/stores/useSocialAccountStore';
 
 // Navigation item type definition
 interface NavItem {
@@ -61,7 +63,7 @@ export function Sidebar({ className }: SidebarProps) {
   // Load saved state after initial render
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved && saved !== 'undefined' && saved !== 'null') {
@@ -325,12 +327,12 @@ function SidebarContent({
       </div>
 
       {/* Streaks */}
-      <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
+      {/* <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
         <div className="flex items-center justify-center">
           <Flame className="h-7 w-7" />
           <p className="text-2xl font-bold">10</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Bottom section: User Profile */}
       <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mt-2">
@@ -358,17 +360,73 @@ function SidebarContent({
                 <p className="text-xs text-muted-foreground">Premium Plan</p>
               </div>
             </div>
-            {/* Settings Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-            >
-              <Link href="/settings" onClick={onLinkClick}>
-                <Settings className="h-5 w-5" />
-                <span className="sr-only">설정</span>
-              </Link>
-            </Button>
+            <div className="flex items-center gap-1">
+              {/* Test Onboarding Button - Development only */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="relative group">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-60 hover:opacity-100"
+                    title="Test Onboarding"
+                  >
+                    <TestTube className="h-4 w-4" />
+                    <span className="sr-only">테스트 온보딩</span>
+                  </Button>
+                  
+                  {/* Dropdown Menu */}
+                  <div className="absolute bottom-full right-0 mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-48">
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 px-2">Test Onboarding</div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-8"
+                        onClick={() => {
+                          window.location.href = '/onboarding?type=user';
+                        }}
+                      >
+                        User Onboarding
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-8"
+                        onClick={() => {
+                          // Get first social account ID for testing
+                          const testAccountId = 'test-account-id';
+                          window.location.href = `/onboarding?type=social&account_id=${testAccountId}`;
+                        }}
+                      >
+                        Social Onboarding
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs h-8"
+                        onClick={() => {
+                          window.location.href = '/?modal=pricing';
+                        }}
+                      >
+                        Pricing Modal
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Settings Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+              >
+                <Link href="/settings" onClick={onLinkClick}>
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">설정</span>
+                </Link>
+              </Button>
+            </div>
           </div>
         ) : (
           // 로그인되지 않은 경우

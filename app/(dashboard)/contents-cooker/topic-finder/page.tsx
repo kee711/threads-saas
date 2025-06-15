@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
+import { PricingModal } from '@/components/modals/PricingModal';
 import {
     AlertDialog,
     AlertDialogTrigger,
@@ -28,6 +30,7 @@ export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
     const addPost = useSelectedPostsStore(state => state.addPost);
+    const searchParams = useSearchParams();
 
     const { accounts, selectedAccountId, currentUsername } = useSocialAccountStore()
     const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
@@ -35,6 +38,7 @@ export default function TopicFinderPage() {
     const [accountTags, setAccountTags] = useState<string[]>([])
     const [topicResults, setTopicResults] = useState<{ topic: string, detail?: string, loading?: boolean, dialogOpen?: boolean }[]>([])
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
     // zustand의 selectedAccountId와 로컬 상태 동기화
     useEffect(() => {

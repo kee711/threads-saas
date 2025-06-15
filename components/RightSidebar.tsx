@@ -397,9 +397,28 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
+  // Check if social account is connected
+  const checkSocialAccountConnection = () => {
+    const selectedAccount = getSelectedAccount();
+    if (!selectedAccount || !selectedAccountId) {
+      toast.error("계정 추가가 필요해요", {
+        description: "먼저 Threads 계정을 연결해주세요.",
+        action: {
+          label: "계정 연결",
+          onClick: () => window.location.href = "/api/threads/oauth"
+        }
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Post 예약발행
   const handleSchedule = async () => {
     if (!writingContent || !scheduleTime) return;
+    
+    // Check social account connection
+    if (!checkSocialAccountConnection()) return;
 
     try {
       // 전역 상태의 소셜 계정으로 예약 발행 (schedulePost 내부에서 처리됨)
@@ -427,6 +446,9 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 즉시 발행
   const handlePublish = async () => {
+    // Check social account connection
+    if (!checkSocialAccountConnection()) return;
+
     try {
       // 🚀 즉시 사용자에게 성공 응답 - UX 개선
       toast.success("업로드가 완료되었습니다!");

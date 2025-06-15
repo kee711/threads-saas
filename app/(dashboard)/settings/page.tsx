@@ -64,6 +64,7 @@ export default function SettingsPage() {
   const [accountInfo, setAccountInfo] = useState('')
   const [accountType, setAccountType] = useState<string>('')
   const [accountTags, setAccountTags] = useState<string[]>([])
+  const [profileDescription, setProfileDescription] = useState('')
   const [newTag, setNewTag] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -112,7 +113,7 @@ export default function SettingsPage() {
         // social_accounts 테이블에서 계정 정보 로드
         const { data: accountData, error: accountError } = await supabase
           .from('social_accounts')
-          .select('account_type, account_info, account_tags')
+          .select('account_type, account_info, account_tags, profile_description')
           .eq('id', selectedSocialAccount)
           .single()
 
@@ -120,10 +121,12 @@ export default function SettingsPage() {
           setAccountType(accountData.account_type || '')
           setAccountInfo(accountData.account_info || '')
           setAccountTags(accountData.account_tags || [])
+          setProfileDescription(accountData.profile_description || '')
         } else {
           setAccountType('')
           setAccountInfo('')
           setAccountTags([])
+          setProfileDescription('')
         }
       } catch (error) {
         console.error('계정 정보 로드 오류:', error)
@@ -183,7 +186,8 @@ export default function SettingsPage() {
         .update({
           account_type: accountType || null,
           account_info: accountInfo || null,
-          account_tags: accountTags.length > 0 ? accountTags : null
+          account_tags: accountTags.length > 0 ? accountTags : null,
+          profile_description: profileDescription.trim() || null
         })
         .eq('id', selectedSocialAccount)
 
@@ -420,6 +424,21 @@ export default function SettingsPage() {
                       className="min-h-[100px]"
                       disabled={isLoading}
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="profileDescription" className="mb-2 block">프로필 설명</Label>
+                    <Textarea
+                      id="profileDescription"
+                      value={profileDescription}
+                      onChange={(e) => setProfileDescription(e.target.value)}
+                      placeholder="프로필에 대한 자세한 설명을 입력하세요. 예: 무엇에 대한 프로필인지, 타겟 오디언스는 누구인지, 고유한 특징은 무엇인지 등을 포함해주세요."
+                      className="min-h-[120px]"
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      이 설명은 AI 콘텐츠 생성 시 더 정확한 결과를 위해 사용됩니다.
+                    </p>
                   </div>
 
                   <div>

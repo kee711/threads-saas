@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 
@@ -35,11 +35,17 @@ export function ProfileDescriptionDropdown({ accountId, initialDescription }: Pr
 
     return (
         <div className="w-full rounded-t-xl bg-[#F8F8F8] border-b border-[#E5E5E5] px-6 pt-4 pb-2 relative">
-            <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpen(v => !v)}>
+            <div className="flex items-center justify-between cursor-pointer transition-all duration-300" onClick={() => setOpen(v => !v)}>
                 <span className="font-semibold text-gray-600 text-lg">Profile description</span>
-                {open ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                <ChevronDown className={`w-5 h-5 transition-transform duration-300 ease-in-out ${
+                    open ? 'rotate-180' : 'rotate-0'
+                }`} />
             </div>
-            {open && (
+            <div 
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    open ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'
+                }`}
+            >
                 <div className="mt-2">
                     <textarea
                         className="w-full bg-transparent border-none resize-none text-sm text-gray-800 focus:outline-none"
@@ -58,7 +64,7 @@ export function ProfileDescriptionDropdown({ accountId, initialDescription }: Pr
                         </Button>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 } 
