@@ -31,21 +31,13 @@ export async function getCommentData(mediaId: string) {
   const params = {
     fields: [
       'id',
-      //'media_product_type',
-      //'media_type',
-      //'media_url',
-      //'permalink',
       'text',
       'username',
       'timestamp',
       'shortcode',
-      //'thumbnail_url',
-      //'children',
-      //'has_replies',
       'replied_to',
       'is_reply',
-      'root_post',
-      'hide_status'
+      'root_post'
     ].join(','),
     reverse: true,
     access_token: token,
@@ -58,8 +50,13 @@ export async function getCommentData(mediaId: string) {
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error(`Axios error: ${error.response?.status} - ${error.response?.data}`);
-      throw new Error(`Failed to fetch comments: ${error.response?.status}`);
+      console.error('Axios error details:');
+      console.error('Status:', error.response?.status);
+      console.error('Data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('Headers:', error.response?.headers);
+      console.error('Request URL:', url);
+      console.error('Request params:', JSON.stringify(params, null, 2));
+      throw new Error(`Failed to fetch comments: ${error.response?.status} - ${JSON.stringify(error.response?.data)}`);
     } else {
       console.error('Unexpected error:', error);
       throw error;
@@ -76,22 +73,13 @@ export async function getMentionData(userId: string) {
   const params = {
     fields: [
       'id',
-      //'media_product_type',
-      //'media_type',
-      //'media_url',
-      //'permalink',
-      //'owner',
       'text',
       'username',
       'timestamp',
       'shortcode',
-      //'thumbnail_url',
-      //'children',
-      //'has_replies',
       'replied_to',
       'is_reply',
-      'root_post',
-      //'hide_status'
+      'root_post'
     ].join(','),
     access_token: token,
   };
@@ -103,8 +91,13 @@ export async function getMentionData(userId: string) {
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error(`Axios error: ${error.response?.status} - ${error.response?.data}`);
-      throw new Error(`Failed to fetch mentions: ${error.response?.status}`);
+      console.error('Axios error details (mentions):');
+      console.error('Status:', error.response?.status);
+      console.error('Data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('Headers:', error.response?.headers);
+      console.error('Request URL:', url);
+      console.error('Request params:', JSON.stringify(params, null, 2));
+      throw new Error(`Failed to fetch mentions: ${error.response?.status} - ${JSON.stringify(error.response?.data)}`);
     } else {
       console.error('Unexpected error:', error);
       throw error;
