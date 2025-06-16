@@ -28,7 +28,7 @@ export async function getCommentData(mediaId: string) {
   const token = await getThreadsAccessToken();
 
   // 먼저 replies endpoint를 시도
-  const url = `https://graph.threads.net/${mediaId}/replies`;
+  const url = `https://graph.threads.net/${mediaId}/conversation`;
   const params = {
     fields: [
       'id',
@@ -158,13 +158,7 @@ export async function fetchAndSaveComments() {
   console.log('Retrieved media IDs:', JSON.stringify(mediaIds, null, 2));
 
   // media_id 필드 확인 및 변경
-  const commentPromises = mediaIds.map((mediaId) => {
-    console.log('Processing media ID:', mediaId);
-    // my_contents 테이블의 실제 필드명 확인 (id 또는 media_id)
-    const actualMediaId = mediaId.id || mediaId.media_id;
-    console.log('Using actual media ID:', actualMediaId);
-    return getCommentData(actualMediaId);
-  });
+  const commentPromises = mediaIds.map((mediaId) => getCommentData(mediaId.media_id));
   const commentResponses = await Promise.all(commentPromises);
 
   const allComments = commentResponses.flatMap((commentData) => {
