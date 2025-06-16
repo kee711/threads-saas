@@ -18,6 +18,8 @@ import {
   Settings,
   Flame,
   X,
+  MessageSquareReply,
+  AtSign
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -61,7 +63,7 @@ export function Sidebar({ className }: SidebarProps) {
   // Load saved state after initial render
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved && saved !== 'undefined' && saved !== 'null') {
@@ -124,11 +126,15 @@ export function Sidebar({ className }: SidebarProps) {
       href: '/statistics',
       icon: BarChart2,
     },
-    // {
-    //   name: 'Comments',
-    //   href: '/comments',
-    //   icon: MessageSquare,
-    // },
+    {
+      name: 'Comments',
+      icon: MessageSquare,
+      isExpandable: true,
+      subItems: [
+        { name: 'Comments', href: '/comments', icon: MessageSquareReply },
+        { name: 'Mentions', href: '/mentions', icon: AtSign },
+      ],
+    },
   ];
 
   // 테마에 따라 적절한 로고 이미지 선택
