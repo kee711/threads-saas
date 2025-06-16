@@ -802,7 +802,7 @@ const InteractiveHero: React.FC = () => {
                     className="w-full max-w-4xl mx-auto px-4 sm:px-0 mb-32"
                 >
                     <img
-                        src="https://help.apple.com/assets/679AD2D1E874AD22770DE1E0/679AD2D56EA7B10C9E01288F/en_US/3d2b57c8027ae355aa44421899389008.png"
+                        src="/dashboard-bg-img.png"
                         alt="Product screen preview showing collaborative features"
                         width={1024}
                         height={640}
