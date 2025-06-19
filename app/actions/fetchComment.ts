@@ -158,7 +158,11 @@ export async function fetchAndSaveComments() {
   console.log('Retrieved media IDs:', JSON.stringify(mediaIds, null, 2));
 
   // media_id 필드 확인 및 변경
-  const commentPromises = mediaIds.map((mediaId) => getCommentData(mediaId.media_id));
+  // 유효한 media_id만 실행
+  const validMediaIds = mediaIds.filter((mediaId) => mediaId.media_id);
+  console.log('Valid media IDs:', JSON.stringify(validMediaIds, null, 2));
+
+  const commentPromises = validMediaIds.map((mediaId) => getCommentData(mediaId.media_id));
   const commentResponses = await Promise.all(commentPromises);
 
   const allComments = commentResponses.flatMap((commentData) => {
