@@ -33,8 +33,36 @@ export async function GET(req: NextRequest) {
     `https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${acct.access_token}`
   );
   const refreshData = await refreshRes.json();
+
   if (!refreshRes.ok || !refreshData.access_token) {
     console.error("Threads refresh failed:", refreshData);
+
+    // 토큰 만료 감지 로직
+    if (refreshData.error) {
+      const errorCode = refreshData.error.code;
+      const errorMessage = refreshData.error.message || '';
+
+      // OAuthException code 190 (토큰 만료) 또는 Session expired 메시지 감지
+      if (errorCode === 190 || errorMessage.includes("Session has expired")) {
+        console.log("Token expired detected, deactivating account");
+
+        // 계정을 비활성화
+        await supabase
+          .from("social_accounts")
+          .update({ is_active: false })
+          .eq("owner", session.user.id)
+          .eq("platform", "threads");
+
+        // 토큰 만료 에러 반환
+        return NextResponse.json({
+          error: "TOKEN_EXPIRED",
+          reauth_required: true,
+          message: "Threads token has expired. Please re-authenticate."
+        }, { status: 401 });
+      }
+    }
+
+    // 기타 에러의 경우 기존 토큰 반환
     return NextResponse.json({ access_token: acct.access_token });
   }
 
