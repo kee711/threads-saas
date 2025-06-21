@@ -19,7 +19,8 @@ import {
   Flame,
   X,
   MessageSquareReply,
-  AtSign
+  AtSign,
+  Brain
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -106,6 +107,11 @@ export function Sidebar({ className }: SidebarProps) {
 
   // Navigation configuration
   const navigation: NavItem[] = [
+    {
+      name: 'AI Agents',
+      href: '/agents',
+      icon: Brain,
+    },
     {
       name: 'Contents Cooker',
       icon: FileEdit,
