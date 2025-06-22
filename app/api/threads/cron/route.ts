@@ -16,7 +16,6 @@ export async function POST() {
       .eq('publish_status', 'scheduled')
       .lte('scheduled_at', nowISO)
       .is('creation_id', null)
-      .limit(3) // 🎯 한 번에 최대 3개만 처리하여 timeout 방지
       .select('id, content, social_id, media_type, media_urls');
 
     if (scheduleError) {
