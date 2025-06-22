@@ -27,9 +27,29 @@ AI를 이용해 Threads에 발행할 콘텐츠를 자동으로 생성하고 발�
 먼저 프로젝트에 필요한 환경 변수를 설정하세요. 루트 디렉토리에 `.env.local` 파일을 생성하고 다음 내용을 추가하세요:
 
 ```
-NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key
+# Supabase for server
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+# Supabase for client
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL=your_supabase_db_url
+# OpenAI API
+OPENAI_API_KEY=your_openai_api_key
+# NextAuth
+NEXTAUTH_URL=your_nextauth_url # e.g. http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_key # openssl rand -base64 32
+NEXTAUTH_DEBUG=true
+# Threads OAuth
+THREADS_CLIENT_ID=your_threads_client_id
+THREADS_CLIENT_SECRET=your_threads_client_secret_key
+# Threads Auth
+NEXT_PUBLIC_THREADS_ACCESS_TOKEN=your_threads_access_token
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret_key
+
+CRON_SECRET=your_cron_key # openssl rand -hex 32
 ```
 
 ### 설치 및 실행
