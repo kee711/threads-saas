@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createThreadsContainer } from '@/app/actions/schedule';
 
 // 배포 시 Vercel의 Cron Job 등에서 매 분 호출하도록 설정
 export async function POST() {
@@ -8,43 +9,81 @@ export async function POST() {
   try {
     const nowISO = new Date().toISOString();
 
-    // 🚀 1단계: scheduled → draft (컨테이너 생성 예약)
+    // 🚀 1단계: scheduled → processing (컨테이너 생성)
     const { data: toCreateContainer, error: scheduleError } = await supabase
       .from('my_contents')
       .update({ publish_status: 'processing' })
       .eq('publish_status', 'scheduled')
       .lte('scheduled_at', nowISO)
       .is('creation_id', null)
+      .limit(3) // 🎯 한 번에 최대 3개만 처리하여 timeout 방지
       .select('id, content, social_id, media_type, media_urls');
 
     if (scheduleError) {
       console.error('Error selecting scheduled posts:', scheduleError);
     } else if (toCreateContainer && toCreateContainer.length > 0) {
-      console.log(`🎬 컨테이너 생성 예약: ${toCreateContainer.length}개`);
+      console.log(`🎬 컨테이너 생성 시작: ${toCreateContainer.length}개`);
 
-      // 🎯 Fire-and-Forget: 컨테이너 생성 API 호출 (응답 대기 안함!)
-      for (const post of toCreateContainer) {
-        const baseUrl = process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}`;
+      // 🎯 병렬 처리로 속도 향상하되 제한된 수량으로 timeout 방지
+      const containerResults = await Promise.allSettled(
+        toCreateContainer.map(async (post) => {
+          try {
+            console.log(`🔄 컨테이너 생성 시작 [${post.id}]: ${post.media_type}`);
 
-        // ⚡ 핵심: await 없음! (Fire-and-Forget)
-        fetch(`${baseUrl}/api/threads/create-container`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            postId: post.id,
-            socialId: post.social_id,
-            content: post.content,
-            mediaType: post.media_type,
-            mediaUrls: post.media_urls || []
-          })
-        }).catch(error => {
-          console.error(`백그라운드 컨테이너 생성 요청 실패 [${post.id}]:`, error);
-        });
+            // 소셜 계정 정보 조회
+            const { data: socialAccount } = await supabase
+              .from('social_accounts')
+              .select('access_token, social_id')
+              .eq('social_id', post.social_id)
+              .single();
 
-        console.log(`🔄 백그라운드 컨테이너 생성 요청 [${post.id}]`);
-      }
+            if (!socialAccount?.access_token) {
+              throw new Error(`소셜 계정 정보 없음: ${post.social_id}`);
+            }
+
+            // 🎯 직접 함수 호출 (HTTP 요청 대신)
+            const containerResult = await createThreadsContainer(
+              socialAccount.social_id,
+              socialAccount.access_token,
+              {
+                content: post.content,
+                mediaType: post.media_type,
+                media_urls: post.media_urls || []
+              }
+            );
+
+            if (containerResult.success && containerResult.creationId) {
+              // 성공: creation_id 저장하고 ready_to_publish 상태로 변경
+              await supabase
+                .from('my_contents')
+                .update({
+                  creation_id: containerResult.creationId,
+                  publish_status: 'ready_to_publish'
+                })
+                .eq('id', post.id);
+
+              console.log(`✅ 컨테이너 생성 완료 [${post.id}]: ${containerResult.creationId}`);
+              return { success: true, postId: post.id };
+            } else {
+              throw new Error(`컨테이너 생성 실패: ${containerResult.error}`);
+            }
+          } catch (error) {
+            console.error(`❌ 컨테이너 생성 오류 [${post.id}]:`, error);
+            // 실패시 scheduled로 되돌리기
+            await supabase
+              .from('my_contents')
+              .update({ publish_status: 'scheduled' })
+              .eq('id', post.id);
+            return { success: false, postId: post.id, error };
+          }
+        })
+      );
+
+      const successful = containerResults.filter(result =>
+        result.status === 'fulfilled' && result.value.success
+      ).length;
+
+      console.log(`✅ 컨테이너 생성 완료: ${successful}/${toCreateContainer.length}개`);
     }
 
     // 🚀 2단계: ready_to_publish → posted (30초 경과 후 게시)
@@ -59,7 +98,8 @@ export async function POST() {
     } else if (readyToPush && readyToPush.length > 0) {
       console.log(`📤 게시 처리: ${readyToPush.length}개`);
 
-      for (const post of readyToPush) {
+      // 게시는 빠르므로 병렬 처리
+      await Promise.allSettled(readyToPush.map(async (post) => {
         try {
           // 소셜 계정 정보 조회
           const { data: socialAccount } = await supabase
@@ -112,10 +152,10 @@ export async function POST() {
             })
             .eq('id', post.id);
         }
-      }
+      }));
     }
 
-    // 🧹 3단계: 5분 이상 draft 상태로 머물러 있는 stale 게시물 정리
+    // 🧹 3단계: 5분 이상 processing 상태로 머물러 있는 stale 게시물 정리
     const staleTime = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: staleData } = await supabase
       .from('my_contents')
@@ -134,11 +174,11 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       processed: {
-        containerRequested: toCreateContainer?.length || 0,
+        containerCreated: toCreateContainer?.length || 0,
         published: readyToPush?.length || 0,
         cleaned: staleData?.length || 0
       },
-      note: "Fire-and-Forget 방식으로 timeout 해결"
+      note: "직접 함수 호출 + 병렬 처리로 최적화"
     });
 
   } catch (error) {
