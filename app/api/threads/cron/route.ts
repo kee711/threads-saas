@@ -58,7 +58,7 @@ export async function POST() {
                 .update({
                   creation_id: containerResult.creationId,
                   publish_status: 'ready_to_publish'
-                })~
+                })
                 .eq('id', post.id);
 
               console.log(`✅ 컨테이너 생성 완료 [${post.id}]: ${containerResult.creationId}`);
