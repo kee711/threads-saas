@@ -83,7 +83,11 @@ export async function POST() {
       ).length;
 
       console.log(`✅ 컨테이너 생성 완료: ${successful}/${toCreateContainer.length}개`);
+
     }
+
+    //30초 뒤에 게시 처리
+    await new Promise(resolve => setTimeout(resolve, 30000));
 
     // 🚀 2단계: ready_to_publish → posted (30초 경과 후 게시)
     const { data: readyToPush, error: readyError } = await supabase
