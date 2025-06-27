@@ -29,6 +29,7 @@ import { useSession, signIn } from 'next-auth/react';
 import { SocialAccountSelector } from '@/components/SocialAccountSelector';
 import { useTheme } from 'next-themes';
 import { useMobileSidebar } from '@/contexts/MobileSidebarContext';
+import { hr } from 'date-fns/locale';
 
 // Navigation item type definition
 interface NavItem {
@@ -237,17 +238,17 @@ function SidebarContent({
       {/* Top section: Logo and Navigation */}
       <div className="px-3 py-2 flex-1">
         {/* Logo - 모바일에서는 더 작게 */}
-        <div className={cn(
+        <Link className={cn(
           "mb-4 px-3 py-2",
           isMobile ? "mt-1" : "mt-2"
-        )}>
+        )} href="/contents-cooker/topic-finder" onClick={onLinkClick}>
           <Image
             src={logoSrc}
             alt="Logo"
             width={isMobile ? 100 : 120}
             height={isMobile ? 80 : 100}
           />
-        </div>
+        </Link>
 
         {/* 소셜 계정 전환 dropdown */}
         <div className="border-t border-slate-300 mb-4">
