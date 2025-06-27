@@ -50,6 +50,8 @@ export async function POST() {
             );
 
             if (containerResult.success && containerResult.creationId) {
+              console.log(`✅ 컨테이너 생성 완료: ${containerResult.creationId}`);
+
               const publishUrl =
                 `https://graph.threads.net/v1.0/${post.social_id}/threads_publish` +
                 `?creation_id=${containerResult.creationId}&access_token=${socialAccount.access_token}`;
@@ -83,8 +85,6 @@ export async function POST() {
           }
         })
       );
-
-      console.log(`✅ 컨테이너 생성 완료: ${scheduledList.length}개`);
     }
 
     return NextResponse.json({

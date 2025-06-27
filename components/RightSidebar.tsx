@@ -6,11 +6,11 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp, X } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
-import { composeWithAI, improvePost } from "@/app/actions/openai";
-import { schedulePost, publishPost, publishPostWithRetry } from "@/app/actions/schedule";
+import { composeWithAI } from "@/app/actions/openai";
+import { schedulePost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
@@ -201,6 +201,79 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   }, [selectedMedia]);
 
+  // activePostId 업데이트 useEffect
+  useEffect(() => {
+    if (selectedPosts.length > 0) {
+      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
+      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
+    } else {
+      setActivePostId(null);
+    }
+  }, [selectedPosts.length]);
+
+  // 포스트 클릭 핸들러
+  const handlePostClick = (postId: string) => {
+    setActivePostId(postId);
+  };
+
+  // activePostId가 변경될 때 writingContent 업데이트
+  useEffect(() => {
+    if (activePostId) {
+      const activePost = selectedPosts.find(post => post.id === activePostId);
+      if (activePost) {
+        setWritingContent(activePost.content);
+      }
+    }
+  }, [activePostId, selectedPosts]);
+
+
+  // writingContent가 변경될 때 active 포스트 업데이트
+  useEffect(() => {
+    if (activePostId && writingContent) {
+      const updatedPosts = selectedPosts.map(post =>
+        post.id === activePostId ? { ...post, content: writingContent } : post
+      );
+      // TODO: 포스트 업데이트 로직 구현
+    }
+  }, [writingContent, activePostId]);
+
+  // 모바일에서 실제 viewport 높이 계산
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const updateViewportHeight = () => {
+      // Visual Viewport API 사용 (지원되는 경우)
+      if (window.visualViewport) {
+        setMobileViewportHeight(window.visualViewport.height);
+      } else {
+        // fallback: window.innerHeight 사용
+        setMobileViewportHeight(window.innerHeight);
+      }
+    };
+
+    // 초기 설정
+    updateViewportHeight();
+
+    // viewport 변화 감지
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    } else {
+      window.addEventListener('resize', updateViewportHeight);
+      window.addEventListener('orientationchange', updateViewportHeight);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      } else {
+        window.removeEventListener('resize', updateViewportHeight);
+        window.removeEventListener('orientationchange', updateViewportHeight);
+      }
+    };
+  }, [isMobile]);
+
   // 이미지 변경 핸들러
   const handleMediaChange = (media: string[]) => {
     console.log("미디어 변경됨:", media);
@@ -296,26 +369,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
     return null; // 가능한 시간 없음
   }
-
-  // activePostId가 변경될 때 writingContent 업데이트
-  useEffect(() => {
-    if (activePostId) {
-      const activePost = selectedPosts.find(post => post.id === activePostId);
-      if (activePost) {
-        setWritingContent(activePost.content);
-      }
-    }
-  }, [activePostId, selectedPosts]);
-
-  // writingContent가 변경될 때 active 포스트 업데이트
-  useEffect(() => {
-    if (activePostId && writingContent) {
-      const updatedPosts = selectedPosts.map(post =>
-        post.id === activePostId ? { ...post, content: writingContent } : post
-      );
-      // TODO: 포스트 업데이트 로직 구현
-    }
-  }, [writingContent, activePostId]);
 
   // canComposeWithAI 로직 수정 (type 제거)
   const canComposeWithAI = selectedPosts.length >= 2;
@@ -465,58 +518,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
       // UI는 이미 초기화되었으므로 에러 로그만 남김
     }
   };
-
-  // activePostId 업데이트 useEffect
-  useEffect(() => {
-    if (selectedPosts.length > 0) {
-      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
-      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
-    } else {
-      setActivePostId(null);
-    }
-  }, [selectedPosts.length]);
-
-  // 포스트 클릭 핸들러
-  const handlePostClick = (postId: string) => {
-    setActivePostId(postId);
-  };
-
-  // 모바일에서 실제 viewport 높이 계산
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const updateViewportHeight = () => {
-      // Visual Viewport API 사용 (지원되는 경우)
-      if (window.visualViewport) {
-        setMobileViewportHeight(window.visualViewport.height);
-      } else {
-        // fallback: window.innerHeight 사용
-        setMobileViewportHeight(window.innerHeight);
-      }
-    };
-
-    // 초기 설정
-    updateViewportHeight();
-
-    // viewport 변화 감지
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateViewportHeight);
-      window.visualViewport.addEventListener('scroll', updateViewportHeight);
-    } else {
-      window.addEventListener('resize', updateViewportHeight);
-      window.addEventListener('orientationchange', updateViewportHeight);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateViewportHeight);
-        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
-      } else {
-        window.removeEventListener('resize', updateViewportHeight);
-        window.removeEventListener('orientationchange', updateViewportHeight);
-      }
-    };
-  }, [isMobile]);
 
   return (
     <>
