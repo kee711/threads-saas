@@ -1,10 +1,11 @@
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '../ui/button';
 import { Dices, Sparkles, Trash } from 'lucide-react';
 import { useState } from 'react';
 import { on } from 'node:events';
 import { hash } from 'node:crypto';
 import { X } from 'lucide-react';
+import { Alert } from '../ui/alert';
 
 interface HeadlineButtonsProps {
   tags: string[];
@@ -35,12 +36,27 @@ export function HeadlineButtons({ tags, onCreateDetails, onGenerateTopics, onCli
       </div>
       <div className="flex gap-2">
         {hasTopics && (
-          <Button
-            onClick={onTopicDelete}
-            className='rounded-full'
-          >
-            <Trash className="w-4 h-4" />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                className='rounded-full'
+              >
+                <Trash className="w-4 h-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete All Topics</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete all topics you've created?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onTopicDelete}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
         <Button
           onClick={onGenerateTopics}
