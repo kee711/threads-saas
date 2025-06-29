@@ -10,11 +10,12 @@ interface HeadlineInputProps {
     ellipsis?: boolean;
     isSelected?: boolean;
     onClick?: () => void;
+    onInstructionChange?: (v: string) => void;
 }
 
-export function HeadlineInput({ value, readOnly, onChange, inline, ellipsis, isSelected, onClick }: HeadlineInputProps) {
+export function HeadlineInput({ value, readOnly, onChange, inline, ellipsis, isSelected, onClick, onInstructionChange }: HeadlineInputProps) {
     const [headline, setHeadline] = useState<string>(typeof value === 'string' ? value : '');
-    const [description, setDescription] = useState<string>('');
+    const [instruction, setInstruction] = useState<string>('');
     const [placeholder, setPlaceholder] = useState('Write headline...');
 
     useEffect(() => {
@@ -56,9 +57,9 @@ export function HeadlineInput({ value, readOnly, onChange, inline, ellipsis, isS
                 />
                 <input
                     type="text"
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    placeholder="Write description..."
+                    value={instruction}
+                    onChange={e => setInstruction(e.target.value)}
+                    placeholder="Write instruction..."
                     className="w-full bg-transparent text-sm font-medium text-gray-500 placeholder-[#B0B0B0] outline-none px-2 py-1"
                     readOnly={readOnly}
                 />
