@@ -8,6 +8,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
+import { PricingModal } from '@/components/modals/PricingModal';
 import {
     AlertDialog,
     AlertDialogTrigger,
@@ -30,6 +32,7 @@ export default function TopicFinderPage() {
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
     const [isGeneratingDetails, setIsGeneratingDetails] = useState(false);
     const addPost = useSelectedPostsStore(state => state.addPost);
+    const searchParams = useSearchParams();
 
     const { accounts, selectedAccountId, currentUsername } = useSocialAccountStore()
     const [selectedSocialAccount, setSelectedSocialAccount] = useState('')

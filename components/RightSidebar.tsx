@@ -450,9 +450,28 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
+  // Check if social account is connected
+  const checkSocialAccountConnection = () => {
+    const selectedAccount = getSelectedAccount();
+    if (!selectedAccount || !selectedAccountId) {
+      toast.error("계정 추가가 필요해요", {
+        description: "먼저 Threads 계정을 연결해주세요.",
+        action: {
+          label: "계정 연결",
+          onClick: () => window.location.href = "/api/threads/oauth"
+        }
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Post 예약발행
   const handleSchedule = async () => {
     if (!writingContent || !scheduleTime) return;
+
+    // Check social account connection
+    if (!checkSocialAccountConnection()) return;
 
     try {
       toast.success("Your post is scheduled");

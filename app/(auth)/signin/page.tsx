@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { signIn, useSession } from 'next-auth/react'
+import { checkOnboardingStatus } from '@/lib/utils/onboarding'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -12,12 +13,30 @@ export default function SignInPage() {
   const callbackUrl = searchParams.get('callbackUrl') || '/contents-cooker/topic-finder'
   const { data: session, status } = useSession()
 
-  // 세션이 있으면 대시보드로 리다이렉트
+  // 세션이 있으면 온보딩 상태 확인 후 리다이렉트
   useEffect(() => {
-    if (status === 'authenticated' && session) {
-      router.push('/contents-cooker/topic-finder')
+    if (status === 'authenticated' && session?.user?.id) {
+      const handleRedirect = async () => {
+        try {
+          const onboardingStatus = await checkOnboardingStatus(session.user.id)
+          
+          if (onboardingStatus.needsUserOnboarding) {
+            router.push('/onboarding?type=user')
+          } else if (onboardingStatus.needsSocialOnboarding && onboardingStatus.socialAccountId) {
+            router.push(`/onboarding?type=social&account_id=${onboardingStatus.socialAccountId}`)
+          } else {
+            router.push(callbackUrl)
+          }
+        } catch (error) {
+          console.error('Error checking onboarding status:', error)
+          // Fallback to default redirect
+          router.push(callbackUrl)
+        }
+      }
+
+      handleRedirect()
     }
-  }, [session, status, router])
+  }, [session, status, router, callbackUrl])
 
   // 로딩 상태 표시를 위한 상태
   const [isLoading, setIsLoading] = useState(true)
