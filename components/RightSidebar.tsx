@@ -469,7 +469,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Post 예약발행
   const handleSchedule = async () => {
     if (!writingContent || !scheduleTime) return;
-    
+
     // Check social account connection
     if (!checkSocialAccountConnection()) return;
 
@@ -500,12 +500,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 즉시 발행 - schedulePost를 현재시간으로 호출
   const handlePublish = async () => {
-<<<<<<< HEAD
-    // Check social account connection
-    if (!checkSocialAccountConnection()) return;
-=======
     if (!writingContent) return;
->>>>>>> origin/test
 
     try {
       // 🚀 즉시 사용자에게 성공 응답 - UX 개선
