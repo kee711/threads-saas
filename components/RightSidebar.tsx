@@ -6,11 +6,11 @@ import { PostCard } from "@/components/PostCard";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp, X } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
-import { composeWithAI, improvePost } from "@/app/actions/openai";
-import { schedulePost, publishPost, publishPostWithRetry } from "@/app/actions/schedule";
+import { composeWithAI } from "@/app/actions/openai";
+import { schedulePost } from "@/app/actions/schedule";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
@@ -201,6 +201,79 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   }, [selectedMedia]);
 
+  // activePostId 업데이트 useEffect
+  useEffect(() => {
+    if (selectedPosts.length > 0) {
+      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
+      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
+    } else {
+      setActivePostId(null);
+    }
+  }, [selectedPosts.length]);
+
+  // 포스트 클릭 핸들러
+  const handlePostClick = (postId: string) => {
+    setActivePostId(postId);
+  };
+
+  // activePostId가 변경될 때 writingContent 업데이트
+  useEffect(() => {
+    if (activePostId) {
+      const activePost = selectedPosts.find(post => post.id === activePostId);
+      if (activePost) {
+        setWritingContent(activePost.content);
+      }
+    }
+  }, [activePostId, selectedPosts]);
+
+
+  // writingContent가 변경될 때 active 포스트 업데이트
+  useEffect(() => {
+    if (activePostId && writingContent) {
+      const updatedPosts = selectedPosts.map(post =>
+        post.id === activePostId ? { ...post, content: writingContent } : post
+      );
+      // TODO: 포스트 업데이트 로직 구현
+    }
+  }, [writingContent, activePostId]);
+
+  // 모바일에서 실제 viewport 높이 계산
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const updateViewportHeight = () => {
+      // Visual Viewport API 사용 (지원되는 경우)
+      if (window.visualViewport) {
+        setMobileViewportHeight(window.visualViewport.height);
+      } else {
+        // fallback: window.innerHeight 사용
+        setMobileViewportHeight(window.innerHeight);
+      }
+    };
+
+    // 초기 설정
+    updateViewportHeight();
+
+    // viewport 변화 감지
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    } else {
+      window.addEventListener('resize', updateViewportHeight);
+      window.addEventListener('orientationchange', updateViewportHeight);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      } else {
+        window.removeEventListener('resize', updateViewportHeight);
+        window.removeEventListener('orientationchange', updateViewportHeight);
+      }
+    };
+  }, [isMobile]);
+
   // 이미지 변경 핸들러
   const handleMediaChange = (media: string[]) => {
     console.log("미디어 변경됨:", media);
@@ -296,26 +369,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
     return null; // 가능한 시간 없음
   }
-
-  // activePostId가 변경될 때 writingContent 업데이트
-  useEffect(() => {
-    if (activePostId) {
-      const activePost = selectedPosts.find(post => post.id === activePostId);
-      if (activePost) {
-        setWritingContent(activePost.content);
-      }
-    }
-  }, [activePostId, selectedPosts]);
-
-  // writingContent가 변경될 때 active 포스트 업데이트
-  useEffect(() => {
-    if (activePostId && writingContent) {
-      const updatedPosts = selectedPosts.map(post =>
-        post.id === activePostId ? { ...post, content: writingContent } : post
-      );
-      // TODO: 포스트 업데이트 로직 구현
-    }
-  }, [writingContent, activePostId]);
 
   // canComposeWithAI 로직 수정 (type 제거)
   const canComposeWithAI = selectedPosts.length >= 2;
@@ -421,6 +474,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
     if (!checkSocialAccountConnection()) return;
 
     try {
+      toast.success("Your post is scheduled");
       // 전역 상태의 소셜 계정으로 예약 발행 (schedulePost 내부에서 처리됨)
       const result = await schedulePost(
         writingContent,
@@ -436,22 +490,26 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setSelectedMedia([]);
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
-      toast.success("예약이 완료되었습니다.");
+
       fetchScheduledTimes(); // 예약되어있는 시간 갱신
     } catch (error) {
       console.error("Error scheduling post:", error);
-      toast.error("예약에 실패했습니다.");
+      toast.error("Schedule failed");
     }
   };
 
-  // Post 즉시 발행
+  // Post 즉시 발행 - schedulePost를 현재시간으로 호출
   const handlePublish = async () => {
+<<<<<<< HEAD
     // Check social account connection
     if (!checkSocialAccountConnection()) return;
+=======
+    if (!writingContent) return;
+>>>>>>> origin/test
 
     try {
       // 🚀 즉시 사용자에게 성공 응답 - UX 개선
-      toast.success("업로드가 완료되었습니다!");
+      toast.success("Your post is published");
 
       // 즉시 UI 상태 초기화 - 사용자는 업로드 완료로 인식
       const contentToPublish = writingContent;
@@ -463,82 +521,27 @@ export function RightSidebar({ className }: RightSidebarProps) {
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
 
-      // 🔄 백그라운드에서 실제 발행 처리 (3번 재시도 + 실패 시 draft 저장)
-      publishPostWithRetry({
-        content: contentToPublish,
-        mediaType: mediaTypeToPublish === "CAROUSEL" ? "IMAGE" : mediaTypeToPublish,
-        media_urls: mediaToPublish,
-      }).then((result) => {
-        if (result.success) {
-          console.log(`✅ 백그라운드 발행 성공 (${result.attempt}번째 시도)`);
-        } else {
-          console.log(`❌ 백그라운드 발행 실패 - ${result.error}`);
-          if (result.draftSaved) {
-            console.log("📝 Draft로 저장 완료");
-          }
-        }
-      }).catch((error) => {
-        console.error("❌ 백그라운드 발행 에러:", error);
-      });
+      // 🔄 현재시간으로 schedulePost 호출 (즉시 발행)
+      const currentTime = new Date().toISOString();
+      const result = await schedulePost(
+        contentToPublish,
+        currentTime,
+        mediaTypeToPublish === "CAROUSEL" ? "IMAGE" : mediaTypeToPublish,
+        mediaToPublish
+      );
+
+      if (result.error) {
+        console.error("❌ 발행 처리 오류:", result.error);
+        // 에러가 있어도 이미 사용자에게는 성공 메시지를 보냈으므로 추가 처리 안함
+      } else {
+        console.log("✅ 발행 처리 완료:", result.data);
+      }
 
     } catch (error) {
-      // 이 경우는 거의 발생하지 않을 것 (UI 초기화 에러)
-      console.error("Error in handlePublish:", error);
-      toast.error("처리 중 오류가 발생했습니다.");
+      console.error("❌ handlePublish 에러:", error);
+      // UI는 이미 초기화되었으므로 에러 로그만 남김
     }
   };
-
-  // activePostId 업데이트 useEffect
-  useEffect(() => {
-    if (selectedPosts.length > 0) {
-      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
-      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
-    } else {
-      setActivePostId(null);
-    }
-  }, [selectedPosts.length]);
-
-  // 포스트 클릭 핸들러
-  const handlePostClick = (postId: string) => {
-    setActivePostId(postId);
-  };
-
-  // 모바일에서 실제 viewport 높이 계산
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const updateViewportHeight = () => {
-      // Visual Viewport API 사용 (지원되는 경우)
-      if (window.visualViewport) {
-        setMobileViewportHeight(window.visualViewport.height);
-      } else {
-        // fallback: window.innerHeight 사용
-        setMobileViewportHeight(window.innerHeight);
-      }
-    };
-
-    // 초기 설정
-    updateViewportHeight();
-
-    // viewport 변화 감지
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateViewportHeight);
-      window.visualViewport.addEventListener('scroll', updateViewportHeight);
-    } else {
-      window.addEventListener('resize', updateViewportHeight);
-      window.addEventListener('orientationchange', updateViewportHeight);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateViewportHeight);
-        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
-      } else {
-        window.removeEventListener('resize', updateViewportHeight);
-        window.removeEventListener('orientationchange', updateViewportHeight);
-      }
-    };
-  }, [isMobile]);
 
   return (
     <>

@@ -18,7 +18,8 @@ import {
   Settings,
   Flame,
   X,
-  TestTube,
+  MessageSquareReply,
+  AtSign
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,7 @@ import { useSession, signIn } from 'next-auth/react';
 import { SocialAccountSelector } from '@/components/SocialAccountSelector';
 import { useTheme } from 'next-themes';
 import { useMobileSidebar } from '@/contexts/MobileSidebarContext';
-import useSocialAccountStore from '@/stores/useSocialAccountStore';
+import { hr } from 'date-fns/locale';
 
 // Navigation item type definition
 interface NavItem {
@@ -126,11 +127,15 @@ export function Sidebar({ className }: SidebarProps) {
       href: '/statistics',
       icon: BarChart2,
     },
-    // {
-    //   name: 'Comments',
-    //   href: '/comments',
-    //   icon: MessageSquare,
-    // },
+    {
+      name: 'Comments',
+      icon: MessageSquare,
+      isExpandable: true,
+      subItems: [
+        { name: 'Comments', href: '/comments', icon: MessageSquareReply },
+        { name: 'Mentions', href: '/mentions', icon: AtSign },
+      ],
+    },
   ];
 
   // 테마에 따라 적절한 로고 이미지 선택
@@ -233,17 +238,17 @@ function SidebarContent({
       {/* Top section: Logo and Navigation */}
       <div className="px-3 py-2 flex-1">
         {/* Logo - 모바일에서는 더 작게 */}
-        <div className={cn(
+        <Link className={cn(
           "mb-4 px-3 py-2",
           isMobile ? "mt-1" : "mt-2"
-        )}>
+        )} href="/contents-cooker/topic-finder" onClick={onLinkClick}>
           <Image
             src={logoSrc}
             alt="Logo"
             width={isMobile ? 100 : 120}
             height={isMobile ? 80 : 100}
           />
-        </div>
+        </Link>
 
         {/* 소셜 계정 전환 dropdown */}
         <div className="border-t border-slate-300 mb-4">
@@ -347,7 +352,7 @@ function SidebarContent({
                   {session.user?.name
                     ? session.user.name
                       .split(' ')
-                      .filter(n => n.length > 0)
+                      .filter((n: string) => n.length > 0)
                       .map((n: string) => n[0])
                       .join('')
                       .toUpperCase() || '??'
@@ -361,60 +366,6 @@ function SidebarContent({
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {/* Test Onboarding Button - Development only */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="relative group">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-60 hover:opacity-100"
-                    title="Test Onboarding"
-                  >
-                    <TestTube className="h-4 w-4" />
-                    <span className="sr-only">테스트 온보딩</span>
-                  </Button>
-                  
-                  {/* Dropdown Menu */}
-                  <div className="absolute bottom-full right-0 mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-48">
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 px-2">Test Onboarding</div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-xs h-8"
-                        onClick={() => {
-                          window.location.href = '/onboarding?type=user';
-                        }}
-                      >
-                        User Onboarding
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-xs h-8"
-                        onClick={() => {
-                          // Get first social account ID for testing
-                          const testAccountId = 'test-account-id';
-                          window.location.href = `/onboarding?type=social&account_id=${testAccountId}`;
-                        }}
-                      >
-                        Social Onboarding
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-xs h-8"
-                        onClick={() => {
-                          window.location.href = '/?modal=pricing';
-                        }}
-                      >
-                        Pricing Modal
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {/* Settings Button */}
               <Button
                 variant="ghost"

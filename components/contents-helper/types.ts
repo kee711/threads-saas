@@ -5,7 +5,7 @@ export type PublishStatus = 'draft' | 'scheduled' | 'posted';
 export interface ContentItem {
   id: string;
   content: string;
-  created_at: string;
+  created_at?: string;
   view_count?: number;
   like_count?: number;
   comment_count?: number;
@@ -15,6 +15,7 @@ export interface ContentItem {
   url?: string;
   publish_status?: 'draft' | 'scheduled' | 'published' | 'failed';
   category?: string;
+  media_id?: string;
 }
 
 export interface ContentListProps {

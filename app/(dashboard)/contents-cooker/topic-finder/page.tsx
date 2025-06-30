@@ -1,9 +1,8 @@
 'use client';
 
-import { CookingPot, LoaderCircle } from 'lucide-react';
+import { CookingPot, LoaderCircle, Sparkles } from 'lucide-react';
 import { ProfileDescriptionDropdown } from '@/components/contents-helper/ProfileDescriptionDropdown';
-import { HeadlineInputWithTags } from '@/components/contents-helper/HeadlineInputWithTags';
-import { SaltAIGeneratorButton } from '@/components/contents-helper/SaltAIGeneratorButton';
+import { HeadlineInput } from '@/components/contents-helper/HeadlineInput';
 import useSocialAccountStore from '@/stores/useSocialAccountStore';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -25,10 +24,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import { HeadlineButtons } from '@/components/contents-helper/HeadlineButtons';
+import { useTopicResultsStore } from '@/stores/useTopicResultsStore';
 
 export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
+    const [isGeneratingDetails, setIsGeneratingDetails] = useState(false);
     const addPost = useSelectedPostsStore(state => state.addPost);
     const searchParams = useSearchParams();
 
@@ -36,9 +38,22 @@ export default function TopicFinderPage() {
     const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
     const [accountInfo, setAccountInfo] = useState('')
     const [accountTags, setAccountTags] = useState<string[]>([])
-    const [topicResults, setTopicResults] = useState<{ topic: string, detail?: string, loading?: boolean, dialogOpen?: boolean }[]>([])
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [pricingModalOpen, setPricingModalOpen] = useState(false);
+    const [selectedHeadline, setSelectedHeadline] = useState<string>('');
+    const [givenInstruction, setGivenInstruction] = useState<string>('');
+
+    // topicResults zustand store
+    const {
+        topicResults,
+        setTopicResults,
+        addTopicResults,
+        updateTopicResult,
+        setTopicLoading,
+        setTopicDetail,
+        setDialogOpen: setDialogOpenStore,
+        removeTopicResult,
+        clearTopicResults
+    } = useTopicResultsStore();
 
     // zustand의 selectedAccountId와 로컬 상태 동기화
     useEffect(() => {
@@ -55,8 +70,6 @@ export default function TopicFinderPage() {
             setIsLoading(true)
             try {
                 const supabase = createClient()
-
-                // social_accounts 테이블에서 계정 정보 로드
                 const { data: accountData, error: accountError } = await supabase
                     .from('social_accounts')
                     .select('account_type, account_info, account_tags')
@@ -105,20 +118,14 @@ export default function TopicFinderPage() {
             }
 
             // 데이터 구조 단순화
-            setTopicResults(prev => {
-                // newTopics가 이미 문자열 배열인 경우와 객체 배열인 경우를 모두 처리
-                const updatedTopics = [
-                    ...prev,
-                    ...newTopics.map(topic => ({
-                        topic: typeof topic === 'string' ? topic : topic.topic || '',
-                        detail: undefined,
-                        loading: false,
-                        dialogOpen: false
-                    }))
-                ];
-                console.log('Updated topics:', updatedTopics);
-                return updatedTopics;
-            });
+            addTopicResults(
+                newTopics.map((topic: any) => ({
+                    topic: typeof topic === 'string' ? topic : topic.topic || '',
+                    detail: undefined,
+                    loading: false,
+                    dialogOpen: false
+                }))
+            );
         } catch (e) {
             console.error('Topic generation error:', e);
             toast.error('Failed to generate topics');
@@ -128,56 +135,65 @@ export default function TopicFinderPage() {
         }
     };
 
-    // 토픽 변경 핸들러 단순화
+
+    // 토픽 변경 핸들러
     const handleTopicChange = (idx: number, newVal: string) => {
-        console.log('Updating topic at index', idx, 'with value:', newVal);
-        setTopicResults(prev => {
-            const updated = prev.map((t, i) =>
-                i === idx ? { ...t, topic: newVal } : t
-            );
-            console.log('Updated topics:', updated);
-            return updated;
-        });
+        updateTopicResult(idx, newVal);
+    };
+    // instruction 변경 핸들러
+    const handleInstructionChange = (v: string) => {
+        setGivenInstruction(v);
     };
 
     // 다이얼로그 오픈 핸들러
     const handleOpenDialog = (idx: number, open: boolean) => {
-        setTopicResults(prev => prev.map((t, i) => i === idx ? { ...t, dialogOpen: open } : { ...t, dialogOpen: false }));
+        setDialogOpenStore(idx, open);
     };
 
     // 디테일 생성 핸들러
-    const handleGenerateDetail = async (idx: number) => {
-        setTopicResults(prev => prev.map((t, i) => i === idx ? { ...t, loading: true } : t));
+    const handleGenerateDetail = async () => {
+        if (!selectedHeadline) {
+            toast.error('Please write or add a topic');
+            return;
+        }
+        if (useSelectedPostsStore.getState().selectedPosts.length >= 3) {
+            toast.error('You can only add up to 3 posts.');
+            return;
+        }
+        setTopicLoading(selectedHeadline, true);
+        setIsGeneratingDetails(true);
         try {
             const res = await fetch('/api/generate-detail', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountInfo, topic: topicResults[idx].topic })
+                body: JSON.stringify({ accountInfo, topic: selectedHeadline, instruction: givenInstruction })
             });
             if (!res.ok) throw new Error('API error');
             const data = await res.json();
-            setTopicResults(prev => prev.map((t, i) => i === idx ? { ...t, detail: data.detail, loading: false, dialogOpen: false } : t));
+            setTopicDetail(selectedHeadline, data.detail || '');
+            handleAddPost(selectedHeadline, data.detail || '');
         } catch (e) {
             toast.error('Failed to generate detail');
-            setTopicResults(prev => prev.map((t, i) => i === idx ? { ...t, loading: false, dialogOpen: false } : t));
+            setTopicLoading(selectedHeadline, false);
+        } finally {
+            setIsGeneratingDetails(false);
         }
     };
 
     // 토픽을 선택된 포스트에 추가
     const handleAddPost = (topic: string, detail: string) => {
         const post = {
-            id: `${Date.now()}`, // 임시 ID 생성
+            id: `${Date.now()}`,
             content: detail,
-            url: topic // 토픽을 url로 저장
+            url: topic
         };
-
         addPost(post);
         toast.success('포스트가 추가되었습니다.');
     };
 
-    // 토픽 결과 변경 추적
     useEffect(() => {
-        console.log('Current topicResults:', topicResults);
+        // 필요시 topicResults 변경 추적
+        // console.log('Current topicResults:', topicResults);
     }, [topicResults]);
 
     return (
@@ -191,123 +207,60 @@ export default function TopicFinderPage() {
                     </div>
                     {/* Profile Description Dropdown */}
                     {selectedAccountId && (
-                        <div className="w-full max-w-xl">
+                        <div className="w-full mt-3 flex justify-between max-w-80 transition-all duration-300 xs:max-w-xs sm:max-w-xl">
                             <ProfileDescriptionDropdown accountId={selectedAccountId} initialDescription={accountInfo || ''} />
                         </div>
                     )}
                     {/* Headline 입력 및 태그 */}
                     <div className="w-full max-w-3xl">
-                        <HeadlineInputWithTags tags={accountTags || []} />
+                        <HeadlineInput value={selectedHeadline} onChange={setSelectedHeadline} />
+                    </div>
+
+                    {/* Headline Buttons */}
+                    <div className="w-full max-w-3xl flex-1">
+                        <HeadlineButtons
+                            tags={accountTags}
+                            onClickTag={v => setSelectedHeadline(v)}
+                            onCreateDetails={handleGenerateDetail}
+                            onGenerateTopics={generateTopics}
+                            IsIdeasLoading={isGeneratingTopics}
+                            IsCreateDetailsLoading={isGeneratingDetails}
+                            hasHeadline={!!selectedHeadline}
+                            hasTopics={topicResults.length > 0}
+                            onTopicDelete={removeTopicResult} // Clear all topics
+                        />
                     </div>
 
                     {/* Topics Section */}
-                    <div className="w-full max-w-3xl mt-8 flex-1">
+                    <div className="w-full max-w-3xl mt-6 flex-1">
                         <div className="space-y-4">
                             {/* 토픽 결과 */}
-                            {topicResults.length > 0 && (
-                                <div className="flex flex-col gap-4 mb-6">
-                                    {topicResults.map((t, i) => (
-                                        <div key={i} className="relative">
-                                            <HeadlineInputWithTags
-                                                tags={[]}
-                                                value={t.topic || ''}
-                                                onChange={v => handleTopicChange(i, v)}
-                                                hideTags
-                                                inline
-                                                ellipsis
-                                                onCreateDetails={() => handleOpenDialog(i, true)}
-                                            />
-                                            <AlertDialog open={!!t.dialogOpen} onOpenChange={open => handleOpenDialog(i, open)}>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Generate post with Salt AI?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            Do you want to generate a post for this topic?
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            onClick={() => handleGenerateDetail(i)}
-                                                        >
-                                                            Generate
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                            {/* 생성 중이면 로딩 */}
-                                            {t.loading && (
-                                                <div className="flex flex-col items-center justify-center py-6">
-                                                    <LoaderCircle className="animate-spin w-8 h-8 text-[#B0B0B0] mb-2" />
-                                                    <span className="text-[#B0B0B0] text-base font-medium mt-2">Generating post...</span>
-                                                </div>
-                                            )}
-                                            {/* 생성 결과 */}
-                                            {t.detail && !t.loading && (
-                                                <div className="mt-4 bg-[#FAFAFA] border border-[#E5E5E5] rounded-xl p-4 flex flex-col gap-2">
-                                                    <textarea
-                                                        className="w-full bg-transparent border-none resize-none text-base text-gray-900 focus:outline-none min-h-[120px]"
-                                                        value={t.detail}
-                                                        onChange={e => setTopicResults(prev => prev.map((tt, idx) => idx === i ? { ...tt, detail: e.target.value } : tt))}
-                                                    />
-                                                    <div className="flex justify-end">
-                                                        <Button
-                                                            variant="outline"
-                                                            className="px-4 py-1 text-base font-semibold"
-                                                            onClick={() => handleAddPost(t.topic, t.detail || '')}
-                                                        >
-                                                            + Add
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {isGeneratingTopics && (
-                                        <div className="flex flex-col items-center justify-center py-8">
-                                            <LoaderCircle className="animate-spin w-8 h-8 text-[#B0B0B0] mb-2" />
-                                            <span className="text-[#B0B0B0] text-base font-medium mt-2">Generating topics...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            {/* 토픽이 없고 생성 중일 때만 중앙에 로딩 표시 */}
-                            {topicResults.length === 0 && isGeneratingTopics && (
-                                <div className="flex flex-col items-center justify-center py-12">
-                                    <LoaderCircle className="animate-spin w-10 h-10 text-[#B0B0B0] mb-2" />
-                                    <span className="text-[#B0B0B0] text-base font-medium mt-2">Generating topics...</span>
-                                </div>
-                            )}
-                            <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                                <AlertDialogTrigger asChild>
-                                    <div>
-                                        <SaltAIGeneratorButton onClick={() => setDialogOpen(true)} />
+                            <div className="flex flex-col gap-4 mb-6">
+                                {topicResults.length > 0 && topicResults.map((t, i) => (
+                                    <div key={i} className="relative">
+                                        <HeadlineInput
+                                            value={t.topic || ''}
+                                            onChange={v => handleTopicChange(i, v)}
+                                            inline
+                                            ellipsis
+                                            isSelected={selectedHeadline === t.topic}
+                                            onClick={() => setSelectedHeadline(t.topic)}
+                                            onInstructionChange={handleInstructionChange}
+                                        />
                                     </div>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Generate topics with Salt AI?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            Do you want to generate 10 more topics using Salt AI?
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={async () => {
-                                                setDialogOpen(false);
-                                                await generateTopics();
-                                            }}
-                                        >
-                                            Generate
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                                ))}
+                                {isGeneratingTopics && (
+                                    <div className="flex flex-col gap-4 max-w-3xl">
+                                        <div className="w-3/4 h-[48px] rounded-[20px] bg-gray-300 animate-pulse" />
+                                        <div className="w-1/2 h-[48px] rounded-[20px] bg-gray-300 animate-pulse" />
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     );
-} 
+}
