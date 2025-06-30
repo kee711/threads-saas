@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COMMON_DETAIL_SETTINGS, USER_SETTINGS, GIVEN_TOPIC } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
+import { COMMON_DETAIL_SETTINGS, USER_SETTINGS, GIVEN_TOPIC, GIVEN_INSTRUCTIONS } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
 import { handleOptions, handleCors } from '@/lib/utils/cors';
 
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-    const { accountInfo, topic } = await req.json();
+    const { accountInfo, topic, instruction } = await req.json();
 
     const prompt = [
         COMMON_DETAIL_SETTINGS,
         USER_SETTINGS(accountInfo),
-        GIVEN_TOPIC(topic)
+        GIVEN_TOPIC(topic),
+        GIVEN_INSTRUCTIONS(instruction)
     ].join('\n\n');
 
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {

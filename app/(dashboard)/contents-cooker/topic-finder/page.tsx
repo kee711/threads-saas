@@ -37,18 +37,19 @@ export default function TopicFinderPage() {
     const [accountTags, setAccountTags] = useState<string[]>([])
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedHeadline, setSelectedHeadline] = useState<string>('');
+    const [givenInstruction, setGivenInstruction] = useState<string>('');
 
     // topicResults zustand store
     const {
-      topicResults,
-      setTopicResults,
-      addTopicResults,
-      updateTopicResult,
-      setTopicLoading,
-      setTopicDetail,
-      setDialogOpen: setDialogOpenStore,
-      removeTopicResult,
-      clearTopicResults
+        topicResults,
+        setTopicResults,
+        addTopicResults,
+        updateTopicResult,
+        setTopicLoading,
+        setTopicDetail,
+        setDialogOpen: setDialogOpenStore,
+        removeTopicResult,
+        clearTopicResults
     } = useTopicResultsStore();
 
     // zustand의 selectedAccountId와 로컬 상태 동기화
@@ -131,9 +132,14 @@ export default function TopicFinderPage() {
         }
     };
 
+
     // 토픽 변경 핸들러
     const handleTopicChange = (idx: number, newVal: string) => {
         updateTopicResult(idx, newVal);
+    };
+    // instruction 변경 핸들러
+    const handleInstructionChange = (v: string) => {
+        setGivenInstruction(v);
     };
 
     // 다이얼로그 오픈 핸들러
@@ -157,7 +163,7 @@ export default function TopicFinderPage() {
             const res = await fetch('/api/generate-detail', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountInfo, topic: selectedHeadline })
+                body: JSON.stringify({ accountInfo, topic: selectedHeadline, instruction: givenInstruction })
             });
             if (!res.ok) throw new Error('API error');
             const data = await res.json();
@@ -236,6 +242,7 @@ export default function TopicFinderPage() {
                                             ellipsis
                                             isSelected={selectedHeadline === t.topic}
                                             onClick={() => setSelectedHeadline(t.topic)}
+                                            onInstructionChange={handleInstructionChange}
                                         />
                                     </div>
                                 ))}
