@@ -26,6 +26,8 @@ import { Input } from '@/components/ui/input';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
 import { HeadlineButtons } from '@/components/contents-helper/HeadlineButtons';
 import { useTopicResultsStore } from '@/stores/useTopicResultsStore';
+import { fetchAndSaveComments, fetchAndSaveMentions } from '@/app/actions/fetchComment';
+import { getAllCommentsWithRootPosts, getAllMentionsWithRootPosts } from '@/app/actions/comment';
 
 export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
@@ -62,6 +64,37 @@ export default function TopicFinderPage() {
         }
     }, [selectedAccountId])
 
+    // 백그라운드 my_contents 동기화 (페이지 로드 시 한 번만 실행)
+    useEffect(() => {
+        const syncMyContents = async () => {
+            try {
+                console.log('🔄 백그라운드에서 my_contents 동기화 시작...');
+                const response = await fetch('/api/my-contents/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ limit: 30 }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ my_contents 동기화 완료:', data);
+                    // 선택적으로 성공 메시지 표시 (사용자에게 방해가 되지 않도록 주석 처리)
+                    // toast.success(`${data.synchronized}개 게시물이 동기화되었습니다.`);
+                } else {
+                    console.warn('⚠️ my_contents 동기화 실패:', response.status);
+                }
+            } catch (error) {
+                // 백그라운드 작업이므로 에러가 발생해도 사용자 경험에 영향을 주지 않음
+                console.error('❌ my_contents 백그라운드 동기화 오류:', error);
+            }
+        };
+
+        // 페이지 로드 시 한 번만 실행
+        syncMyContents();
+    }, []); // 빈 의존성 배열로 마운트 시에만 실행
+
     // 계정 정보 로드
     useEffect(() => {
         if (!selectedSocialAccount) return
@@ -93,6 +126,23 @@ export default function TopicFinderPage() {
 
         fetchAccountDetails()
     }, [selectedSocialAccount])
+
+    // comment prefetch
+    const prefetchComments = async () => {
+        await fetchAndSaveComments();
+        await getAllCommentsWithRootPosts();
+        console.log('comments prefetched');
+    }
+    // mention prefetch
+    const prefetchMentions = async () => {
+        await fetchAndSaveMentions();
+        await getAllMentionsWithRootPosts();
+        console.log('mentions prefetched');
+    }
+    useEffect(() => {
+        prefetchComments();
+        prefetchMentions();
+    }, []);
 
     // 토픽 생성 함수
     const generateTopics = async () => {

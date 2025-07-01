@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ContentItem } from "../contents-helper/types";
+import { ContentItem, Comment, PostComment } from "../contents-helper/types";
 import {
     getAllCommentsWithRootPosts,
     postComment,
@@ -14,97 +14,83 @@ import {
 import { fetchAndSaveComments } from "@/app/actions/fetchComment";
 import { EyeOff } from "lucide-react";
 import { toast } from 'sonner';
-
-interface Comment {
-    id: string;
-    text: string;
-    username: string;
-    timestamp: string;
-    replies: PostComment[];
-    is_replied: boolean;
-    root_post: string;
-    root_post_content?: ContentItem;
-}
-
-interface PostComment {
-    media_type: string;
-    text: string;
-    reply_to_id: string;
-}
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function CommentList() {
-    const [isLoading, setIsLoading] = useState(true);
-    const [comments, setComments] = useState<Comment[]>([]);
-    const [hiddenComments, setHiddenComments] = useState<string[]>([]);
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+    } = useQuery<{
+        comments: Comment[];
+        postsWithComments: ContentItem[];
+        hiddenComments: string[];
+    }>({
+        queryKey: ['comments'],
+        queryFn: async () => {
+            await fetchAndSaveComments();
+            const result = await getAllCommentsWithRootPosts();
+            return result;
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+
+    const comments = data?.comments ?? [];
+    const postsWithComments = data?.postsWithComments ?? [];
+    const hiddenComments = data?.hiddenComments ?? [];
+
     const [replyText, setReplyText] = useState("");
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [showReplies, setShowReplies] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [postsWithComments, setPostsWithComments] = useState<ContentItem[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [hiddenByUser, setHiddenByUser] = useState<string[]>([]);
 
-    useEffect(() => {
-        async function fetchContents() {
-            setComments([]);
-            setHiddenComments([]);
-            setIsLoading(true);
-            setError(null);
+    const queryClient = useQueryClient();
 
-            try {
-                await fetchAndSaveComments();
-                const result = await getAllCommentsWithRootPosts();
-                setComments(result.comments);
-                setPostsWithComments(result.postsWithComments);
-                setHiddenComments(result.hiddenComments);
-            } catch (error) {
-                console.error("Error fetching comments:", error);
-                setError(
-                    error instanceof Error
-                        ? error.message
-                        : "데이터를 가져오는 중 오류가 발생했습니다."
-                );
-            } finally {
-                setIsLoading(false);
-            }
+    const replyMutation = useMutation({
+        mutationFn: async ({ commentId, reply }: { commentId: string, reply: PostComment }) => {
+            await postComment(reply);
+            await markCommentAsReplied(commentId, reply);
+            return { commentId, reply };
+        },
+        onMutate: async ({ commentId, reply }) => {
+            await queryClient.cancelQueries({ queryKey: ['comments'] });
+            const previousComments = queryClient.getQueryData(['comments']);
+
+            queryClient.setQueryData(['comments'], (old: { comments: Comment[]; }) => ({
+                ...old,
+                comments: old.comments.map((comment: Comment) =>
+                    comment.id === commentId
+                        ? { ...comment, replies: [...comment.replies, reply], is_replied: true }
+                        : comment
+                )
+            }));
+
+            return { previousComments };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['comments'], context?.previousComments);
+            toast.error("답글 전송에 실패했습니다.");
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['comments'] });
+            toast.success("답글이 성공적으로 전송되었습니다!");
         }
-
-        fetchContents();
-    }, []);
+    });
 
     const handleReply = (id: string) => {
         if (!replyText.trim()) return;
 
-        try {
-            const newReply: PostComment = {
-                media_type: "TEXT_POST",
-                text: replyText,
-                reply_to_id: id,
-            };
+        const newReply: PostComment = {
+            media_type: "TEXT_POST",
+            text: replyText,
+            reply_to_id: id,
+        };
 
-            setComments((prevComments) =>
-                prevComments.map((comment) =>
-                    comment.id === id
-                        ? { ...comment, replies: [...comment.replies, newReply] }
-                        : comment
-                )
-            );
-
-            setReplyText("");
-            setReplyingTo(null);
-            postComment(newReply);
-
-            const repliedComment = comments.find((comment) => comment.id === id);
-            if (repliedComment) {
-                setHiddenComments((prev) => [...prev, repliedComment.id]);
-            }
-
-            markCommentAsReplied(id, newReply);
-            toast.success("답글이 성공적으로 전송되었습니다!");
-        } catch (error) {
-            console.error("Error replying to comment:", error);
-            toast.error("답글 전송에 실패했습니다.");
-        }
+        replyMutation.mutate({ commentId: id, reply: newReply });
+        setReplyText("");
+        setReplyingTo(null);
     };
 
     const currentPost = postsWithComments[currentIndex];
@@ -118,16 +104,14 @@ export function CommentList() {
         return <div className="flex justify-center w-full text-muted-foreground">getting comments...</div>
     }
     if (error) {
-        return <div className="flex justify-center w-full text-red-500">{error}</div>
+        return <div className="flex justify-center w-full text-red-500">{error instanceof Error ? error.message : "데이터를 가져오는 중 오류가 발생했습니다."}</div>
     }
     if (!isLoading && comments.length === 0) {
         return <div className="flex justify-center w-full text-muted-foreground">댓글이 없습니다.</div>
     }
 
     return (
-
         <div className="w-full mx-auto max-w-5xl flex space-x-6 mt-5">
-            {/* 왼쪽: 게시글 슬라이더 */}
             <div className="w-1/2 flex flex-col relative">
                 <div className="h-[80vh] flex flex-col relative">
                     <Card className="flex-1 p-4 overflow-y-auto scrollbar">
@@ -164,8 +148,6 @@ export function CommentList() {
                 </div>
             </div>
 
-
-            {/* 오른쪽: 댓글 리스트 */}
             <div className="w-1/2 h-[80vh] overflow-y-auto space-y-4 pr-2 scrollbar">
                 {comments
                     .filter(
@@ -186,7 +168,6 @@ export function CommentList() {
                                             <span className="font-medium">{comment.username}</span>
                                             <span className="text-xs text-muted-foreground">
                                                 {new Date(comment.timestamp).toLocaleString()}
-                                                {/* 숨기기 아이콘 (오른쪽 상단) */}
                                                 <button
                                                     className="pl-1 text-muted-foreground hover:text-red-500"
                                                     onClick={async () => {
@@ -194,7 +175,6 @@ export function CommentList() {
                                                             try {
                                                                 await hideComment(comment.id);
                                                                 toast.success("댓글이 숨김 처리되었습니다!")
-                                                                setHiddenByUser((prev) => [...prev, comment.id]);
                                                             } catch (e) {
                                                                 toast.error("댓글 숨김에 실패했습니다.");
                                                             }
@@ -209,7 +189,6 @@ export function CommentList() {
                                     </div>
                                 </div>
 
-                                {/* 답글 입력 및 버튼 */}
                                 {replyingTo === comment.id ? (
                                     <div className="w-full mt-2">
                                         <Input
@@ -219,15 +198,10 @@ export function CommentList() {
                                         />
                                         <div className="flex justify-center mt-2 pb-2">
                                             <Button
-                                                onClick={() => {
-                                                    if (replyText.trim() !== "") {
-                                                        handleReply(comment.id);
-                                                    } else {
-                                                        setReplyingTo(null);
-                                                    }
-                                                }}
+                                                onClick={() => handleReply(comment.id)}
+                                                disabled={replyMutation.isPending}
                                             >
-                                                답글 달기
+                                                {replyMutation.isPending ? "전송 중..." : "답글 달기"}
                                             </Button>
                                         </div>
                                     </div>
@@ -242,7 +216,6 @@ export function CommentList() {
                         </Card>
                     ))}
 
-                {/* 답글 포함된 댓글 표시 */}
                 {hiddenCommentsForCurrentPost.length > 0 && (
                     <>
                         <Button

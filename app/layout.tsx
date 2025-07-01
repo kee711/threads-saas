@@ -3,20 +3,15 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from 'sonner';
 import { Providers } from './providers'
-import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
-// import { StagewiseToolbar } from '@stagewise/toolbar-next'
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "ViralChef",
   description: "ViralChef",
 };
-
-// const stagewiseConfig = {
-//   plugins: []
-// };
 
 export default async function RootLayout({
   children,
@@ -30,10 +25,6 @@ export default async function RootLayout({
       <body className={`h-full ${inter.className}`}>
         <Providers session={session}>
           {children}
-          {/* Stagewise toolbar temporarily disabled due to JSON parsing error */}
-          {/* {process.env.NODE_ENV === 'development' && (
-            <StagewiseToolbar config={stagewiseConfig} />
-          )} */}
         </Providers>
         <Toaster
           position="bottom-center"
