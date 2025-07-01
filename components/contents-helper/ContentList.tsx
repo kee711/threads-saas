@@ -95,7 +95,7 @@ export function ContentList({ category, title }: ContentListProps) {
               </div>
             ))
           ) : (
-            <div className="text-center text-muted-foreground">
+            <div key={category} className="text-center text-muted-foreground">
               {category}에 대한 컨텐츠를 찾을 수 없습니다.
             </div>
           )}

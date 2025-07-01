@@ -11,7 +11,7 @@ export type ContentCategory = 'external' | 'saved'
 export type PublishStatus = 'draft' | 'scheduled' | 'posted'
 
 export type Content = {
-  id?: string
+  my_contents_id?: string
   content: string
   publish_status?: PublishStatus
   created_at?: string
