@@ -128,7 +128,7 @@ export async function updateContent(id: string, content: Partial<Content>) {
     const { data, error } = await supabase
       .from('my_contents')
       .update(content)
-      .eq('id', id)
+      .eq('my_contents_id', id)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 수정 가능
       .select()
       .single()
@@ -157,7 +157,7 @@ export async function deleteContent(id: string) {
     const { error } = await supabase
       .from('my_contents')
       .delete()
-      .eq('id', id)
+      .eq('my_contents_id', id)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 삭제 가능
 
     if (error) throw error

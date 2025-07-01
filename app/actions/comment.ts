@@ -130,6 +130,7 @@ export async function getComment(id: string, userId: string) { // root post id &
     }
 
     const filtered_data = (data ?? []).filter((c) => c.username !== username);
+    // 자신의 댓글은 제외하고 가져오기
 
     return filtered_data || [];
   } catch (error) {
@@ -309,54 +310,54 @@ export async function hideComment(commentId: string) {
   }
 }
 
-// // 멘션 불러오기
-// export async function getMention(userId: string) { // root post id & user id
-//   console.log('Creating Supabase client...');
-//   const supabase = await createClient()
+// 멘션 불러오기
+export async function getMention(userId: string) { // root post id & user id
+  console.log('Creating Supabase client...');
+  const supabase = await createClient()
 
-//   try {
-//     console.log('Fetching comments...');
-//     const { data, error } = await supabase
-//       .from('mention')
-//       .select('*')
-//       .order('timestamp', { ascending: false })
-//       .limit(10);
+  try {
+    console.log('Fetching comments...');
+    const { data, error } = await supabase
+      .from('mention')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(10);
 
-//     if (error) {
-//       console.error('댓글 조회 실패:', error);
-//       throw new Error(`댓글 조회 중 오류 발생: ${error.message}`);
-//     }
+    if (error) {
+      console.error('댓글 조회 실패:', error);
+      throw new Error(`댓글 조회 중 오류 발생: ${error.message}`);
+    }
 
-//     const filtered_data = (data ?? []).filter((c) => c.user_id !== userId);
-//     return filtered_data || [];
-//   } catch (error) {
-//     console.error('Unexpected error:', error);
-//     throw error;
-//   }
-// }
+    const filtered_data = (data ?? []).filter((c) => c.user_id !== userId);
+    return filtered_data || [];
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    throw error;
+  }
+}
 
-// // 멘션 달린 포스트 불러오기
-// export async function getMentionRootPost(Id: string) { // root post id & user id
-//   console.log('Creating Supabase client...');
-//   const supabase = await createClient();
+// 멘션 달린 포스트 불러오기
+export async function getMentionRootPost(Id: string) { // root post id & user id
+  console.log('Creating Supabase client...');
+  const supabase = await createClient();
 
-//   try {
-//     console.log('Fetching Root Post...');
-//     const { data, error } = await supabase
-//       .from('my_contents')
-//       .select('*')
-//       .eq('media_id', Id);
+  try {
+    console.log('Fetching Root Post...');
+    const { data, error } = await supabase
+      .from('my_contents')
+      .select('*')
+      .eq('media_id', Id);
 
-//     if (error) {
-//       console.error('포스트 조회 실패:', error);
-//       throw new Error(`포스트 조회 중 오류 발생: ${error.message}`);
-//     }
-//     return data || [];
-//   } catch (error) {
-//     console.error('Unexpected error:', error);
-//     throw error;
-//   }
-// }
+    if (error) {
+      console.error('포스트 조회 실패:', error);
+      throw new Error(`포스트 조회 중 오류 발생: ${error.message}`);
+    }
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    throw error;
+  }
+}
 
 // 멘션에 답글 단 경우, is_replied = true로 업데이트 및 replies에 사용자 답글 추가
 export async function markMentionAsReplied(commentId: string, reply: PostComment) {
