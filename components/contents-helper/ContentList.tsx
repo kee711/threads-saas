@@ -77,20 +77,22 @@ export function ContentList({ category, title }: ContentListProps) {
       {isExpanded && (
         <div className="columns-1 md:columns-2 gap-6 space-y-6">
           {isLoading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <div key={category} className="text-center text-muted-foreground">
+              Loading...
+            </div>
           ) : contents.length > 0 ? (
             contents.map((content) => (
-              <div key={content.id} className="break-inside-avoid mb-6">
+              <div key={content.my_contents_id} className="break-inside-avoid mb-6">
                 <PostCard
                   variant="default"
                   username={session?.user?.name || "user"}
                   content={content.content}
                   url={content.url}
                   onAdd={() => addPost({
-                    id: content.id,
+                    id: content.my_contents_id,
                     content: content.content,
                   })}
-                  isSelected={selectedPosts.some(post => post.id === content.id)}
+                  isSelected={selectedPosts.some(post => post.id === content.my_contents_id)}
                 />
               </div>
             ))

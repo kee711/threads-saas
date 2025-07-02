@@ -4,7 +4,8 @@ import { CookingPot, LoaderCircle, Sparkles } from 'lucide-react';
 import { ProfileDescriptionDropdown } from '@/components/contents-helper/ProfileDescriptionDropdown';
 import { HeadlineInput } from '@/components/contents-helper/HeadlineInput';
 import useSocialAccountStore from '@/stores/useSocialAccountStore';
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
@@ -28,6 +29,8 @@ import { HeadlineButtons } from '@/components/contents-helper/HeadlineButtons';
 import { useTopicResultsStore } from '@/stores/useTopicResultsStore';
 import { fetchAndSaveComments, fetchAndSaveMentions } from '@/app/actions/fetchComment';
 import { getAllCommentsWithRootPosts, getAllMentionsWithRootPosts } from '@/app/actions/comment';
+import { statisticsKeys } from '@/lib/queries/statisticsKeys';
+import { fetchUserInsights, fetchTopPosts } from '@/lib/queries/statisticsQueries';
 
 export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
@@ -35,8 +38,9 @@ export default function TopicFinderPage() {
     const [isGeneratingDetails, setIsGeneratingDetails] = useState(false);
     const addPost = useSelectedPostsStore(state => state.addPost);
     const searchParams = useSearchParams();
+    const queryClient = useQueryClient();
 
-    const { accounts, selectedAccountId, currentUsername } = useSocialAccountStore()
+    const { accounts, selectedAccountId, currentUsername, getSelectedAccount } = useSocialAccountStore()
     const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
     const [accountInfo, setAccountInfo] = useState('')
     const [accountTags, setAccountTags] = useState<string[]>([])
@@ -128,21 +132,70 @@ export default function TopicFinderPage() {
     }, [selectedSocialAccount])
 
     // comment prefetch
-    const prefetchComments = async () => {
-        await fetchAndSaveComments();
-        await getAllCommentsWithRootPosts();
-        console.log('comments prefetched');
-    }
-    // mention prefetch
-    const prefetchMentions = async () => {
-        await fetchAndSaveMentions();
-        await getAllMentionsWithRootPosts();
-        console.log('mentions prefetched');
-    }
     useEffect(() => {
-        prefetchComments();
-        prefetchMentions();
-    }, []);
+        if (selectedAccountId) {
+            startTransition(() => {
+                queryClient.prefetchQuery({
+                    queryKey: ['comments'],
+                    queryFn: async () => {
+                        await fetchAndSaveComments();
+                        return getAllCommentsWithRootPosts();
+                    },
+                    staleTime: 1000 * 60 * 5,
+                });
+                queryClient.prefetchQuery({
+                    queryKey: ['mentions'],
+                    queryFn: async () => {
+                        await fetchAndSaveMentions();
+                        return getAllMentionsWithRootPosts();
+                    },
+                    staleTime: 1000 * 60 * 5,
+                });
+                console.log('✅ Comments 데이터 prefetch 완료');
+                console.log('✅ Mentions 데이터 prefetch 완료');
+            });
+        }
+    }, [selectedAccountId, queryClient]);
+
+    // // comment prefetch
+    // const prefetchComments = async () => {
+    //     await fetchAndSaveComments();
+    //     await getAllCommentsWithRootPosts();
+    //     console.log('comments prefetched');
+    // }
+    // // mention prefetch
+    // const prefetchMentions = async () => {
+    //     await fetchAndSaveMentions();
+    //     await getAllMentionsWithRootPosts();
+    //     console.log('mentions prefetched');
+    // }
+    // useEffect(() => {
+    //     prefetchComments();
+    //     prefetchMentions();
+    // }, []);
+
+    // 통계 데이터 7일 prefetch (statistics page용)
+    useEffect(() => {
+        if (selectedAccountId) {
+            const accountId = selectedAccountId;
+            const dateRange = 7; // topic-finder에서는 7일 데이터만 prefetch
+
+            // 백그라운드에서 7일 statistics 데이터 prefetch
+            queryClient.prefetchQuery({
+                queryKey: statisticsKeys.userInsights(accountId, dateRange),
+                queryFn: () => fetchUserInsights(accountId, dateRange),
+                staleTime: 5 * 60 * 1000,
+            });
+
+            queryClient.prefetchQuery({
+                queryKey: statisticsKeys.topPosts(accountId),
+                queryFn: () => fetchTopPosts(accountId),
+                staleTime: 10 * 60 * 1000,
+            });
+
+            console.log('✅ Statistics 데이터 prefetch 완료 (7일)');
+        }
+    }, [selectedAccountId, queryClient]);
 
     // 토픽 생성 함수
     const generateTopics = async () => {
