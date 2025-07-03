@@ -20,7 +20,7 @@ export interface PostComment {
 }
 
 export interface ContentItem {
-  id: string;
+  my_contents_id: string;
   content: string;
   created_at?: string;
   view_count?: number;
