@@ -12,7 +12,7 @@ export async function POST() {
     // 🚀 1단계: scheduled → processing (컨테이너 생성)
     const { data: scheduledList, error: scheduleError } = await supabase
       .from('my_contents')
-      .select('id, content, social_id, media_type, media_urls')
+      .select('my_contents_id, content, social_id, media_type, media_urls')
       .eq('publish_status', 'scheduled')
       .lte('scheduled_at', nowISO)
 
@@ -25,7 +25,7 @@ export async function POST() {
       const containerResults = await Promise.allSettled(
         scheduledList.map(async (post) => {
           try {
-            console.log(`🔄 컨테이너 생성 시작 [${post.id}]: ${post.media_type}`);
+            console.log(`🔄 컨테이너 생성 시작 [${post.my_contents_id}]: ${post.media_type}`);
 
             // 소셜 계정 정보 조회
             const { data: socialAccount } = await supabase
@@ -70,18 +70,18 @@ export async function POST() {
                     publish_status: 'posted',
                     media_id: publishData.id || null
                   })
-                  .eq('id', post.id);
-                console.log(`✅ 게시 성공 [${post.id}]`);
+                  .eq('my_contents_id', post.my_contents_id);
+                console.log(`✅ 게시 성공 [${post.my_contents_id}]`);
               } else {
                 // 게시 실패 - scheduled로 되돌려서 재시도
-                console.error(`❌ 게시 실패 [${post.id}]:`, publishData);
+                console.error(`❌ 게시 실패 [${post.my_contents_id}]:`, publishData);
               }
             } else {
-              console.error(`❌ 컨테이너 생성 실패 [${post.id}]:`, containerResult.error);
+              console.error(`❌ 컨테이너 생성 실패 [${post.my_contents_id}]:`, containerResult.error);
             }
           } catch (error) {
-            console.error(`❌ 포스트 처리 오류 [${post.id}]:`, error);
-            return { success: false, postId: post.id, error };
+            console.error(`❌ 포스트 처리 오류 [${post.my_contents_id}]:`, error);
+            return { success: false, postId: post.my_contents_id, error };
           }
         })
       );

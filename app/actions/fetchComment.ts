@@ -51,17 +51,16 @@ export async function getCommentData(mediaId: string) {
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error('Axios error details:');
-      console.error('Status:', error.response?.status);
-      console.error('Data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('Headers:', error.response?.headers);
-      console.error('Request URL:', url);
-      console.error('Request params:', JSON.stringify(params, null, 2));
-      throw new Error(`Failed to fetch comments: ${error.response?.status} - ${JSON.stringify(error.response?.data)}`);
+      console.warn(`댓글 가져오기 실패 - mediaId: ${mediaId}`, {
+        status: error.response?.status,
+        data: error.response?.data
+      });
     } else {
-      console.error('Unexpected error:', error);
-      throw error;
+      console.warn(`예상치 못한 오류 - mediaId: ${mediaId}:`, error);
     }
+
+    // 에러를 throw하지 않고 실패 정보를 반환
+    return { success: false, error, mediaId };
   }
 }
 
@@ -88,6 +87,7 @@ export async function getMentionData(userId: string) {
   try {
     const response = await axios.get(url, { params });
     console.log('Mentions fetched successfully');
+    console.log("Mentions response.data", response.data);
 
     return response.data;
   } catch (error) {
@@ -152,16 +152,26 @@ export async function fetchAndSaveComments() {
     throw new Error('선택된 소셜 계정이 없습니다.');
   }
 
-
   // 댓글 데이터 fetch
   const mediaIds = await getRootPostId(selectedAccountId);
   console.log('Retrieved media IDs:', JSON.stringify(mediaIds, null, 2));
 
   // media_id 필드 확인 및 변경
   const commentPromises = mediaIds.map((mediaId) => getCommentData(mediaId.media_id));
-  const commentResponses = await Promise.all(commentPromises);
+  const commentResults = await Promise.allSettled(commentPromises);
 
-  const allComments = commentResponses.flatMap((commentData) => {
+  // 성공한 응답들만 필터링
+  const successfulResponses = commentResults
+    .filter((result, index) => {
+      if (result.status === 'rejected') {
+        console.warn(`mediaId ${mediaIds[index].media_id} 댓글 가져오기 실패:`, result.reason);
+        return false;
+      }
+      return true;
+    })
+    .map(result => (result as PromiseFulfilledResult<any>).value);
+
+  const allComments = successfulResponses.flatMap((commentData) => {
     if (!commentData?.data) return [];
     return commentData.data.map((comment: any) => ({
       id: comment.id,
@@ -204,6 +214,7 @@ export async function fetchAndSaveMentions() {
 
   // 멘션 데이터 fetch
   const mentionData = await getMentionData(selectedAccountId);
+  console.log("mentionData", mentionData);
   const mentions = mentionData?.data
     ? mentionData.data.map((mention: any) => ({
       id: mention.id,
@@ -217,7 +228,7 @@ export async function fetchAndSaveMentions() {
     }))
     : [];
 
-  console.log(mentions);
+  console.log("mentions", mentions);
 
   // 멘션 데이터 저장
   if (mentions.length > 0) {

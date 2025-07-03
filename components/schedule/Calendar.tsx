@@ -40,7 +40,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const listContainerRef = useRef<HTMLDivElement>(null)
-  
+
   const { selectedAccountId, getSelectedAccount } = useSocialAccountStore()
 
   // Check if social account is connected
@@ -67,7 +67,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
         if (data) {
           const formattedEvents = data.map((content: any) => ({
-            id: content.id,
+            id: content.my_contents_id,
             title: content.content,
             date: new Date(content.scheduled_at),
             time: format(new Date(content.scheduled_at), 'HH:mm'),
@@ -205,7 +205,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       // 시간을 유지하면서 날짜만 변경
       const existingTime = format(eventData.date, 'HH:mm'); // 이제 eventData.date는 Date 객체
       const newDateTime = new Date(dropDate);
-      
+
       if (!existingTime || typeof existingTime !== 'string') {
         console.error("Invalid existing time format:", existingTime)
         return
@@ -288,7 +288,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
           onMonthChange={handleMonthChange}
           onDateChange={handleSelectedDateChange}
         />
-        
+
         <div className="flex flex-col items-center justify-center py-12 text-center bg-card rounded-lg">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <Users className="w-8 h-8 text-muted-foreground" />

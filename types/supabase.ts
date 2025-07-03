@@ -84,7 +84,7 @@ export type Database = {
           category: string | null
           content: string | null
           created_at: string | null
-          id: string
+          my_contents_id: string
           publish_status: string | null
           scheduled_at: string | null
           user_id: string | null
@@ -93,7 +93,7 @@ export type Database = {
           category?: string | null
           content?: string | null
           created_at?: string | null
-          id?: string
+          my_contents_id?: string
           publish_status?: string | null
           scheduled_at?: string | null
           user_id?: string | null
@@ -102,7 +102,7 @@ export type Database = {
           category?: string | null
           content?: string | null
           created_at?: string | null
-          id?: string
+          my_contents_id?: string
           publish_status?: string | null
           scheduled_at?: string | null
           user_id?: string | null

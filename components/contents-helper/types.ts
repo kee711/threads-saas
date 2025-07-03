@@ -2,8 +2,25 @@ export type ContentCategory = 'external' | 'saved';
 
 export type PublishStatus = 'draft' | 'scheduled' | 'posted';
 
-export interface ContentItem {
+export interface Comment {
   id: string;
+  text: string;
+  username: string;
+  timestamp: string;
+  replies: PostComment[];
+  is_replied: boolean;
+  root_post: string;
+  root_post_content?: ContentItem;
+}
+
+export interface PostComment {
+  media_type: string;
+  text: string;
+  reply_to_id: string;
+}
+
+export interface ContentItem {
+  my_contents_id: string;
   content: string;
   created_at?: string;
   view_count?: number;
