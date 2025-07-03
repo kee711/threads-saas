@@ -1,9 +1,34 @@
+'use client';
+
 import { Footer } from "@/components/blocks/footer";
 import InteractiveHero from "@/components/blocks/hero-section-nexus";
 import { TestimonialsSection, sampleTestimonials } from "@/components/blocks/testimonials-1";
+import { PricingModal } from "@/components/modals/PricingModal";
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 // app/page.tsx
 export default function Home() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
+
+  // Check for pricing modal parameter
+  useEffect(() => {
+    const modal = searchParams.get('modal');
+    if (modal === 'pricing') {
+      setPricingModalOpen(true);
+    }
+  }, [searchParams]);
+
+  const handleClosePricingModal = () => {
+    setPricingModalOpen(false);
+    // Remove the modal parameter from URL
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('modal');
+    router.replace(newUrl.pathname + newUrl.search);
+  };
+
   return (
     <div className="dark bg-background landing-page">
       <InteractiveHero />
@@ -70,6 +95,12 @@ export default function Home() {
           },
         ]}
         copyright="webtics Inc. © 2024"
+      />
+      
+      {/* Pricing Modal */}
+      <PricingModal 
+        open={pricingModalOpen} 
+        onClose={handleClosePricingModal} 
       />
     </div>
   );

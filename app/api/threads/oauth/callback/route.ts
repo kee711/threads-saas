@@ -166,9 +166,9 @@ export async function GET(req: NextRequest) {
 
     console.log("Threads 계정 연동 완료");
 
-    // 새 계정이면 온보딩 모달을 표시하기 위해 파라미터 추가
+    // 새 계정이면 소셜 온보딩으로 리다이렉트
     if (isNewAccount) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/settings?account_added=true&account_id=${accountId}`);
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/onboarding?type=social&account_id=${accountId}`);
     } else {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents-cooker/topic-finder`);
     }

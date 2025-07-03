@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const { data: contentData, error: contentError } = await supabase
       .from('my_contents')
       .select('*')
-      .eq('id', contentId)
+      .eq('my_contents_id', contentId)
       .eq('user_id', session.user.id)
       .single()
 
@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         publish_status: 'draft',
         publish_at: null
       })
-      .eq('id', contentId)
+      .eq('my_contents_id', contentId)
       .eq('user_id', session.user.id)
       .select()
 

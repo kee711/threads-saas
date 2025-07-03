@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { format, isSameDay, startOfMonth } from 'date-fns'
-import { Clock, Plus, Edit, Check, Trash2, Image, Video, FileText, Images } from 'lucide-react'
+import { Clock, Plus, Edit, Check, Trash2, Image, Video, FileText, Images, Users } from 'lucide-react'
+import useSocialAccountStore from '@/stores/useSocialAccountStore'
+import { toast } from 'sonner'
 import {
   Select,
   SelectContent,
@@ -39,6 +41,24 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const listContainerRef = useRef<HTMLDivElement>(null)
 
+  const { selectedAccountId, getSelectedAccount } = useSocialAccountStore()
+
+  // Check if social account is connected
+  const checkSocialAccountConnection = () => {
+    const selectedAccount = getSelectedAccount();
+    if (!selectedAccount || !selectedAccountId) {
+      toast.error("계정 추가가 필요해요", {
+        description: "스케줄 관리를 위해 먼저 Threads 계정을 연결해주세요.",
+        action: {
+          label: "계정 연결",
+          onClick: () => window.location.href = "/api/threads/oauth"
+        }
+      });
+      return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     async function fetchEvents() {
       try {
@@ -47,7 +67,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
         if (data) {
           const formattedEvents = data.map((content: any) => ({
-            id: content.id,
+            id: content.my_contents_id,
             title: content.content,
             date: new Date(content.scheduled_at),
             time: format(new Date(content.scheduled_at), 'HH:mm'),
@@ -185,7 +205,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       // 시간을 유지하면서 날짜만 변경
       const existingTime = format(eventData.date, 'HH:mm'); // 이제 eventData.date는 Date 객체
       const newDateTime = new Date(dropDate);
-      
+
       if (!existingTime || typeof existingTime !== 'string') {
         console.error("Invalid existing time format:", existingTime)
         return
@@ -252,6 +272,38 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
   const totalDays = Math.ceil((lastDayOfMonth.getDate() + (firstDayOfMonth.getDay() === 0 ? 6 : firstDayOfMonth.getDay() - 1)) / 7) * 7
   const weeksCount = totalDays / 7
+
+  // 소셜 계정이 연결되지 않은 경우
+  const selectedAccount = getSelectedAccount();
+  if (!selectedAccount || !selectedAccountId) {
+    return (
+      <div className="w-full space-y-4">
+        <ScheduleHeader
+          view={view}
+          setView={setView}
+          scheduledCount={0}
+          postedCount={0}
+          month={month}
+          selectedDate={selectedDate}
+          onMonthChange={handleMonthChange}
+          onDateChange={handleSelectedDateChange}
+        />
+
+        <div className="flex flex-col items-center justify-center py-12 text-center bg-card rounded-lg">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">계정 연결이 필요해요</h2>
+          <p className="text-muted-foreground mb-4">
+            게시물 스케줄링을 위해 먼저 Threads 계정을 연결해주세요.
+          </p>
+          <Button onClick={() => window.location.href = "/api/threads/oauth"}>
+            Threads 계정 연결하기
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-4">

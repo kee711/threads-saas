@@ -332,12 +332,12 @@ function SidebarContent({
       </div>
 
       {/* Streaks */}
-      <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
+      {/* <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mb-0">
         <div className="flex items-center justify-center">
           <Flame className="h-7 w-7" />
           <p className="text-2xl font-bold">10</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Bottom section: User Profile */}
       <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mt-2">
@@ -352,7 +352,7 @@ function SidebarContent({
                   {session.user?.name
                     ? session.user.name
                       .split(' ')
-                      .filter(n => n.length > 0)
+                      .filter((n: string) => n.length > 0)
                       .map((n: string) => n[0])
                       .join('')
                       .toUpperCase() || '??'
@@ -365,17 +365,19 @@ function SidebarContent({
                 <p className="text-xs text-muted-foreground">Premium Plan</p>
               </div>
             </div>
-            {/* Settings Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-            >
-              <Link href="/settings" onClick={onLinkClick}>
-                <Settings className="h-5 w-5" />
-                <span className="sr-only">설정</span>
-              </Link>
-            </Button>
+            <div className="flex items-center gap-1">
+              {/* Settings Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+              >
+                <Link href="/settings" onClick={onLinkClick}>
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">설정</span>
+                </Link>
+              </Button>
+            </div>
           </div>
         ) : (
           // 로그인되지 않은 경우

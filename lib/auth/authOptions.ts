@@ -128,6 +128,7 @@ export const authOptions: AuthOptions = {
             console.error('Error creating user:', createError)
             return false
           }
+
         } else {
           // 기존 사용자 정보 업데이트
           const { error: updateError } = await supabase
