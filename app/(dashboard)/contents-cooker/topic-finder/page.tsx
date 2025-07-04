@@ -4,7 +4,7 @@ import { CookingPot, LoaderCircle, Sparkles } from 'lucide-react';
 import { ProfileDescriptionDropdown } from '@/components/contents-helper/ProfileDescriptionDropdown';
 import { HeadlineInput } from '@/components/contents-helper/HeadlineInput';
 import useSocialAccountStore from '@/stores/useSocialAccountStore';
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, useEffect, useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
@@ -40,13 +40,15 @@ export default function TopicFinderPage() {
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
 
-    const { accounts, selectedAccountId, currentUsername, getSelectedAccount } = useSocialAccountStore()
-    const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
+    const { accounts, currentSocialId, currentUsername, getSelectedAccount } = useSocialAccountStore()
     const [accountInfo, setAccountInfo] = useState('')
     const [accountTags, setAccountTags] = useState<string[]>([])
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedHeadline, setSelectedHeadline] = useState<string>('');
     const [givenInstruction, setGivenInstruction] = useState<string>('');
+
+    // Memoize Supabase client to prevent creating new instances
+    const supabase = useMemo(() => createClient(), []);
 
     // topicResults zustand store
     const {
@@ -61,12 +63,6 @@ export default function TopicFinderPage() {
         clearTopicResults
     } = useTopicResultsStore();
 
-    // zustand의 selectedAccountId와 로컬 상태 동기화
-    useEffect(() => {
-        if (selectedAccountId) {
-            setSelectedSocialAccount(selectedAccountId)
-        }
-    }, [selectedAccountId])
 
     // 백그라운드 my_contents 동기화 (페이지 로드 시 한 번만 실행)
     useEffect(() => {
@@ -101,16 +97,15 @@ export default function TopicFinderPage() {
 
     // 계정 정보 로드
     useEffect(() => {
-        if (!selectedSocialAccount) return
+        if (!currentSocialId) return
 
         const fetchAccountDetails = async () => {
             setIsLoading(true)
             try {
-                const supabase = createClient()
                 const { data: accountData, error: accountError } = await supabase
                     .from('social_accounts')
                     .select('account_type, account_info, account_tags')
-                    .eq('id', selectedSocialAccount)
+                    .eq('social_id', currentSocialId)
                     .single()
 
                 if (!accountError && accountData) {
@@ -129,12 +124,16 @@ export default function TopicFinderPage() {
         }
 
         fetchAccountDetails()
-    }, [selectedSocialAccount])
+    }, [currentSocialId, supabase])
 
-    // comment prefetch
+    // Combined prefetch for comments, mentions, and statistics
     useEffect(() => {
-        if (selectedAccountId) {
+        if (currentSocialId) {
+            const accountId = currentSocialId;
+            const dateRange = 7; // topic-finder에서는 7일 데이터만 prefetch
+
             startTransition(() => {
+                // Prefetch comments and mentions
                 queryClient.prefetchQuery({
                     queryKey: ['comments'],
                     queryFn: async () => {
@@ -143,6 +142,7 @@ export default function TopicFinderPage() {
                     },
                     staleTime: 1000 * 60 * 5,
                 });
+                
                 queryClient.prefetchQuery({
                     queryKey: ['mentions'],
                     queryFn: async () => {
@@ -151,51 +151,26 @@ export default function TopicFinderPage() {
                     },
                     staleTime: 1000 * 60 * 5,
                 });
+
+                // Prefetch statistics data
+                queryClient.prefetchQuery({
+                    queryKey: statisticsKeys.userInsights(accountId, dateRange),
+                    queryFn: () => fetchUserInsights(accountId, dateRange),
+                    staleTime: 5 * 60 * 1000,
+                });
+
+                queryClient.prefetchQuery({
+                    queryKey: statisticsKeys.topPosts(accountId),
+                    queryFn: () => fetchTopPosts(accountId),
+                    staleTime: 10 * 60 * 1000,
+                });
+
                 console.log('✅ Comments 데이터 prefetch 완료');
                 console.log('✅ Mentions 데이터 prefetch 완료');
+                console.log('✅ Statistics 데이터 prefetch 완료 (7일)');
             });
         }
-    }, [selectedAccountId, queryClient]);
-
-    // // comment prefetch
-    // const prefetchComments = async () => {
-    //     await fetchAndSaveComments();
-    //     await getAllCommentsWithRootPosts();
-    //     console.log('comments prefetched');
-    // }
-    // // mention prefetch
-    // const prefetchMentions = async () => {
-    //     await fetchAndSaveMentions();
-    //     await getAllMentionsWithRootPosts();
-    //     console.log('mentions prefetched');
-    // }
-    // useEffect(() => {
-    //     prefetchComments();
-    //     prefetchMentions();
-    // }, []);
-
-    // 통계 데이터 7일 prefetch (statistics page용)
-    useEffect(() => {
-        if (selectedAccountId) {
-            const accountId = selectedAccountId;
-            const dateRange = 7; // topic-finder에서는 7일 데이터만 prefetch
-
-            // 백그라운드에서 7일 statistics 데이터 prefetch
-            queryClient.prefetchQuery({
-                queryKey: statisticsKeys.userInsights(accountId, dateRange),
-                queryFn: () => fetchUserInsights(accountId, dateRange),
-                staleTime: 5 * 60 * 1000,
-            });
-
-            queryClient.prefetchQuery({
-                queryKey: statisticsKeys.topPosts(accountId),
-                queryFn: () => fetchTopPosts(accountId),
-                staleTime: 10 * 60 * 1000,
-            });
-
-            console.log('✅ Statistics 데이터 prefetch 완료 (7일)');
-        }
-    }, [selectedAccountId, queryClient]);
+    }, [currentSocialId, queryClient]);
 
     // 토픽 생성 함수
     const generateTopics = async () => {
@@ -309,9 +284,9 @@ export default function TopicFinderPage() {
                         <h2 className="text-2xl font-semibold text-left">Hi {currentUsername || 'User'},<br />What would you like to write about?</h2>
                     </div>
                     {/* Profile Description Dropdown */}
-                    {selectedAccountId && (
+                    {currentSocialId && (
                         <div className="w-full mt-3 flex justify-between max-w-80 transition-all duration-300 xs:max-w-xs sm:max-w-xl">
-                            <ProfileDescriptionDropdown accountId={selectedAccountId} initialDescription={accountInfo || ''} />
+                            <ProfileDescriptionDropdown accountId={currentSocialId} initialDescription={accountInfo || ''} />
                         </div>
                     )}
                     {/* Headline 입력 및 태그 */}

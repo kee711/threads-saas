@@ -28,20 +28,17 @@ export type ScheduledPost = {
 };
 
 // 전역 상태에서 선택된 계정 ID 가져오기
-async function getSelectedAccountId(userId: string) {
+async function getSelectedSocialId(userId: string) {
   const supabase = await createClient();
 
-  // social-account-store 이름으로 저장된 상태 조회
-  const { data: storeData } = await supabase
+  // user_profiles 테이블에서 selected_social_id 직접 조회
+  const { data: profileData } = await supabase
     .from("user_profiles")
-    .select("settings")
-    .eq("id", userId)
+    .select("selected_social_id")
+    .eq("user_id", userId)
     .single();
 
-  // settings 필드에서 selectedAccountId 추출
-  const selectedAccountId = storeData?.settings?.selectedAccountId || null;
-
-  return selectedAccountId;
+  return profileData?.selected_social_id || null;
 }
 
 export async function schedulePost(
@@ -59,24 +56,10 @@ export async function schedulePost(
     const supabase = await createClient();
 
     // 전역 상태에서 선택된 계정 ID 가져오기
-    const selectedAccountId = await getSelectedAccountId(session.user.id);
-
-    // 소셜 계정 정보 조회
-    let socialId = null;
-    if (selectedAccountId) {
-      const { data: account } = await supabase
-        .from("social_accounts")
-        .select("social_id")
-        .eq("id", selectedAccountId)
-        .single();
-
-      if (account) {
-        socialId = account.social_id;
-      }
-    }
+    let currentSocialId = await getSelectedSocialId(session.user.id);
 
     // 선택된 계정이 없으면 사용자의 첫 번째 소셜 계정 사용
-    if (!socialId) {
+    if (!currentSocialId) {
       const { data: accounts } = await supabase
         .from("social_accounts")
         .select("social_id")
@@ -86,7 +69,7 @@ export async function schedulePost(
         .limit(1);
 
       if (accounts && accounts.length > 0) {
-        socialId = accounts[0].social_id;
+        currentSocialId = accounts[0].social_id;
       }
     }
 
@@ -98,7 +81,7 @@ export async function schedulePost(
           scheduled_at: scheduledAt,
           publish_status: "scheduled",
           user_id: session.user.id,
-          social_id: socialId,
+          social_id: currentSocialId,
           media_type: mediaType || "TEXT",
           media_urls: media_urls || [],
         },

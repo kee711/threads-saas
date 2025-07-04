@@ -30,7 +30,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number>(0);
   const { selectedPosts, removePost, updatePostType, addPost } =
     useSelectedPostsStore();
-  const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
+  const { currentSocialId, getSelectedAccount } = useSocialAccountStore();
   const { isRightSidebarOpen, openRightSidebar, closeRightSidebar, isMobile } = useMobileSidebar();
   const pathname = usePathname();
 
@@ -453,7 +453,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
   // Check if social account is connected
   const checkSocialAccountConnection = () => {
     const selectedAccount = getSelectedAccount();
-    if (!selectedAccount || !selectedAccountId) {
+    if (!selectedAccount || !currentSocialId) {
       toast.error("계정 추가가 필요해요", {
         description: "먼저 Threads 계정을 연결해주세요.",
         action: {

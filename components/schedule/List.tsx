@@ -1,15 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getMonth, getYear, setMonth as setDateMonth, setYear as setDateYear, parseISO } from 'date-fns'
+import { useState, useRef } from 'react'
+import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Edit2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { PostCard } from '@/components/PostCard'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { EditPostModal } from './EditPostModal'
 import { Event } from './types' // Event 타입을 별도 파일로 분리했다고 가정
 

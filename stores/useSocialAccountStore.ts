@@ -1,10 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createClient } from '../utils/supabase/client';
+import { createClient } from '@/utils/supabase/client';
 
 // 소셜 계정 정보 타입 정의
 interface SocialAccount {
-  id: string
   social_id: string
   platform: string
   access_token: string
@@ -17,18 +16,15 @@ interface SocialAccount {
 // 스토어 타입 정의
 interface SocialAccountStore {
   accounts: SocialAccount[]
-  selectedAccountId: string | null
-  currentSocialId: string | null // 현재 선택된 계정의 social_id
-  currentUsername: string | null // 현재 선택된 계정의 username
+  currentSocialId: string // 현재 선택된 계정의 social_id
+  currentUsername: string // 현재 선택된 계정의 username
   accountInfo: string | null
   accountTags: string[]
   accountType?: string | null // 추가: 계정 유형
 
   setAccounts: (accounts: SocialAccount[]) => void
-  setSelectedAccount: (accountId: string) => void
   setCurrentAccountInfo: (socialId: string, username: string | null) => void
   getSelectedAccount: () => SocialAccount | undefined
-  setAccountDetails: (info: string | null, tags: string[], type?: string | null) => void
 
   // 추가: supabase에서 직접 fetch하는 메서드
   fetchSocialAccounts: (userId: string) => Promise<void>
@@ -40,31 +36,28 @@ const useSocialAccountStore = create<SocialAccountStore>()(
   persist(
     (set, get) => ({
       accounts: [],
-      selectedAccountId: null,
-      currentSocialId: null,
-      currentUsername: null,
+      currentSocialId: '',
+      currentUsername: '',
       accountInfo: null,
       accountTags: [],
       accountType: null,
 
       setAccounts: (accounts) => {
         console.log("소셜 계정 목록 업데이트:", accounts);
-        const existingSelectedId = get().selectedAccountId;
-        const newSelectedId = existingSelectedId || (accounts.length > 0 ? accounts[0].id : null);
+        const existingSelectedId = get().currentSocialId;
+        const newSelectedId = existingSelectedId || (accounts.length > 0 ? accounts[0].social_id : null);
 
         // 새롭게 선택된 계정의 정보도 업데이트
         if (newSelectedId) {
-          const selectedAccount = accounts.find(acc => acc.id === newSelectedId);
+          const selectedAccount = accounts.find(acc => acc.social_id === newSelectedId);
           if (selectedAccount) {
             console.log("선택된 계정 정보:", {
-              id: selectedAccount.id,
               social_id: selectedAccount.social_id,
               username: selectedAccount.username
             });
 
             set({
               accounts,
-              selectedAccountId: newSelectedId,
               currentSocialId: selectedAccount.social_id,
               currentUsername: selectedAccount.username || selectedAccount.social_id
             });
@@ -74,34 +67,12 @@ const useSocialAccountStore = create<SocialAccountStore>()(
 
         set({
           accounts,
-          selectedAccountId: newSelectedId
         });
-      },
-
-      setSelectedAccount: (accountId) => {
-        console.log("계정 선택 변경:", accountId);
-        const account = get().accounts.find(acc => acc.id === accountId);
-
-        if (account) {
-          console.log("선택된 계정 정보:", {
-            id: account.id,
-            social_id: account.social_id,
-            username: account.username
-          });
-
-          set({
-            selectedAccountId: accountId,
-            currentSocialId: account.social_id,
-            currentUsername: account.username || account.social_id
-          });
-        } else {
-          console.warn("선택된 계정을 찾을 수 없음:", accountId);
-          set({ selectedAccountId: accountId });
-        }
       },
 
       setCurrentAccountInfo: (socialId, username) => {
         console.log("현재 계정 정보 업데이트:", { socialId, username });
+        const account = get().accounts.find(acc => acc.social_id === socialId);
         set({
           currentSocialId: socialId,
           currentUsername: username || socialId
@@ -109,18 +80,10 @@ const useSocialAccountStore = create<SocialAccountStore>()(
       },
 
       getSelectedAccount: () => {
-        const { accounts, selectedAccountId } = get();
-        const account = accounts.find(account => account.id === selectedAccountId);
+        const { accounts, currentSocialId } = get();
+        const account = accounts.find(account => account.social_id === currentSocialId);
         console.log("현재 선택된 계정:", account);
         return account;
-      },
-
-      setAccountDetails: (info, tags, type) => {
-        set({
-          accountInfo: info,
-          accountTags: tags || [],
-          accountType: type || null
-        });
       },
 
       // supabase에서 계정 목록 fetch
@@ -143,7 +106,7 @@ const useSocialAccountStore = create<SocialAccountStore>()(
         const { data: accountData, error: accountError } = await supabase
           .from('social_accounts')
           .select('account_type, account_info, account_tags')
-          .eq('id', accountId)
+          .eq('social_id', accountId)
           .single();
         if (!accountError && accountData) {
           set({

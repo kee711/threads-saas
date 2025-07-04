@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { PostCard } from '@/components/PostCard';
 import { ContentCategory, ContentItem, ContentListProps } from './types';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
-import { getContents, ContentSource } from '@/app/actions/content';
+import { getContents } from '@/app/actions/content';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
+import useSocialAccountStore from '@/stores/useSocialAccountStore';
 
 export function ContentList({ category, title }: ContentListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -14,6 +15,7 @@ export function ContentList({ category, title }: ContentListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const addPost = useSelectedPostsStore(state => state.addPost);
   const selectedPosts = useSelectedPostsStore(state => state.selectedPosts);
+  const { currentSocialId } = useSocialAccountStore();
 
   // 🔐 사용자 세션 확인
   const { data: session, status } = useSession();
@@ -30,9 +32,9 @@ export function ContentList({ category, title }: ContentListProps) {
       setIsLoading(true);
       try {
         // 카테고리에 따라 데이터 조회 (서버에서 RLS 적용됨)
-        const params: { source: ContentSource; category: ContentCategory } = {
-          source: category === 'external' ? 'external' : 'my',
-          category
+        const params: { category: ContentCategory, currentSocialId: string } = {
+          category,
+          currentSocialId: currentSocialId
         };
 
         const { data, error } = await getContents(params);
@@ -48,7 +50,7 @@ export function ContentList({ category, title }: ContentListProps) {
     }
 
     fetchContents();
-  }, [category, status]); // status를 의존성에 추가
+  }, [category, status, currentSocialId]); // status를 의존성에 추가
 
   // 컨텐츠 목록 토글
   const toggleExpand = () => {
