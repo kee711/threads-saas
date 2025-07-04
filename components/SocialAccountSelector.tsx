@@ -13,7 +13,7 @@ import {
   SelectSeparator,
 } from '@/components/ui/select';
 import useSocialAccountStore from '@/stores/useSocialAccountStore';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/utils/supabase/client';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { OnboardingModal } from './OnboardingModal';
@@ -29,13 +29,10 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   const { data: session } = useSession();
   const {
     accounts,
-    selectedAccountId,
     currentSocialId,
     currentUsername,
     setAccounts,
-    setSelectedAccount,
     setCurrentAccountInfo,
-    setAccountDetails
   } = useSocialAccountStore();
 
   // 소셜 계정 목록 가져오기 및 마지막 선택 계정 정보 불러오기
@@ -63,7 +60,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
         // user_profiles에서 마지막 선택된 계정 정보 가져오기
         const { data: userData, error: userError } = await supabase
           .from('user_profiles')
-          .select('selected_social_account')
+          .select('selected_social_id')
           .eq('user_id', session.user.id)
           .single();
 
@@ -71,20 +68,19 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
           console.error('사용자 프로필 조회 오류:', userError);
         }
 
-        console.log("마지막 선택된 소셜 계정:", userData?.selected_social_account);
+        console.log("마지막 선택된 소셜 계정:", userData?.selected_social_id);
 
         // 계정 목록 저장
         setAccounts(data);
 
         // 마지막 선택된 계정이 있으면 선택
-        if (userData?.selected_social_account) {
-          const accountToSelect = data.find(acc => acc.social_id === userData.selected_social_account);
+        if (userData?.selected_social_id) {
+          const accountToSelect = data.find(acc => acc.social_id === userData.selected_social_id);
           if (accountToSelect) {
             console.log("마지막 선택된 계정으로 설정:", accountToSelect);
-            setSelectedAccount(accountToSelect.id);
             setCurrentAccountInfo(
               accountToSelect.social_id,
-              accountToSelect.username || accountToSelect.social_id
+              accountToSelect.username
             );
           } else {
             console.log("마지막 선택된 계정을 찾을 수 없음, 첫 번째 계정으로 선택");
@@ -112,7 +108,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   // URL 파라미터 체크하여 계정 추가 완료 시 온보딩 모달 표시
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const urlParams = new URLSearchParams(window.location.search);
     const accountAdded = urlParams.get('account_added');
     const accountId = urlParams.get('account_id');
@@ -127,9 +123,8 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
 
       // 새 계정이 선택되도록 설정
       if (accounts.length > 0) {
-        const newAccount = accounts.find(acc => acc.id === accountId);
+        const newAccount = accounts.find(acc => acc.social_id === accountId);
         if (newAccount) {
-          setSelectedAccount(newAccount.id);
           setCurrentAccountInfo(
             newAccount.social_id,
             newAccount.username || newAccount.social_id
@@ -149,14 +144,13 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   // 현재 선택된 계정 정보 로그
   useEffect(() => {
     console.log("전역 상태 정보:", {
-      selectedAccountId,
       currentSocialId,
       currentUsername,
       accountsCount: accounts.length
     });
-  }, [selectedAccountId, currentSocialId, currentUsername, accounts]);
+  }, [currentSocialId, currentUsername, accounts]);
 
-  // 계정 선택 시 user_profiles 테이블의 selected_social_account에 저장
+  // 계정 선택 시 user_profiles 테이블의 selected_social_id에 저장
   const handleAccountSelect = async (accountId: string) => {
     if (!session?.user?.id) return;
 
@@ -169,7 +163,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
     }
 
     // 선택된 계정의 정보 가져오기
-    const selectedAccount = accounts.find(acc => acc.id === accountId);
+    const selectedAccount = accounts.find(acc => acc.social_id === accountId);
     if (!selectedAccount) {
       console.error("선택된 계정을 찾을 수 없음:", accountId);
       return;
@@ -178,7 +172,6 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
     console.log("선택된 계정 정보:", selectedAccount);
 
     // Zustand 스토어 업데이트
-    setSelectedAccount(accountId);
     setCurrentAccountInfo(
       selectedAccount.social_id,
       selectedAccount.username || selectedAccount.social_id
@@ -189,25 +182,21 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
       const { data: details, error: detailsError } = await supabase
         .from('social_accounts')
         .select('account_info, account_tags')
-        .eq('id', accountId)
+        .eq('social_id', accountId)
         .single();
       if (!detailsError && details) {
-        setAccountDetails(details.account_info || '', details.account_tags || []);
-      } else {
-        setAccountDetails('', []);
       }
     } catch (err) {
-      setAccountDetails('', []);
     }
 
     // DB의 user_profiles 테이블에도 선택된 계정 ID 저장
     try {
       const supabase = createClient();
 
-      // selected_social_account 필드 업데이트
+      // selected_social_id 필드 업데이트
       const { error: updateError } = await supabase
         .from('user_profiles')
-        .update({ selected_social_account: selectedAccount.social_id })
+        .update({ selected_social_id: selectedAccount.social_id })
         .eq('user_id', session.user.id);
 
       if (updateError) {
@@ -231,12 +220,12 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   };
 
   // 현재 선택된 계정 정보 가져오기
-  const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
+  const selectedAccount = accounts.find(acc => acc.social_id === currentSocialId);
 
   return (
     <div className="p-0">
       <Select
-        value={selectedAccountId || undefined}
+        value={currentSocialId || undefined}
         onValueChange={handleAccountSelect}
         disabled={isLoading}
       >
@@ -278,7 +267,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
               </div>
             ) : (
               accounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
+                <SelectItem key={account.social_id} value={account.social_id}>
                   {account.username || account.social_id}
                 </SelectItem>
               ))

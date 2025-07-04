@@ -27,19 +27,19 @@ export async function fetchOembedContents(content_url: string) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('selected_social_account')
+    .select('selected_social_id')
     .eq('user_id', userId)
     .single();
 
-  const selectedAccountId = profile?.selected_social_account;
-  if (!selectedAccountId) {
+  const selectedSocialId = profile?.selected_social_id;
+  if (!selectedSocialId) {
     throw new Error('선택된 소셜 계정이 없습니다.');
   }
 
   const { data: account } = await supabase
     .from('social_accounts')
     .select('access_token')
-    .eq('social_id', selectedAccountId)
+    .eq('social_id', selectedSocialId)
     .eq('platform', 'threads')
     .eq('is_active', true)
     .single();

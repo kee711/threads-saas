@@ -151,17 +151,17 @@ export async function GET(req: NextRequest) {
       accountId = newAccount.id;
     }
 
-    // user_profiles 테이블의 selected_social_account 필드 업데이트
+    // user_profiles 테이블의 selected_social_id 필드 업데이트
     const { error: updateError } = await supabase
       .from("user_profiles")
-      .update({ selected_social_account: threadsUserId })
+      .update({ selected_social_id: threadsUserId })
       .eq("user_id", session.user.id);
 
     if (updateError) {
       console.error("사용자 프로필 업데이트 실패:", updateError);
       // 중요한 오류가 아니므로 리다이렉트는 하지 않고 로그만 남김
     } else {
-      console.log("사용자 프로필 selected_social_account 업데이트 완료");
+      console.log("사용자 프로필 selected_social_id 업데이트 완료");
     }
 
     console.log("Threads 계정 연동 완료");

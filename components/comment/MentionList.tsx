@@ -13,6 +13,7 @@ import {
 import { fetchAndSaveMentions } from "@/app/actions/fetchComment";
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import useSocialAccountStore from "@/stores/useSocialAccountStore";
 
 interface Comment {
     id: string;
@@ -32,8 +33,10 @@ interface PostComment {
 }
 
 export function MentionList() {
+    const { currentSocialId } = useSocialAccountStore();
+
     const { data, isLoading, isError, error } = useQuery({
-        queryKey: ['mentions'],
+        queryKey: ['mentions', currentSocialId],
         queryFn: async () => {
             await fetchAndSaveMentions();
             const result = await getAllMentionsWithRootPosts();
@@ -75,10 +78,10 @@ export function MentionList() {
             // 🎯 Optimistic Update - 즉시 UI 반영
             console.log('⚡ Optimistic Update 시작');
 
-            await queryClient.cancelQueries({ queryKey: ['mentions'] });
-            const previousData = queryClient.getQueryData(['mentions']);
+            await queryClient.cancelQueries({ queryKey: ['mentions', currentSocialId] });
+            const previousData = queryClient.getQueryData(['mentions', currentSocialId]);
 
-            queryClient.setQueryData(['mentions'], (old: {
+            queryClient.setQueryData(['mentions', currentSocialId], (old: {
                 mentions: Comment[];
                 hiddenMentions: string[];
             }) => ({
@@ -103,7 +106,7 @@ export function MentionList() {
             console.error('🚨 백그라운드 API 실패 - 롤백:', err);
 
             // 🔄 완전한 롤백
-            queryClient.setQueryData(['mentions'], context?.previousData);
+            queryClient.setQueryData(['mentions', currentSocialId], context?.previousData);
 
             // 입력 상태도 복원
             setReplyingTo(variables.mentionId);
@@ -115,7 +118,7 @@ export function MentionList() {
         onSuccess: (data, variables) => {
             console.log('🎉 백그라운드 API 성공');
             // 최종 서버 데이터로 동기화 (선택사항)
-            queryClient.invalidateQueries({ queryKey: ['mentions'] });
+            queryClient.invalidateQueries({ queryKey: ['mentions', currentSocialId] });
             toast.success("답글이 성공적으로 전송되었습니다!");
         }
     });

@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
  * https://developers.facebook.com/docs/threads/retrieve-and-discover-posts/retrieve-posts
  * 
  * 주의사항:
- * - 현재 로그인한 사용자의 selected_social_account를 사용
+ * - 현재 로그인한 사용자의 selected_social_id를 사용
  * - 기존 게시물은 업데이트하고 새 게시물은 추가
  * - publish_status는 'posted'로 설정 (실제 게시된 게시물이므로)
  */
@@ -70,12 +70,12 @@ async function getThreadsAccessToken(userId: string): Promise<{ accessToken: str
   // user_profiles에서 선택된 소셜 계정 ID 가져오기
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('selected_social_account')
+    .select('selected_social_id')
     .eq('user_id', userId)
     .single();
 
-  const selectedAccountId = profile?.selected_social_account;
-  if (!selectedAccountId) {
+  const selectedSocialId = profile?.selected_social_id;
+  if (!selectedSocialId) {
     console.error('선택된 소셜 계정이 없습니다.');
     return null;
   }
@@ -84,7 +84,7 @@ async function getThreadsAccessToken(userId: string): Promise<{ accessToken: str
   const { data: account, error } = await supabase
     .from('social_accounts')
     .select('access_token, social_id')
-    .eq('social_id', selectedAccountId)
+    .eq('social_id', selectedSocialId)
     .eq('platform', 'threads')
     .eq('is_active', true)
     .single();

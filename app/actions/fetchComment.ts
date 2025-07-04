@@ -143,17 +143,17 @@ export async function fetchAndSaveComments() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('selected_social_account')
+    .select('selected_social_id')
     .eq('user_id', userId)
     .single();
 
-  const selectedAccountId = profile?.selected_social_account;
-  if (!selectedAccountId) {
+  const selectedSocialId = profile?.selected_social_id;
+  if (!selectedSocialId) {
     throw new Error('선택된 소셜 계정이 없습니다.');
   }
 
   // 댓글 데이터 fetch
-  const mediaIds = await getRootPostId(selectedAccountId);
+  const mediaIds = await getRootPostId(selectedSocialId);
   console.log('Retrieved media IDs:', JSON.stringify(mediaIds, null, 2));
 
   // media_id 필드 확인 및 변경
@@ -203,17 +203,17 @@ export async function fetchAndSaveMentions() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('selected_social_account')
+    .select('selected_social_id')
     .eq('user_id', userId)
     .single();
 
-  const selectedAccountId = profile?.selected_social_account;
-  if (!selectedAccountId) {
+  const selectedSocialId = profile?.selected_social_id;
+  if (!selectedSocialId) {
     throw new Error('선택된 소셜 계정이 없습니다.');
   }
 
   // 멘션 데이터 fetch
-  const mentionData = await getMentionData(selectedAccountId);
+  const mentionData = await getMentionData(selectedSocialId);
   console.log("mentionData", mentionData);
   const mentions = mentionData?.data
     ? mentionData.data.map((mention: any) => ({
@@ -224,7 +224,7 @@ export async function fetchAndSaveMentions() {
       shortcode: mention.shortcode,
       is_replied: false,
       root_post: mention.root_post?.id || '',
-      mentioned_user_id: selectedAccountId,
+      mentioned_user_id: selectedSocialId,
     }))
     : [];
 
