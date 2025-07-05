@@ -11,6 +11,7 @@ export type PublishStatus = 'draft' | 'scheduled' | 'posted'
 
 export type Content = {
   my_contents_id?: string
+  social_id?: string
   content: string
   publish_status?: PublishStatus
   created_at?: string
@@ -42,6 +43,7 @@ export async function createContent(content: Content) {
       .insert([{
         content: content.content,
         publish_status: content.publish_status,
+        social_id: content.social_id,
         user_id: userId // 🔒 RLS: 사용자 ID 추가
       }])
       .select()
@@ -86,6 +88,7 @@ export async function getContents(params?: {
     // saved 카테고리 처리
     if (category === 'saved') {
       query = query.eq('publish_status', 'draft')
+      console.log("query data : \n\n\n\n\n", query)
     }
 
     const { data, error } = await query
@@ -134,7 +137,7 @@ export async function updateContent(id: string, content: Partial<Content>) {
   }
 }
 
-export async function deleteContent(id: string) {
+export async function deleteContent(id: string, socialId: string) {
   try {
     // 🔐 사용자 세션 확인 (RLS 역할)
     const session = await getServerSession(authOptions)
@@ -149,6 +152,7 @@ export async function deleteContent(id: string) {
       .from('my_contents')
       .delete()
       .eq('my_contents_id', id)
+      .eq('social_id', socialId)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 삭제 가능
 
     if (error) throw error

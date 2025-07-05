@@ -43,6 +43,13 @@ interface PostCardProps {
   media?: string[];
   onMediaChange?: (media: string[]) => void;
   onTextareaFocus?: () => void;
+  // Thread chain props
+  isPartOfChain?: boolean;
+  threadIndex?: number;
+  showAddThread?: boolean;
+  onAddThread?: () => void;
+  onRemoveThread?: () => void;
+  isLastInChain?: boolean;
 }
 
 // 점수 계산 함수
@@ -90,6 +97,13 @@ export function PostCard({
   media = [],
   onMediaChange,
   onTextareaFocus,
+  // Thread chain props
+  isPartOfChain = false,
+  threadIndex = 0,
+  showAddThread = false,
+  onAddThread,
+  onRemoveThread,
+  isLastInChain = true,
 }: PostCardProps) {
   const [isAiActive, setIsAiActive] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string[]>(media);
@@ -295,6 +309,8 @@ export function PostCard({
     }
   };
 
+
+  // PostCard UI
   return (
     <div
       className={`space-y-4 w-full h-auto border p-3 rounded-xl ${isCompact ? "" : "p-3 mb-4"
@@ -425,6 +441,7 @@ export function PostCard({
               </Button>
             </div>
           )}
+
           {/* Compact variant Buttons
           {isCompact && (
             <div className="flex items-center justify-end space-x-2">
@@ -438,6 +455,7 @@ export function PostCard({
               />
             </div>
           )} */}
+
           {/* Writing variant Buttons */}
           {isWriting && (
             <div className="flex items-center justify-end space-x-2">
@@ -507,8 +525,45 @@ export function PostCard({
               </div>
             </div>
           )}
+
         </div>
       </div>
+      {/* Subsequent thread */}
+      {isWriting && showAddThread && isLastInChain && (
+        <div 
+          className="flex items-center justify-start gap-3 cursor-pointer hover:bg-accent/50 rounded-lg p-2 transition-colors"
+          onClick={onAddThread}
+        >
+          {/* Avatar */}
+          <Avatar className="flex-shrink-0 h-10 w-10">
+            <AvatarImage src={avatar} alt={username} />
+            <AvatarFallback>{username[0]}</AvatarFallback>
+          </Avatar>
+          <p className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Add to threads
+          </p>
+        </div>
+      )}
+
+      {/* Thread chain indicator */}
+      {isPartOfChain && threadIndex > 0 && (
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-6 h-0.5 bg-muted-foreground/30"></div>
+            <span>Thread {threadIndex + 1}</span>
+          </div>
+          {isWriting && onRemoveThread && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onRemoveThread}
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

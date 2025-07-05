@@ -11,6 +11,7 @@ import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { composeWithAI } from "@/app/actions/openai";
 import { schedulePost } from "@/app/actions/schedule";
+import { postThreadChain, scheduleThreadChain, ThreadContent } from "@/app/actions/threadChain";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
@@ -48,6 +49,12 @@ export function RightSidebar({ className }: RightSidebarProps) {
   const [selectedMediaType, setSelectedMediaType] = useState<
     "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL"
   >("TEXT");
+
+  // Thread chain 상태
+  const [threadChain, setThreadChain] = useState<ThreadContent[]>([
+    { content: '', media_urls: [], media_type: 'TEXT' }
+  ]);
+  const [isThreadChainMode, setIsThreadChainMode] = useState(false);
 
   // 모바일에서는 isRightSidebarOpen 상태 사용, 데스크톱에서는 기존 isCollapsed 사용
   const isVisible = isMobile ? isRightSidebarOpen : !isCollapsed;
@@ -450,6 +457,39 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
+  // Thread chain functions
+  const addNewThread = () => {
+    setThreadChain(prev => [...prev, { content: '', media_urls: [], media_type: 'TEXT' }]);
+    setIsThreadChainMode(true);
+  };
+
+  const removeThread = (index: number) => {
+    if (threadChain.length <= 1) return;
+    
+    setThreadChain(prev => prev.filter((_, i) => i !== index));
+    
+    // If we remove all threads except one, exit thread chain mode
+    if (threadChain.length <= 2) {
+      setIsThreadChainMode(false);
+    }
+  };
+
+  const updateThreadContent = (index: number, content: string) => {
+    setThreadChain(prev => prev.map((thread, i) => 
+      i === index ? { ...thread, content } : thread
+    ));
+  };
+
+  const updateThreadMedia = (index: number, media_urls: string[]) => {
+    setThreadChain(prev => prev.map((thread, i) => 
+      i === index ? { 
+        ...thread, 
+        media_urls,
+        media_type: media_urls.length > 1 ? 'CAROUSEL' : media_urls.length === 1 ? 'IMAGE' : 'TEXT'
+      } : thread
+    ));
+  };
+
   // Check if social account is connected
   const checkSocialAccountConnection = () => {
     const selectedAccount = getSelectedAccount();
@@ -468,73 +508,118 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
   // Post 예약발행
   const handleSchedule = async () => {
-    if (!writingContent || !scheduleTime) return;
-
     // Check social account connection
     if (!checkSocialAccountConnection()) return;
 
     try {
-      toast.success("Your post is scheduled");
-      // 전역 상태의 소셜 계정으로 예약 발행 (schedulePost 내부에서 처리됨)
-      const result = await schedulePost(
-        writingContent,
-        scheduleTime,
-        selectedMediaType,
-        selectedMedia
-      );
+      if (isThreadChainMode && threadChain.length > 1) {
+        // Handle thread chain scheduling
+        const validThreads = threadChain.filter(thread => thread.content.trim() !== '');
+        if (validThreads.length === 0 || !scheduleTime) return;
 
-      if (result?.error) throw result.error;
+        toast.success("Your thread chain is scheduled");
+        
+        const result = await scheduleThreadChain(validThreads, scheduleTime);
+        
+        if (!result.success) throw new Error(result.error);
 
-      // 스케줄 성공 시 초기화
-      setWritingContent("");
-      setSelectedMedia([]);
+        // Reset thread chain state
+        setThreadChain([{ content: '', media_urls: [], media_type: 'TEXT' }]);
+        setIsThreadChainMode(false);
+      } else {
+        // Handle single post scheduling
+        if (!writingContent || !scheduleTime) return;
+
+        toast.success("Your post is scheduled");
+        
+        const result = await schedulePost(
+          writingContent,
+          scheduleTime,
+          selectedMediaType,
+          selectedMedia
+        );
+
+        if (result?.error) throw result.error;
+
+        // Reset single post state
+        setWritingContent("");
+        setSelectedMedia([]);
+      }
+
       setHasUnsavedContent(false);
       localStorage.removeItem("draftContent");
-
       fetchScheduledTimes(); // 예약되어있는 시간 갱신
     } catch (error) {
-      console.error("Error scheduling post:", error);
+      console.error("Error scheduling:", error);
       toast.error("Schedule failed");
     }
   };
 
-  // Post 즉시 발행 - schedulePost를 현재시간으로 호출
+  // Post 즉시 발행
   const handlePublish = async () => {
-    if (!writingContent) return;
+    // Check social account connection
+    if (!checkSocialAccountConnection()) return;
 
     try {
-      // 🚀 즉시 사용자에게 성공 응답 - UX 개선
-      toast.success("Your post is published");
+      if (isThreadChainMode && threadChain.length > 1) {
+        // Handle thread chain publishing
+        const validThreads = threadChain.filter(thread => thread.content.trim() !== '');
+        if (validThreads.length === 0) return;
 
-      // 즉시 UI 상태 초기화 - 사용자는 업로드 완료로 인식
-      const contentToPublish = writingContent;
-      const mediaToPublish = [...selectedMedia];
-      const mediaTypeToPublish = selectedMediaType;
+        toast.success("Your thread chain is being published");
 
-      setWritingContent("");
-      setSelectedMedia([]);
-      setHasUnsavedContent(false);
-      localStorage.removeItem("draftContent");
+        // Save thread chain state before clearing
+        const threadsToPublish = [...validThreads];
 
-      // 🔄 현재시간으로 schedulePost 호출 (즉시 발행)
-      const currentTime = new Date().toISOString();
-      const result = await schedulePost(
-        contentToPublish,
-        currentTime,
-        mediaTypeToPublish === "CAROUSEL" ? "IMAGE" : mediaTypeToPublish,
-        mediaToPublish
-      );
+        // Reset UI immediately
+        setThreadChain([{ content: '', media_urls: [], media_type: 'TEXT' }]);
+        setIsThreadChainMode(false);
+        setHasUnsavedContent(false);
+        localStorage.removeItem("draftContent");
 
-      if (result.error) {
-        console.error("❌ 발행 처리 오류:", result.error);
-        // 에러가 있어도 이미 사용자에게는 성공 메시지를 보냈으므로 추가 처리 안함
+        // Publish thread chain
+        const result = await postThreadChain(threadsToPublish);
+
+        if (!result.success) {
+          console.error("❌ Thread chain publish error:", result.error);
+        } else {
+          console.log("✅ Thread chain published:", result.threadIds);
+        }
       } else {
-        console.log("✅ 발행 처리 완료:", result.data);
+        // Handle single post publishing
+        if (!writingContent) return;
+
+        toast.success("Your post is published");
+
+        // Save single post state before clearing
+        const contentToPublish = writingContent;
+        const mediaToPublish = [...selectedMedia];
+        const mediaTypeToPublish = selectedMediaType;
+
+        // Reset UI immediately
+        setWritingContent("");
+        setSelectedMedia([]);
+        setHasUnsavedContent(false);
+        localStorage.removeItem("draftContent");
+
+        // Publish single post (using schedulePost with current time)
+        const currentTime = new Date().toISOString();
+        const result = await schedulePost(
+          contentToPublish,
+          currentTime,
+          mediaTypeToPublish === "CAROUSEL" ? "IMAGE" : mediaTypeToPublish,
+          mediaToPublish
+        );
+
+        if (result.error) {
+          console.error("❌ Single post publish error:", result.error);
+        } else {
+          console.log("✅ Single post published:", result.data);
+        }
       }
 
     } catch (error) {
-      console.error("❌ handlePublish 에러:", error);
-      // UI는 이미 초기화되었으므로 에러 로그만 남김
+      console.error("❌ handlePublish error:", error);
     }
   };
 
@@ -582,6 +667,13 @@ export function RightSidebar({ className }: RightSidebarProps) {
             isMobile={false}
             getSelectedAccount={getSelectedAccount}
             mobileViewportHeight={mobileViewportHeight}
+            // Thread chain props
+            threadChain={threadChain}
+            isThreadChainMode={isThreadChainMode}
+            addNewThread={addNewThread}
+            removeThread={removeThread}
+            updateThreadContent={updateThreadContent}
+            updateThreadMedia={updateThreadMedia}
           />
         )}
       </div>
@@ -634,6 +726,13 @@ export function RightSidebar({ className }: RightSidebarProps) {
               isMobile={true}
               getSelectedAccount={getSelectedAccount}
               mobileViewportHeight={mobileViewportHeight}
+              // Thread chain props
+              threadChain={threadChain}
+              isThreadChainMode={isThreadChainMode}
+              addNewThread={addNewThread}
+              removeThread={removeThread}
+              updateThreadContent={updateThreadContent}
+              updateThreadMedia={updateThreadMedia}
             />
           </div>
 
@@ -685,6 +784,13 @@ function RightSidebarContent({
   isMobile,
   getSelectedAccount,
   mobileViewportHeight,
+  // Thread chain props
+  threadChain,
+  isThreadChainMode,
+  addNewThread,
+  removeThread,
+  updateThreadContent,
+  updateThreadMedia,
 }: {
   selectedPosts: any[];
   writingContent: string;
@@ -709,6 +815,13 @@ function RightSidebarContent({
   isMobile: boolean;
   getSelectedAccount: () => any;
   mobileViewportHeight: number;
+  // Thread chain props
+  threadChain: ThreadContent[];
+  isThreadChainMode: boolean;
+  addNewThread: () => void;
+  removeThread: (index: number) => void;
+  updateThreadContent: (index: number, content: string) => void;
+  updateThreadMedia: (index: number, media_urls: string[]) => void;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -796,21 +909,54 @@ function RightSidebarContent({
       >
         {/* Selected Posts Section */}
         <div className="space-y-4">
-          {/* Empty PostCard when no posts are selected */}
+          {/* Thread Chain or Single Post */}
           {selectedPosts.length === 0 ? (
-            <PostCard
-              variant="writing"
-              avatar={getSelectedAccount()?.threads_profile_picture_url}
-              username={getSelectedAccount()?.username}
-              content={writingContent}
-              onAiClick={() => setShowAiInput(!showAiInput)}
-              onContentChange={setWritingContent}
-              media={selectedMedia}
-              onMediaChange={handleMediaChange}
-              onTextareaFocus={handleTextareaFocus}
-            />
+            <>
+              {/* Render thread chain if in thread chain mode */}
+              {isThreadChainMode ? (
+                <div className="space-y-3">
+                  {threadChain.map((thread, index) => (
+                    <PostCard
+                      key={`thread-${index}`}
+                      variant="writing"
+                      avatar={getSelectedAccount()?.threads_profile_picture_url}
+                      username={getSelectedAccount()?.username}
+                      content={thread.content}
+                      onContentChange={(content) => updateThreadContent(index, content)}
+                      media={thread.media_urls || []}
+                      onMediaChange={(media) => updateThreadMedia(index, media)}
+                      onTextareaFocus={handleTextareaFocus}
+                      // Thread chain specific props
+                      isPartOfChain={true}
+                      threadIndex={index}
+                      showAddThread={index === threadChain.length - 1}
+                      onAddThread={addNewThread}
+                      onRemoveThread={index > 0 ? () => removeThread(index) : undefined}
+                      isLastInChain={index === threadChain.length - 1}
+                    />
+                  ))}
+                </div>
+              ) : (
+                /* Single writing PostCard */
+                <PostCard
+                  variant="writing"
+                  avatar={getSelectedAccount()?.threads_profile_picture_url}
+                  username={getSelectedAccount()?.username}
+                  content={writingContent}
+                  onAiClick={() => setShowAiInput(!showAiInput)}
+                  onContentChange={setWritingContent}
+                  media={selectedMedia}
+                  onMediaChange={handleMediaChange}
+                  onTextareaFocus={handleTextareaFocus}
+                  // Thread chain props for initial post
+                  showAddThread={true}
+                  onAddThread={addNewThread}
+                  isLastInChain={true}
+                />
+              )}
+            </>
           ) : (
-            /* Selected Posts */
+            /* Selected Posts from external content */
             selectedPosts.map((post, index) => (
               <div
                 key={post.id}

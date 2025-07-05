@@ -20,7 +20,7 @@ const useSelectedPostsStore = create<SelectedPostsState>((set) => ({
   // 포스트 추가
   addPost: (post) => set((state) => {
     // 이미 2개가 선택되어 있으면 추가하지 않음
-    if (state.selectedPosts.length >= 3) {
+    if (state.selectedPosts.length >= 1) {
       return { selectedPosts: state.selectedPosts }
     }
 

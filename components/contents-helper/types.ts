@@ -33,6 +33,16 @@ export interface ContentItem {
   publish_status?: 'draft' | 'scheduled' | 'published' | 'failed';
   category?: string;
   media_id?: string;
+  // Thread chain properties
+  parent_thread_id?: string;
+  thread_sequence?: number;
+  is_thread_chain?: boolean;
+}
+
+export interface ThreadContent {
+  content: string;
+  media_urls?: string[];
+  media_type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'CAROUSEL';
 }
 
 export interface ContentListProps {
