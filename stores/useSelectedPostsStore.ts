@@ -6,12 +6,22 @@ interface SelectedPost {
   url?: string
 }
 
+interface ThreadContent {
+  content: string
+  media_urls?: string[]
+  media_type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'CAROUSEL'
+}
+
 interface SelectedPostsState {
   selectedPosts: SelectedPost[]
   addPost: (post: SelectedPost) => void
   removePost: (postId: string) => void
   updatePostType: (postId: string) => void
   clearPosts: () => void
+  // Thread chain functionality
+  pendingThreadChain: ThreadContent[] | null
+  setPendingThreadChain: (threads: ThreadContent[] | null) => void
+  clearPendingThreadChain: () => void
 }
 
 const useSelectedPostsStore = create<SelectedPostsState>((set) => ({
@@ -43,7 +53,12 @@ const useSelectedPostsStore = create<SelectedPostsState>((set) => ({
     )
   })),
 
-  clearPosts: () => set({ selectedPosts: [] })
+  clearPosts: () => set({ selectedPosts: [] }),
+
+  // Thread chain functionality
+  pendingThreadChain: null,
+  setPendingThreadChain: (threads) => set({ pendingThreadChain: threads }),
+  clearPendingThreadChain: () => set({ pendingThreadChain: null })
 }))
 
 export default useSelectedPostsStore 

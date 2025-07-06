@@ -9,8 +9,8 @@ import { authOptions } from '@/lib/auth/authOptions'
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ViralChef",
-  description: "ViralChef",
+  title: "twyn",
+  description: "twyn",
 };
 
 export default async function RootLayout({
