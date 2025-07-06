@@ -25,6 +25,10 @@ export type Content = {
   url?: string
   category?: string
   scheduled_at?: string
+  // Thread chain properties
+  is_thread_chain?: boolean
+  parent_media_id?: string
+  thread_sequence?: number
 }
 
 export async function createContent(content: Content) {
@@ -81,7 +85,7 @@ export async function getContents(params?: {
     // my_contents 테이블에서 조회 (사용자 ID로 필터링)
     query = supabase
       .from('my_contents')
-      .select('*')
+      .select('*, thread_sequence, is_thread_chain, parent_media_id')
       .eq('social_id', currentSocialId)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 조회
 

@@ -163,7 +163,7 @@ async function saveThreadChainToDatabase(
     media_id: threadIds[index],
     publish_status: scheduledAt ? 'scheduled' : 'posted',
     scheduled_at: scheduledAt,
-    parent_thread_id: parentThreadId,
+    parent_media_id: parentThreadId,
     thread_sequence: index,
     is_thread_chain: true,
     created_at: new Date().toISOString(),
@@ -282,6 +282,51 @@ export async function scheduleThreadChain(
   }
 }
 
+// Get a specific thread chain by parent_media_id
+export async function getThreadChainByParentId(parentMediaId: string) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    const supabase = await createClient();
+    const userId = session.user.id;
+
+    // Get selected social account
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('selected_social_id')
+      .eq('user_id', userId)
+      .single();
+
+    const selectedSocialId = profile?.selected_social_id;
+    if (!selectedSocialId) {
+      throw new Error('선택된 소셜 계정이 없습니다.');
+    }
+
+    // Get specific thread chain
+    const { data, error } = await supabase
+      .from('my_contents')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('social_id', selectedSocialId)
+      .eq('is_thread_chain', true)
+      .eq('parent_media_id', parentMediaId)
+      .order('thread_sequence', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    return { data, error: null };
+
+  } catch (error) {
+    console.error('Error fetching thread chain:', error);
+    return { data: null, error };
+  }
+}
+
 // Get thread chains for a user
 export async function getThreadChains() {
   try {
@@ -312,16 +357,16 @@ export async function getThreadChains() {
       .eq('user_id', userId)
       .eq('social_id', selectedSocialId)
       .eq('is_thread_chain', true)
-      .order('parent_thread_id', { ascending: true })
+      .order('parent_media_id', { ascending: true })
       .order('thread_sequence', { ascending: true });
 
     if (error) {
       throw error;
     }
 
-    // Group by parent_thread_id
+    // Group by parent_media_id
     const threadChains = data.reduce((acc, thread) => {
-      const parentId = thread.parent_thread_id;
+      const parentId = thread.parent_media_id;
       if (!acc[parentId]) {
         acc[parentId] = [];
       }

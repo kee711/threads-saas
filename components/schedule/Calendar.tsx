@@ -59,22 +59,30 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
         if (error) throw error;
 
         if (data) {
-          const formattedEvents = data.map((content: any) => {
-            // scheduled 상태면 scheduled_at, posted 상태면 created_at 사용
-            const dateField = content.publish_status === 'scheduled' ? content.scheduled_at : content.created_at;
-            const eventDate = new Date(dateField);
+          const formattedEvents = data
+            .filter((content: any) => {
+              // Only show threads with thread_sequence === 0 (first thread in chain) or non-thread posts
+              return !content.is_thread_chain || content.thread_sequence === 0;
+            })
+            .map((content: any) => {
+              // scheduled 상태면 scheduled_at, posted 상태면 created_at 사용
+              const dateField = content.publish_status === 'scheduled' ? content.scheduled_at : content.created_at;
+              const eventDate = new Date(dateField);
 
-            return {
-              id: content.my_contents_id,
-              title: content.content,
-              date: eventDate,
-              time: format(eventDate, 'HH:mm'),
-              status: content.publish_status,
-              media_type: content.media_type || 'TEXT',
-              media_urls: content.media_urls || [],
-              is_carousel: content.is_carousel || false
-            };
-          });
+              return {
+                id: content.my_contents_id,
+                title: content.content,
+                date: eventDate,
+                time: format(eventDate, 'HH:mm'),
+                status: content.publish_status,
+                media_type: content.media_type || 'TEXT',
+                media_urls: content.media_urls || [],
+                is_carousel: content.is_carousel || false,
+                is_thread_chain: content.is_thread_chain || false,
+                parent_media_id: content.parent_media_id,
+                thread_sequence: content.thread_sequence || 0
+              };
+            });
           setEvents(formattedEvents);
         } else {
           setEvents([]); // 데이터가 null이면 빈 배열로 설정
@@ -257,7 +265,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     }
   }
 
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = () => {
     setDropTargetDate(null)
   }
 
@@ -303,8 +311,6 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                   const dayOffset = rowIndex * 7 + colIndex
                   const currentDate = new Date(startDate)
                   currentDate.setDate(startDate.getDate() + dayOffset)
-
-                  const isCurrentMonth = currentDate.getMonth() === month.getMonth()
 
                   const dayEvents = events
                     .filter(event => format(event.date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd'))

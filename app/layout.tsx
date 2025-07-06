@@ -22,7 +22,7 @@ export default async function RootLayout({
 
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={`h-full ${inter.className}`}>
+      <body className={`h-full p-2 bg-muted ${inter.className}`}>
         <Providers session={session}>
           {children}
         </Providers>

@@ -34,7 +34,7 @@ export interface ContentItem {
   category?: string;
   media_id?: string;
   // Thread chain properties
-  parent_thread_id?: string;
+  parent_media_id?: string;
   thread_sequence?: number;
   is_thread_chain?: boolean;
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/PostCard";
+import { ThreadChain } from "@/components/ThreadChain";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
@@ -429,7 +430,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
     <>
       {/* 데스크톱 RightSidebar */}
       <div className={cn(
-        "bg-muted h-[calc(100vh-48px)] mt-6 rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
+        "bg-muted h-[calc(100vh-48px)] rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
         !isCollapsed ? "w-[380px]" : "w-[50px]",
         className
       )}>
@@ -634,7 +635,7 @@ function RightSidebarContent({
   }, [isMobile]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden rounded-l-xl border border-gray-200 shadow-lg">
+    <div className="flex flex-col h-full overflow-hidden rounded-xl border border-gray-200 shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-background">
         {selectedPosts.length === 0 && (
@@ -683,29 +684,17 @@ function RightSidebarContent({
           {selectedPosts.length === 0 ? (
             <>
               {/* Always render thread chain */}
-              {/* hide scrollbar */}
-              <div>
-                {threadChain.map((thread, index) => (
-                  <PostCard
-                    key={`thread-${index}`}
-                    variant="writing"
-                    avatar={getSelectedAccount()?.threads_profile_picture_url}
-                    username={getSelectedAccount()?.username}
-                    content={thread.content}
-                    onContentChange={(content) => updateThreadContent(index, content)}
-                    media={thread.media_urls || []}
-                    onMediaChange={(media) => updateThreadMedia(index, media)}
-                    onAiClick={() => setShowAiInput(!showAiInput)}
-                    // Thread chain specific props
-                    isPartOfChain={true}
-                    threadIndex={index}
-                    showAddThread={index === threadChain.length - 1}
-                    onAddThread={addNewThread}
-                    onRemoveThread={index > 0 ? () => removeThread(index) : undefined}
-                    isLastInChain={index === threadChain.length - 1}
-                  />
-                ))}
-              </div>
+              <ThreadChain
+                threads={threadChain}
+                variant="writing"
+                avatar={getSelectedAccount()?.threads_profile_picture_url}
+                username={getSelectedAccount()?.username}
+                onThreadContentChange={updateThreadContent}
+                onThreadMediaChange={updateThreadMedia}
+                onAddThread={addNewThread}
+                onRemoveThread={removeThread}
+                onAiClick={() => setShowAiInput(!showAiInput)}
+              />
             </>
           ) : (
             /* Selected Posts from external content */
