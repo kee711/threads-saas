@@ -152,7 +152,7 @@ export function Sidebar({ className }: SidebarProps) {
     <>
       {/* 데스크톱 사이드바 */}
       <div className={cn(
-        "bg-muted w-[250px] hidden md:block",
+        "w-[250px] hidden md:block",
         className
       )}>
         <SidebarContent
@@ -236,7 +236,7 @@ function SidebarContent({
   return (
     <div className="flex flex-col justify-between h-full">
       {/* Top section: Logo and Navigation */}
-      <div className="px-3 py-2 flex-1">
+      <div className="px-3 flex-1">
         {/* Logo - 모바일에서는 더 작게 */}
         <Link className={cn(
           "mb-4 px-3 py-2",

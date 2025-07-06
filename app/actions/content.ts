@@ -6,12 +6,12 @@ import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/authOptions'
 
-export type ContentSource = 'my' | 'external'
 export type ContentCategory = 'external' | 'saved'
 export type PublishStatus = 'draft' | 'scheduled' | 'posted'
 
 export type Content = {
   my_contents_id?: string
+  social_id?: string
   content: string
   publish_status?: PublishStatus
   created_at?: string
@@ -25,6 +25,10 @@ export type Content = {
   url?: string
   category?: string
   scheduled_at?: string
+  // Thread chain properties
+  is_thread_chain?: boolean
+  parent_media_id?: string
+  thread_sequence?: number
 }
 
 export async function createContent(content: Content) {
@@ -43,6 +47,7 @@ export async function createContent(content: Content) {
       .insert([{
         content: content.content,
         publish_status: content.publish_status,
+        social_id: content.social_id,
         user_id: userId // 🔒 RLS: 사용자 ID 추가
       }])
       .select()
@@ -59,8 +64,8 @@ export async function createContent(content: Content) {
 }
 
 export async function getContents(params?: {
-  source?: ContentSource
   category?: ContentCategory
+  currentSocialId: string
 }) {
   try {
     // 🔐 사용자 세션 확인 (RLS 역할)
@@ -70,36 +75,29 @@ export async function getContents(params?: {
     }
 
     const supabase = await createClient()
-    const { source = 'my', category } = params || {}
+    const { category, currentSocialId } = params || {}
     const userId = session.user.id
+
+    console.log("currentSocialId", currentSocialId)
 
     let query;
 
     // my_contents 테이블에서 조회 (사용자 ID로 필터링)
-    if (source === 'my') {
-      query = supabase
-        .from('my_contents')
-        .select('*')
-        .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 조회
+    query = supabase
+      .from('my_contents')
+      .select('*, thread_sequence, is_thread_chain, parent_media_id')
+      .eq('social_id', currentSocialId)
+      .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 조회
 
-      // saved 카테고리 처리
-      if (category === 'saved') {
-        query = query.eq('publish_status', 'draft')
-      }
-    }
-    // external_contents 테이블에서 조회 (사용자 ID로 필터링)
-    else if (source === 'external') {
-      query = supabase
-        .from('external_contents')
-        .select('*')
-        .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 조회
-    }
-    // 유효하지 않은 소스인 경우 에러 반환
-    else {
-      throw new Error(`Invalid source: ${source}`)
+    // saved 카테고리 처리
+    if (category === 'saved') {
+      query = query.eq('publish_status', 'draft')
+      console.log("query data : \n\n\n\n\n", query)
     }
 
     const { data, error } = await query
+
+    console.log("data", data)
 
     if (error) throw error
 
@@ -143,7 +141,7 @@ export async function updateContent(id: string, content: Partial<Content>) {
   }
 }
 
-export async function deleteContent(id: string) {
+export async function deleteContent(id: string, socialId: string) {
   try {
     // 🔐 사용자 세션 확인 (RLS 역할)
     const session = await getServerSession(authOptions)
@@ -158,6 +156,7 @@ export async function deleteContent(id: string) {
       .from('my_contents')
       .delete()
       .eq('my_contents_id', id)
+      .eq('social_id', socialId)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 삭제 가능
 
     if (error) throw error

@@ -11,12 +11,16 @@ import {
   ChevronDown,
   Minus,
   X,
+  ArrowUp,
+  ChevronsLeftRightEllipsis,
+  Anchor,
+  LibraryBig,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
-import { improvePost } from "@/app/actions/openai";
+import { improvePost } from "@/app/actions/improvePost";
 import { uploadMediaFilesClient, deleteMediaFileClient } from "@/lib/utils/upload";
 import { useSession } from "next-auth/react";
 
@@ -43,6 +47,13 @@ interface PostCardProps {
   media?: string[];
   onMediaChange?: (media: string[]) => void;
   onTextareaFocus?: () => void;
+  // Thread chain props
+  isPartOfChain?: boolean;
+  threadIndex?: number;
+  showAddThread?: boolean;
+  onAddThread?: () => void;
+  onRemoveThread?: () => void;
+  isLastInChain?: boolean;
 }
 
 // 점수 계산 함수
@@ -90,6 +101,13 @@ export function PostCard({
   media = [],
   onMediaChange,
   onTextareaFocus,
+  // Thread chain props
+  isPartOfChain = false,
+  threadIndex = 0,
+  showAddThread = true,
+  onAddThread,
+  onRemoveThread,
+  isLastInChain = true,
 }: PostCardProps) {
   const [isAiActive, setIsAiActive] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string[]>(media);
@@ -115,6 +133,7 @@ export function PostCard({
   const handleAiClick = () => {
     if (onAiClick) {
       setIsAiActive(!isAiActive);
+      setShowAiInput(true);
       onAiClick();
     }
   };
@@ -270,20 +289,26 @@ export function PostCard({
   const [writingContent, setWritingContent] = useState(content);
 
   // Improve Post 기능
-  const handleImprovePost = async () => {
-    if (!writingContent) {
+  const handleImprovePost = async (prompt?: string) => {
+    if (!content) {
       toast.error("개선할 콘텐츠가 없습니다.");
       return;
     }
 
+    if (!aiPrompt.trim()) {
+      toast.error("개선 지시사항을 입력해주세요.");
+      return;
+    }
+
+    setIsImproving(true);
     try {
-      setIsImproving(true);
-      const { content, error } = await improvePost(writingContent);
+      const result = await improvePost(content, prompt || aiPrompt);
 
-      if (error) throw new Error(error);
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
-      // 개선된 콘텐츠로 업데이트
-      setWritingContent(content);
+      onContentChange?.(result.content);
       toast.success("콘텐츠가 성공적으로 개선되었습니다.");
     } catch (error) {
       console.error("Error improving content:", error);
@@ -295,31 +320,76 @@ export function PostCard({
     }
   };
 
+  // Preset 버튼 데이터
+  const presetButtons = [
+    {
+      icon: ChevronsLeftRightEllipsis,
+      text: "Expand post",
+      prompt: "더 매력적이고 흥미로운 글로 확장해줘",
+      delay: "delay-100"
+    },
+    {
+      icon: Anchor,
+      text: "Add hooks",
+      prompt: "이 글에 흥미로운 훅을 추가해줘",
+      delay: "delay-200"
+    },
+    {
+      icon: LibraryBig,
+      text: "Add information",
+      prompt: "이 글에 더 많은 정보와 내용을 추가해줘",
+      delay: "delay-300"
+    }
+  ];
+
+  // 선을 표시할 조건 정의
+  const shouldShowLine = (variant === "writing") || (variant === "default" && showAddThread);
+
+  // PostCard UI
   return (
     <div
-      className={`space-y-4 w-full h-auto border p-3 rounded-xl ${isCompact ? "" : "p-3 mb-4"
-        } ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
+      className={`space-y-4 w-full h-auto rounded-xl mb-3 ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
     >
-      <div className="flex gap-3">
-        {/* Avatar */}
-        <Avatar className="flex-shrink-0 h-10 w-10">
-          <AvatarImage src={avatar} alt={username} />
-          <AvatarFallback>{username[0]}</AvatarFallback>
-        </Avatar>
+      <div className="flex gap-3 relative">
+        {/* Avatar with connecting line */}
+        <div className="relative flex-shrink-0">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={avatar} alt={username} />
+            <AvatarFallback>{username[0]}</AvatarFallback>
+          </Avatar>
+
+          {/* Connecting line to next thread */}
+          {shouldShowLine && (
+            <div className="absolute left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"
+              style={{
+                top: '52px', /* 40px avatar + 12px spacing */
+                bottom: showAddThread ? '-24px' : '0px' /* extends to next avatar with 12px spacing */
+              }}>
+            </div>
+          )}
+        </div>
 
         <div className="flex-col flex-1">
           {/* Username, Content and Timestamp */}
           <div className="flex-1 space-y-1 pb-5">
-            <div className="flex justify-between pr-1">
+            <div className="flex justify-between items-center pr-1">
               <span className="font-medium">{username}</span>
-              <div>
+              {/* Thread chain indicator */}
+              {isPartOfChain && threadIndex > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  {isWriting && onRemoveThread && (
+                    <X className="h-4 w-4 text-muted-foreground hover:text-black cursor-pointer" onClick={onRemoveThread} />
+                  )}
+                </div>
+              )}
+              {/* <div>
                 {!isCompact && !isWriting && timestamp && (
                   <span className="text-sm text-muted-foreground">
                     {timestamp}
                   </span>
                 )}
                 {isCompact && <Minus onClick={onMinus} />}
-              </div>
+              </div> */}
             </div>
             {isWriting ? (
               <textarea
@@ -425,6 +495,7 @@ export function PostCard({
               </Button>
             </div>
           )}
+
           {/* Compact variant Buttons
           {isCompact && (
             <div className="flex items-center justify-end space-x-2">
@@ -438,6 +509,7 @@ export function PostCard({
               />
             </div>
           )} */}
+
           {/* Writing variant Buttons */}
           {isWriting && (
             <div className="flex items-center justify-end space-x-2">
@@ -456,8 +528,8 @@ export function PostCard({
                 variant="toggle"
                 size="sm"
                 data-state={isAiActive ? "on" : "off"}
-                className="flex items-center gap-2 rounded-full px-4"
-                onClick={handleAiClick}
+                className={`flex items-center gap-1 rounded-full px-3 pr-4 text-sm font-[400] ${showAiInput ? "bg-black text-white hover:bg-black/80" : "bg-gray-200 text-gray-400"}`}
+                onClick={() => setShowAiInput(!showAiInput)} // Toggle AI Input Dropdown
               >
                 <Sparkles className="h-4 w-4" />
                 <span>AI</span>
@@ -468,47 +540,75 @@ export function PostCard({
 
           {/* AI Input Dropdown */}
           {showAiInput && (
-            <div className="space-y-2 rounded-lg border bg-background p-4 shadow-sm">
-              <Input
-                placeholder="Input Prompt"
-                className="w-full"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" className="flex-1">
-                  Add Hook
-                </Button>
-                <Button variant="ghost" size="sm" className="flex-1">
-                  Add Hook
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" className="flex-1">
-                  Expand Post
-                </Button>
-                <Button variant="ghost" size="sm" className="flex-1">
-                  Expand Post
-                </Button>
-              </div>
-              <div className="flex gap-2">
+            <div className="mt-3 space-y-2">
+              {/* Input field with arrow-up button */}
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="What should we improve?"
+                  className="flex-1 h-9 rounded-full bg-muted border-gray-200 focus:border-gray-200 focus-visible:outline-none focus-visible:ring-0 placeholder:text-foreground/30"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                />
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-1"
-                  onClick={handleImprovePost}
-                  disabled={isImproving || !writingContent}
+                  size="icon"
+                  className={`h-9 w-9 rounded-full ${aiPrompt.trim() ? 'bg-black text-white hover:bg-black/80' : 'bg-gray-200 text-gray-400'
+                    }`}
+                  onClick={() => handleImprovePost(aiPrompt)}
+                  disabled={isImproving || !aiPrompt.trim()}
                 >
-                  {isImproving ? "개선 중..." : "Improve Post"}
+                  {isImproving ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <ArrowUp className="h-5 w-5" />
+                  )}
                 </Button>
-                <Button variant="ghost" size="sm" className="flex-1">
-                  Improve Post
-                </Button>
+              </div>
+
+              {/* Preset buttons with staggered animation */}
+              <div className="flex flex-col gap-2">
+                {presetButtons.map((preset, index) => {
+                  const IconComponent = preset.icon;
+                  return (
+                    <Button
+                      key={index}
+                      variant="ghost"
+                      size="sm"
+                      className={`w-fit justify-start gap-2 text-left bg-muted text-muted-foreground rounded-full animate-in slide-in-from-top-2 fade-in animate-duration-300 ${preset.delay}`}
+                      onClick={() => handleImprovePost(preset.prompt)}
+                      disabled={isImproving}
+                    >
+                      <IconComponent className="h-4 w-4" />
+                      {preset.text}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           )}
+
+          {/* Post Rightside verticalLine UI */}
+
+
         </div>
       </div>
+      {/* Subsequent thread */}
+      {shouldShowLine && isLastInChain && (
+        <div
+          className="flex items-center justify-start gap-3 cursor-pointer rounded-lg px-1 py-5 transition-colors"
+          onClick={onAddThread}
+        >
+          {/* Avatar */}
+          <Avatar className="flex-shrink-0 h-8 w-8">
+            <AvatarImage src={avatar} alt={username} />
+            <AvatarFallback>{username[0]}</AvatarFallback>
+          </Avatar>
+          <p className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Add to threads
+          </p>
+        </div>
+      )}
+
+
     </div>
   );
 }

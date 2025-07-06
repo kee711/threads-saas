@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,11 @@ import { fetchAndSaveComments } from "@/app/actions/fetchComment";
 import { EyeOff } from "lucide-react";
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import useSocialAccountStore from "@/stores/useSocialAccountStore";
 
 export function CommentList() {
+    const { currentSocialId } = useSocialAccountStore();
+
     const {
         data,
         isLoading,
@@ -27,7 +30,7 @@ export function CommentList() {
         postsWithComments: ContentItem[];
         hiddenComments: string[];
     }>({
-        queryKey: ['comments'],
+        queryKey: ['comments', currentSocialId],
         queryFn: async () => {
             await fetchAndSaveComments();
             const result = await getAllCommentsWithRootPosts();
@@ -55,10 +58,10 @@ export function CommentList() {
             return { commentId, reply };
         },
         onMutate: async ({ commentId, reply }) => {
-            await queryClient.cancelQueries({ queryKey: ['comments'] });
-            const previousComments = queryClient.getQueryData(['comments']);
+            await queryClient.cancelQueries({ queryKey: ['comments', currentSocialId] });
+            const previousComments = queryClient.getQueryData(['comments', currentSocialId]);
 
-            queryClient.setQueryData(['comments'], (old: { comments: Comment[]; }) => ({
+            queryClient.setQueryData(['comments', currentSocialId], (old: { comments: Comment[]; }) => ({
                 ...old,
                 comments: old.comments.map((comment: Comment) =>
                     comment.id === commentId
@@ -70,11 +73,11 @@ export function CommentList() {
             return { previousComments };
         },
         onError: (err, variables, context) => {
-            queryClient.setQueryData(['comments'], context?.previousComments);
+            queryClient.setQueryData(['comments', currentSocialId], context?.previousComments);
             toast.error("답글 전송에 실패했습니다.");
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['comments'] });
+            queryClient.invalidateQueries({ queryKey: ['comments', currentSocialId] });
             toast.success("답글이 성공적으로 전송되었습니다!");
         }
     });
@@ -96,7 +99,7 @@ export function CommentList() {
     const currentPost = postsWithComments[currentIndex];
     const hiddenCommentsForCurrentPost = comments.filter(
         (c) =>
-            c.root_post_content?.id === currentPost?.id &&
+            c.root_post_content?.my_contents_id === currentPost?.my_contents_id &&
             hiddenComments.includes(c.id)
     );
 
@@ -152,7 +155,7 @@ export function CommentList() {
                 {comments
                     .filter(
                         (c) =>
-                            c.root_post_content?.id === currentPost?.id &&
+                            c.root_post_content?.my_contents_id === currentPost?.my_contents_id &&
                             !hiddenComments.includes(c.id) &&
                             !hiddenByUser.includes(c.id)
                     )
@@ -229,7 +232,7 @@ export function CommentList() {
                             comments
                                 .filter(
                                     (c) =>
-                                        c.root_post_content?.id === currentPost?.id &&
+                                        c.root_post_content?.my_contents_id === currentPost?.my_contents_id &&
                                         hiddenComments.includes(c.id)
                                 )
                                 .map((comment) => (

@@ -2,21 +2,12 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { format, isSameDay, startOfMonth } from 'date-fns'
-import { Clock, Plus, Edit, Check, Trash2, Image, Video, FileText, Images, Users } from 'lucide-react'
+import { Image, Video, FileText, Images, Users } from 'lucide-react'
 import useSocialAccountStore from '@/stores/useSocialAccountStore'
 import { toast } from 'sonner'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { getContents, updateContent } from '@/app/actions/content' // ⭐ 서버 액션 import
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog'
-import { PostCard } from '@/components/PostCard'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ScheduleHeader } from './ScheduleHeader'
 import { List } from './List'
@@ -40,13 +31,11 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const listContainerRef = useRef<HTMLDivElement>(null)
-
-  const { selectedAccountId, getSelectedAccount } = useSocialAccountStore()
+  const { currentSocialId } = useSocialAccountStore()
 
   // Check if social account is connected
   const checkSocialAccountConnection = () => {
-    const selectedAccount = getSelectedAccount();
-    if (!selectedAccount || !selectedAccountId) {
+    if (!currentSocialId) {
       toast.error("계정 추가가 필요해요", {
         description: "스케줄 관리를 위해 먼저 Threads 계정을 연결해주세요.",
         action: {
@@ -62,20 +51,38 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const { data, error } = await getContents({});
+        checkSocialAccountConnection()
+        const { currentSocialId } = useSocialAccountStore.getState()
+        const { data, error } = await getContents({
+          currentSocialId: currentSocialId
+        });
         if (error) throw error;
 
         if (data) {
-          const formattedEvents = data.map((content: any) => ({
-            id: content.my_contents_id,
-            title: content.content,
-            date: new Date(content.scheduled_at),
-            time: format(new Date(content.scheduled_at), 'HH:mm'),
-            status: content.publish_status,
-            media_type: content.media_type || 'TEXT',
-            media_urls: content.media_urls || [],
-            is_carousel: content.is_carousel || false
-          }));
+          const formattedEvents = data
+            .filter((content: any) => {
+              // Only show threads with thread_sequence === 0 (first thread in chain) or non-thread posts
+              return !content.is_thread_chain || content.thread_sequence === 0;
+            })
+            .map((content: any) => {
+              // scheduled 상태면 scheduled_at, posted 상태면 created_at 사용
+              const dateField = content.publish_status === 'scheduled' ? content.scheduled_at : content.created_at;
+              const eventDate = new Date(dateField);
+
+              return {
+                id: content.my_contents_id,
+                title: content.content,
+                date: eventDate,
+                time: format(eventDate, 'HH:mm'),
+                status: content.publish_status,
+                media_type: content.media_type || 'TEXT',
+                media_urls: content.media_urls || [],
+                is_carousel: content.is_carousel || false,
+                is_thread_chain: content.is_thread_chain || false,
+                parent_media_id: content.parent_media_id,
+                thread_sequence: content.thread_sequence || 0
+              };
+            });
           setEvents(formattedEvents);
         } else {
           setEvents([]); // 데이터가 null이면 빈 배열로 설정
@@ -87,7 +94,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     }
 
     fetchEvents()
-  }, [])
+  }, [currentSocialId])
 
   const scrollToListDate = (date: Date) => {
     if (view === 'list' && listContainerRef.current) {
@@ -258,7 +265,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
     }
   }
 
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = () => {
     setDropTargetDate(null)
   }
 
@@ -273,37 +280,6 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   const totalDays = Math.ceil((lastDayOfMonth.getDate() + (firstDayOfMonth.getDay() === 0 ? 6 : firstDayOfMonth.getDay() - 1)) / 7) * 7
   const weeksCount = totalDays / 7
 
-  // 소셜 계정이 연결되지 않은 경우
-  const selectedAccount = getSelectedAccount();
-  if (!selectedAccount || !selectedAccountId) {
-    return (
-      <div className="w-full space-y-4">
-        <ScheduleHeader
-          view={view}
-          setView={setView}
-          scheduledCount={0}
-          postedCount={0}
-          month={month}
-          selectedDate={selectedDate}
-          onMonthChange={handleMonthChange}
-          onDateChange={handleSelectedDateChange}
-        />
-
-        <div className="flex flex-col items-center justify-center py-12 text-center bg-card rounded-lg">
-          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <Users className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h2 className="text-xl font-semibold mb-2">계정 연결이 필요해요</h2>
-          <p className="text-muted-foreground mb-4">
-            게시물 스케줄링을 위해 먼저 Threads 계정을 연결해주세요.
-          </p>
-          <Button onClick={() => window.location.href = "/api/threads/oauth"}>
-            Threads 계정 연결하기
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full space-y-4">
@@ -335,8 +311,6 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                   const dayOffset = rowIndex * 7 + colIndex
                   const currentDate = new Date(startDate)
                   currentDate.setDate(startDate.getDate() + dayOffset)
-
-                  const isCurrentMonth = currentDate.getMonth() === month.getMonth()
 
                   const dayEvents = events
                     .filter(event => format(event.date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd'))

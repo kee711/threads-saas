@@ -82,7 +82,7 @@ const dateRanges: DateRange[] = [
 
 export default function StatisticsPage() {
     const { data: session } = useSession();
-    const { selectedAccountId, getSelectedAccount } = useSocialAccountStore();
+    const { currentSocialId, getSelectedAccount } = useSocialAccountStore();
     const queryClient = useQueryClient();
 
     // 로컬 상태
@@ -120,7 +120,7 @@ export default function StatisticsPage() {
     useEffect(() => {
         setIsClient(true);
         setSelectedAccount(getSelectedAccount());
-    }, [selectedAccountId, getSelectedAccount]);
+    }, [currentSocialId, getSelectedAccount]);
 
     // 30일, 90일 데이터 prefetching
     useEffect(() => {

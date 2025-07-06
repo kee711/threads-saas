@@ -59,7 +59,7 @@ export default function SettingsPage() {
   } | null>(null)
 
   // 소셜 계정 관련 상태 (social_accounts 테이블)
-  const { accounts, selectedAccountId } = useSocialAccountStore()
+  const { accounts, currentSocialId } = useSocialAccountStore()
   const [selectedSocialAccount, setSelectedSocialAccount] = useState('')
   const [accountInfo, setAccountInfo] = useState('')
   const [accountType, setAccountType] = useState<string>('')
