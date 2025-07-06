@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import { ThreadContent } from '@/components/contents-helper/types';
 import { HeadlineButtons } from '@/components/contents-helper/HeadlineButtons';
 import { useTopicResultsStore } from '@/stores/useTopicResultsStore';
 import { fetchAndSaveComments, fetchAndSaveMentions } from '@/app/actions/fetchComment';
@@ -37,6 +38,7 @@ export default function TopicFinderPage() {
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
     const [isGeneratingDetails, setIsGeneratingDetails] = useState(false);
     const addPost = useSelectedPostsStore(state => state.addPost);
+    const setPendingThreadChain = useSelectedPostsStore(state => state.setPendingThreadChain);
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
 
@@ -228,14 +230,10 @@ export default function TopicFinderPage() {
         setDialogOpenStore(idx, open);
     };
 
-    // 디테일 생성 핸들러
+    // 디테일 생성 핸들러 - Generate thread chain instead of single post
     const handleGenerateDetail = async () => {
         if (!selectedHeadline) {
             toast.error('Please write or add a topic');
-            return;
-        }
-        if (useSelectedPostsStore.getState().selectedPosts.length >= 3) {
-            toast.error('You can only add up to 3 posts.');
             return;
         }
         setTopicLoading(selectedHeadline, true);
@@ -248,10 +246,23 @@ export default function TopicFinderPage() {
             });
             if (!res.ok) throw new Error('API error');
             const data = await res.json();
-            setTopicDetail(selectedHeadline, data.detail || '');
-            handleAddPost(selectedHeadline, data.detail || '');
+            
+            // Convert generated threads to ThreadContent format
+            const threadChain: ThreadContent[] = data.threads.map((content: string) => ({
+                content,
+                media_urls: [],
+                media_type: 'TEXT' as const
+            }));
+            
+            // Set pending thread chain in store
+            setPendingThreadChain(threadChain);
+            
+            // Store detail for UI feedback
+            setTopicDetail(selectedHeadline, data.threads.join('\n\n'));
+            
+            toast.success(`Generated ${threadChain.length} threads! Check the writing sidebar to publish.`);
         } catch (e) {
-            toast.error('Failed to generate detail');
+            toast.error('Failed to generate thread chain');
             setTopicLoading(selectedHeadline, false);
         } finally {
             setIsGeneratingDetails(false);

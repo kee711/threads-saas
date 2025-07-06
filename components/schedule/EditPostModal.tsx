@@ -6,12 +6,14 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { PostCard } from '@/components/PostCard'
+import { ThreadChain } from '@/components/ThreadChain'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Event } from './types'
+import { ThreadContent, getThreadChainByParentId } from '@/app/actions/threadChain'
 
 interface EditPostModalProps {
   isOpen: boolean
@@ -29,20 +31,82 @@ export function EditPostModal({
   onEventDelete,
 }: EditPostModalProps) {
   const [editContent, setEditContent] = useState('')
+  const [editThreads, setEditThreads] = useState<ThreadContent[]>([])
   const [editTime, setEditTime] = useState('')
   const [editDate, setEditDate] = useState<Date | undefined>(undefined)
+  const [isLoadingThreads, setIsLoadingThreads] = useState(false)
   const timeSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (event) {
+    async function loadThreadChainData() {
+      if (!event) {
+        setEditContent('')
+        setEditThreads([])
+        setEditTime('')
+        setEditDate(undefined)
+        return
+      }
+
       setEditContent(event.title)
       setEditTime(event.time)
       setEditDate(event.date)
-    } else {
-      setEditContent('')
-      setEditTime('')
-      setEditDate(undefined)
+      
+      // Load complete thread chain data if this is a thread chain
+      if (event.is_thread_chain) {
+        setIsLoadingThreads(true)
+        try {
+          // For thread chains, use parent_media_id if available, or the event's own id if it's the first thread
+          const parentId = event.parent_media_id || event.id
+          console.log('Loading thread chain for parentId:', parentId, 'event:', event)
+          const { data: threadChainData, error } = await getThreadChainByParentId(parentId)
+          console.log('Thread chain data received:', threadChainData, 'error:', error)
+          
+          if (error) {
+            console.error('Error loading thread chain:', error)
+            // Fallback to single thread
+            setEditThreads([{
+              content: event.title,
+              media_urls: event.media_urls || [],
+              media_type: event.media_type
+            }])
+          } else if (threadChainData && threadChainData.length > 0) {
+            // Convert database records to ThreadContent format
+            const threads: ThreadContent[] = threadChainData.map(thread => ({
+              content: thread.content,
+              media_urls: thread.media_urls || [],
+              media_type: thread.media_type || 'TEXT'
+            }))
+            setEditThreads(threads)
+          } else {
+            // Fallback to single thread
+            setEditThreads([{
+              content: event.title,
+              media_urls: event.media_urls || [],
+              media_type: event.media_type
+            }])
+          }
+        } catch (error) {
+          console.error('Error loading thread chain:', error)
+          // Fallback to single thread
+          setEditThreads([{
+            content: event.title,
+            media_urls: event.media_urls || [],
+            media_type: event.media_type
+          }])
+        } finally {
+          setIsLoadingThreads(false)
+        }
+      } else {
+        // Single post
+        setEditThreads([{
+          content: event.title,
+          media_urls: event.media_urls || [],
+          media_type: event.media_type
+        }])
+      }
     }
+
+    loadThreadChainData()
   }, [event])
 
   useEffect(() => {
@@ -73,13 +137,44 @@ export function EditPostModal({
 
     const updatedEvent = {
       ...event,
-      title: editContent,
+      title: event.is_thread_chain ? editThreads[0]?.content || '' : editContent,
       time: editTime,
-      date: newDate
+      date: newDate,
+      threads: event.is_thread_chain ? editThreads : undefined
     }
 
     onEventUpdate(updatedEvent)
     onOpenChange(false)
+  }
+
+  // Thread chain handlers
+  const updateThreadContent = (index: number, content: string) => {
+    setEditThreads(prev => prev.map((thread, i) =>
+      i === index ? { ...thread, content } : thread
+    ))
+    // Update editContent for single posts
+    if (index === 0) {
+      setEditContent(content)
+    }
+  }
+
+  const updateThreadMedia = (index: number, media_urls: string[]) => {
+    setEditThreads(prev => prev.map((thread, i) =>
+      i === index ? {
+        ...thread,
+        media_urls,
+        media_type: media_urls.length > 1 ? 'CAROUSEL' : media_urls.length === 1 ? 'IMAGE' : 'TEXT'
+      } : thread
+    ))
+  }
+
+  const addNewThread = () => {
+    setEditThreads(prev => [...prev, { content: '', media_urls: [], media_type: 'TEXT' }])
+  }
+
+  const removeThread = (index: number) => {
+    if (editThreads.length <= 1) return
+    setEditThreads(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleDelete = () => {
@@ -98,12 +193,28 @@ export function EditPostModal({
         </DialogHeader>
 
         <div className="py-4">
-          <PostCard
-            variant="writing"
-            username="내 계정" // TODO: 실제 사용자 이름으로 변경
-            content={editContent}
-            onContentChange={setEditContent}
-          />
+          {isLoadingThreads ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-muted-foreground">Loading thread chain...</div>
+            </div>
+          ) : event?.is_thread_chain ? (
+            <ThreadChain
+              threads={editThreads}
+              variant="writing"
+              username="내 계정" // TODO: 실제 사용자 이름으로 변경
+              onThreadContentChange={updateThreadContent}
+              onThreadMediaChange={updateThreadMedia}
+              onAddThread={addNewThread}
+              onRemoveThread={removeThread}
+            />
+          ) : (
+            <PostCard
+              variant="writing"
+              username="내 계정" // TODO: 실제 사용자 이름으로 변경
+              content={editContent}
+              onContentChange={setEditContent}
+            />
+          )}
         </div>
 
         <div ref={timeSectionRef} className="flex items-center justify-end gap-4 pb-4">
