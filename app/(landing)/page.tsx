@@ -76,21 +76,15 @@ export default function Home() {
         title1="No More"
         title2="Shit AI's writing." />
 
-      <div className="relative flex flex-col items-center justify-center w-full py-20">
+      <div className="relative flex flex-col items-center justify-center w-full py-10">
         <div className="flex flex-col items-center max-w-6xl mx-auto px-4 sm:px-6 w-full">
           {/* 타이틀 영역 */}
-          <div className="text-center mb-16">
-            {/* <div className="text-xs sm:text-sm text-white/70 tracking-wide mb-2">
-              Bring the power of automation to your social accounts
-            </div>
-            <div className="text-xl sm:text-2xl md:text-4xl font-bold text-white text-center mb-4 max-w-xs sm:max-w-xl md:max-w-2xl mx-auto">
-              Post made within a minute,<br />publish like a machine.
-            </div> */}
-            <span className="text-base sm:text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 font-semibold">
+          <div className="text-center mb-4">
+            <span className="text-3xl sm:text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 font-semibold">
               Key Features
             </span>
-            <div className="text-base sm:text-lg md:text-xl text-white/70 mt-6 leading-relaxed font-light tracking-tight max-w-xl mx-auto px-4">
-              Bring the power of automation to your social accounts
+            <div className="text-md sm:text-lg md:text-xl text-white/70 mt-6 leading-relaxed font-light tracking-tight max-w-xl mx-auto px-4">
+              Bring the power of automation <br />to your social accounts
             </div>
           </div>
         </div>
@@ -116,27 +110,27 @@ export default function Home() {
             </div>
             {/* Text Section */}
             <div className="w-full md:w-1/2 space-y-8">
-              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+              <h2 className="text-2xl sm:text-4xl font-bold text-white">
                 Topic Finder
               </h2>
               <div className="space-y-6">
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-indigo-500"></div>
                   </div>
-                  <p className="text-lg text-gray-300">Explore ideas, perfectly suitable for you</p>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-300">Explore ideas, perfectly suitable for you</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-indigo-500"></div>
                   </div>
-                  <p className="text-lg text-gray-300">Obviously, up-to-date topics are here</p>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-300">Obviously, up-to-date topics are here</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-indigo-500"></div>
                   </div>
-                  <p className="text-lg text-gray-300">Personal profile data makes topic more yours</p>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-300">Personal profile data makes topic more yours</p>
                 </div>
               </div>
             </div>
@@ -148,21 +142,21 @@ export default function Home() {
           <div className="flex flex-col-reverse md:flex-row items-center gap-8 md:gap-16">
             {/* Text Section */}
             <div className="w-full md:w-1/2 space-y-8">
-              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+              <h2 className="text-2xl sm:text-4xl font-bold text-white">
                 Detail Writer
               </h2>
               <div className="space-y-6">
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-indigo-500"></div>
                   </div>
-                  <p className="text-lg text-gray-300">Need more info? Salt AI searches online and provides details</p>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-300">Need more info? Salt AI searches online and provides details</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 mt-1 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-indigo-500"></div>
                   </div>
-                  <p className="text-lg text-gray-300">Your writing style is being trained to your personal SaltAI model</p>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-300">Your writing style is being trained to your personal Salt AI model</p>
                 </div>
               </div>
             </div>
@@ -183,11 +177,18 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="w-full flex flex-col items-center justify-center py-16 sm:py-20">
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 mb-4">
-          Built for Productivity
-        </h2>
-        <h3 className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8">Leverage the AI, make authentic stories reveil.</h3>
+      <div className="relative flex flex-col items-center justify-center w-full py-16">
+        <div className="flex flex-col items-center max-w-6xl mx-auto px-4 sm:px-6 w-full">
+          {/* 타이틀 영역 */}
+          <div className="text-center mb-4">
+            <span className="text-3xl sm:text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 font-semibold">
+              Wider Reach,<br className="sm:hidden" /> Drive Revenue
+            </span>
+            <div className="text-md sm:text-lg md:text-xl text-white/70 mt-6 leading-relaxed font-light tracking-tight max-w-xl mx-auto px-4">
+              Leverage the AI, <br className="sm:hidden" /> make authentic stories reveal.
+            </div>
+          </div>
+        </div>
       </div>
 
       <BackgroundPaths />

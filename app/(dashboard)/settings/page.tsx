@@ -40,6 +40,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { OnboardingModal } from '@/components/OnboardingModal'
+import { PricingModal } from '@/components/modals/PricingModal'
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
@@ -49,6 +50,7 @@ export default function SettingsPage() {
   const [currentPlan, setCurrentPlan] = useState('free')
   const [confirmEmail, setConfirmEmail] = useState('')
   const [deleteError, setDeleteError] = useState('')
+  const [showPricingModal, setShowPricingModal] = useState(false)
 
   // 유저 프로필 상태 (user_profiles 테이블)
   const [userProfile, setUserProfile] = useState<{
@@ -56,6 +58,7 @@ export default function SettingsPage() {
     name?: string;
     email?: string;
     user_id?: string;
+    plan_type?: string;
   } | null>(null)
 
   // 소셜 계정 관련 상태 (social_accounts 테이블)
@@ -75,29 +78,30 @@ export default function SettingsPage() {
   const [loadingTestAccounts, setLoadingTestAccounts] = useState(false)
 
   // 사용자 프로필 정보 로드
-  useEffect(() => {
+  const fetchUserProfile = async () => {
     if (status !== 'authenticated' || !session?.user?.id) return
 
-    const fetchUserProfile = async () => {
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single()
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*, plan_type')
+        .eq('user_id', session.user.id)
+        .single()
 
-        if (error) {
-          console.error('사용자 프로필 로드 오류:', error)
-          return
-        }
-
-        setUserProfile(data)
-      } catch (error) {
-        console.error('사용자 프로필 로드 중 오류 발생:', error)
+      if (error) {
+        console.error('사용자 프로필 로드 오류:', error)
+        return
       }
-    }
 
+      setUserProfile(data)
+      setCurrentPlan(data.plan_type || 'Free')
+    } catch (error) {
+      console.error('사용자 프로필 로드 중 오류 발생:', error)
+    }
+  }
+
+  useEffect(() => {
     fetchUserProfile()
   }, [session?.user?.id, status])
 
@@ -353,6 +357,12 @@ export default function SettingsPage() {
     }
   }
 
+  // PricingModal 종료 시 사용자 프로필 다시 로드
+  const handlePricingModalClose = () => {
+    setShowPricingModal(false)
+    fetchUserProfile() // 변경된 플랜 정보를 다시 로드
+  }
+
   return (
     <div className="p-4 md:p-6">
       {/* 상단에 세션 로딩 상태 처리 */}
@@ -543,19 +553,22 @@ export default function SettingsPage() {
         {/* 플랜 설정 */}
         <Card>
           <CardHeader>
-            <CardTitle>플랜</CardTitle>
-            <CardDescription>현재 구독 중인 플랜을 확인하고 관리합니다.</CardDescription>
+            <CardTitle>Plan</CardTitle>
+            <CardDescription>Check and manage your current subscription.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <p className="font-medium">현재 플랜: {currentPlan === 'free' ? '무료' : '프리미엄'}</p>
+                <p className="font-medium">Current Plan: {userProfile?.plan_type || 'Free'}</p>
               </div>
-              {currentPlan === 'free' && (
-                <Button>프리미엄으로 업그레이드</Button>
+              {(userProfile?.plan_type === 'Free' || !userProfile?.plan_type) && (
+                <Button onClick={() => setShowPricingModal(true)}>Upgrade Plan</Button>
               )}
-              {currentPlan === 'premium' && (
-                <Button variant="outline">플랜 관리</Button>
+              {userProfile?.plan_type === 'Pro' && (
+                <Button onClick={() => setShowPricingModal(true)}>Manage Plan</Button>
+              )}
+              {userProfile?.plan_type === 'Expert' && (
+                <Button onClick={() => setShowPricingModal(true)}>Manage Plan</Button>
               )}
             </div>
           </CardContent>
@@ -636,6 +649,13 @@ export default function SettingsPage() {
         </div>
 
       </div>
+
+      {/* PricingModal */}
+      <PricingModal
+        open={showPricingModal}
+        onClose={handlePricingModalClose}
+        currentUserPlan={userProfile?.plan_type || 'Free'}
+      />
     </div>
   )
 } 
