@@ -9,9 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <MobileSidebarProvider>
-      <div className="flex h-[calc(100vh-48px)]">
+      <div className="flex h-screen overflow-hidden p-2">
         <Sidebar className="h-full rounded-r-xl" />
-        <main className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] md:ml-0 relative">
+        <main className="flex-1 h-full overflow-hidden relative">
           <MobileMenuButton />
           {children}
         </main>

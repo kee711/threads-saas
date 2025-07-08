@@ -282,7 +282,10 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
 
   return (
-    <div className="w-full space-y-4">
+    <div
+      ref={view === 'list' ? listContainerRef : null}
+      className="h-full w-full overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+    >
       <ScheduleHeader
         view={view}
         setView={setView}
@@ -295,7 +298,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       />
 
       {view === 'calendar' ? (
-        <div className="bg-card h-[calc(100vh-9rem)] overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <div className="bg-card mt-4 pb-8">
           <div className="rounded-lg py-1 px-3 grid grid-cols-7 gap-px mb-2 bg-muted text-muted-foreground">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
               <div key={day} className="p-2 text-md font-medium">
@@ -394,7 +397,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
           </div>
         </div>
       ) : (
-        <div ref={listContainerRef} className="h-[calc(100vh-9rem)] overflow-y-auto scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+        <div className="mt-4 pb-8">
           <List
             events={events}
             month={month}

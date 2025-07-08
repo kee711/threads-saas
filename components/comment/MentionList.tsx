@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ContentItem } from "../contents-helper/types";
 import {
@@ -11,9 +12,11 @@ import {
     markMentionAsReplied,
 } from "@/app/actions/comment";
 import { fetchAndSaveMentions } from "@/app/actions/fetchComment";
+import { Sparkles, ArrowUp, BadgeCheck, Loader } from "lucide-react";
 import { toast } from 'sonner';
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
+import Link from "next/link";
 
 interface Comment {
     id: string;
@@ -33,9 +36,20 @@ interface PostComment {
 }
 
 export function MentionList() {
-    const { currentSocialId } = useSocialAccountStore();
+    const { currentSocialId, currentUsername } = useSocialAccountStore();
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const queryClient = useQueryClient();
+    const textareaRefs = useRef<Record<string, HTMLTextAreaElement>>({});
 
-    const { data, isLoading, isError, error } = useQuery({
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+    } = useQuery<{
+        mentions: Comment[];
+        hiddenMentions: string[];
+    }>({
         queryKey: ['mentions', currentSocialId],
         queryFn: async () => {
             await fetchAndSaveMentions();
@@ -48,36 +62,41 @@ export function MentionList() {
     const mentions = data?.mentions ?? [];
     const hiddenMentions = data?.hiddenMentions ?? [];
 
-    const [replyText, setReplyText] = useState("");
-    const [replyingTo, setReplyingTo] = useState<string | null>(null);
-    const [showReplies, setShowReplies] = useState(false);
+    const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+    const [aiGenerating, setAiGenerating] = useState<Record<string, boolean>>({});
+    const [sending, setSending] = useState<Record<string, boolean>>({});
 
-    const queryClient = useQueryClient();
+    // Filter mentions that haven't been replied to
+    const visibleMentions = mentions.filter((mention) => !hiddenMentions.includes(mention.id));
+    const remainingMentions = visibleMentions.length;
 
+
+    // Auto resize textarea
+    const autoResize = useCallback((textarea: HTMLTextAreaElement) => {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }, []);
+
+    // Handle textarea change with auto resize
+    const handleTextareaChange = (mentionId: string, value: string) => {
+        setReplyTexts(prev => ({ ...prev, [mentionId]: value }));
+        const textarea = textareaRefs.current[mentionId];
+        if (textarea) {
+            autoResize(textarea);
+        }
+    };
+
+
+
+
+    // Reply mutation (기존 로직 유지)
     const replyMutation = useMutation({
         mutationFn: async ({ mentionId, reply }: { mentionId: string, reply: PostComment }) => {
-            console.log('🔄 백그라운드 API 호출 시작:', { mentionId, reply });
-
-            try {
-                // 백그라운드에서 실제 API 호출
-                console.log('📤 Threads API 답글 전송 중...');
-                const result = await postComment(reply);
-                console.log('✅ Threads API 답글 전송 성공:', result);
-
-                console.log('💾 DB 업데이트 중...');
-                await markMentionAsReplied(mentionId, reply);
-                console.log('✅ DB 업데이트 성공');
-
-                return { mentionId, reply, result };
-            } catch (error) {
-                console.error('❌ 백그라운드 API 호출 실패:', error);
-                throw error;
-            }
+            await postComment(reply);
+            await markMentionAsReplied(mentionId, reply);
+            return { mentionId, reply };
         },
         onMutate: async ({ mentionId, reply }) => {
-            // 🎯 Optimistic Update - 즉시 UI 반영
-            console.log('⚡ Optimistic Update 시작');
-
             await queryClient.cancelQueries({ queryKey: ['mentions', currentSocialId] });
             const previousData = queryClient.getQueryData(['mentions', currentSocialId]);
 
@@ -95,221 +114,324 @@ export function MentionList() {
                         }
                         : mention
                 ),
-                // 🎯 답장한 멘션을 hiddenMentions에 즉시 추가
                 hiddenMentions: [...old.hiddenMentions, mentionId]
             }));
 
-            console.log('✨ UI 즉시 업데이트 완료');
             return { previousData };
         },
-        onError: (err: any, variables, context) => {
-            console.error('🚨 백그라운드 API 실패 - 롤백:', err);
-
-            // 🔄 완전한 롤백
+        onError: (_, __, context) => {
             queryClient.setQueryData(['mentions', currentSocialId], context?.previousData);
-
-            // 입력 상태도 복원
-            setReplyingTo(variables.mentionId);
-            setReplyText(variables.reply.text);
-
-            const errorMessage = err?.message || "알 수 없는 오류가 발생했습니다.";
-            toast.error(`답글 전송 실패: ${errorMessage}`);
+            toast.error("답글 전송에 실패했습니다.");
         },
-        onSuccess: (data, variables) => {
-            console.log('🎉 백그라운드 API 성공');
-            // 최종 서버 데이터로 동기화 (선택사항)
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['mentions', currentSocialId] });
             toast.success("답글이 성공적으로 전송되었습니다!");
         }
     });
 
-    const handleReply = (id: string) => {
-        if (!replyText.trim()) return;
+    // Handle AI reply generation
+    const generateAIReply = async (mentionText: string, mentionId: string) => {
+        console.log('Starting AI reply generation for mention:', mentionId);
+        setAiGenerating(prev => ({ ...prev, [mentionId]: true }));
 
-        const newReply: PostComment = {
-            media_type: "TEXT_POST",
-            text: replyText,
-            reply_to_id: id,
-        };
+        try {
+            const mention = visibleMentions.find(m => m.id === mentionId);
+            const postContent = mention?.root_post_content?.content || '';
 
-        // 🎯 즉시 UI 상태 변경 (Optimistic)
-        setReplyText("");
-        setReplyingTo(null);
+            console.log('Request data:', { commentText: mentionText, postContent });
 
-        // 백그라운드에서 실제 API 호출
-        replyMutation.mutate({ mentionId: id, reply: newReply });
+            const response = await fetch('/api/generate-reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    commentText: mentionText,
+                    postContent: postContent
+                })
+            });
 
-        console.log('⚡ 즉시 답글 처리 완료 (UI만)');
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('API error response:', errorData);
+                throw new Error(errorData.error || 'AI generation failed');
+            }
+
+            const { reply } = await response.json();
+            console.log('Generated reply:', reply);
+
+            setReplyTexts(prev => ({ ...prev, [mentionId]: reply }));
+
+            // Auto resize after setting AI generated text
+            setTimeout(() => {
+                const textarea = textareaRefs.current[mentionId];
+                if (textarea) {
+                    autoResize(textarea);
+                }
+            }, 1);
+
+            toast.success("AI 답글이 생성되었습니다!");
+        } catch (error) {
+            console.error('AI generation error:', error);
+            toast.error("AI 답글 생성에 실패했습니다.");
+        } finally {
+            setAiGenerating(prev => ({ ...prev, [mentionId]: false }));
+        }
     };
 
-    // 현재 보여줄 멘션들 (답장하지 않은 것들)
-    const visibleMentions = mentions.filter((mention) => !hiddenMentions.includes(mention.id));
+    // Write all replies
+    const writeAllReplies = async () => {
+        const unrepliedMentions = visibleMentions.filter(m => !m.is_replied);
 
-    // 답장한 멘션들
-    const repliedMentions = mentions.filter((mention) => hiddenMentions.includes(mention.id));
+        console.log('Total visible mentions:', visibleMentions.length);
+        console.log('Unreplied mentions:', unrepliedMentions.length);
+
+        if (unrepliedMentions.length === 0) {
+            toast.info("모든 멘션에 이미 답글이 작성되었습니다.");
+            return;
+        }
+
+        toast.info("Writing replies to all mentions...");
+
+        for (const mention of unrepliedMentions) {
+            await generateAIReply(mention.text, mention.id);
+        }
+
+        toast.success("Completed writing!");
+    };
+
+    // Handle sending reply
+    const sendReply = async (mentionId: string) => {
+        const replyText = replyTexts[mentionId]?.trim();
+        if (!replyText) return;
+
+        setSending(prev => ({ ...prev, [mentionId]: true }));
+
+        try {
+            const newReply: PostComment = {
+                media_type: "TEXT_POST",
+                text: replyText,
+                reply_to_id: mentionId,
+            };
+
+            await replyMutation.mutateAsync({ mentionId, reply: newReply });
+            // Don't clear the reply text - it will be hidden by conditional rendering
+        } catch (error) {
+            // Error handled by mutation
+        } finally {
+            setSending(prev => ({ ...prev, [mentionId]: false }));
+        }
+    };
+
 
     if (isLoading) {
-        return <div className="flex justify-center w-full text-muted-foreground">getting mentions...</div>
+        return (
+            <div className="h-full w-full overflow-hidden flex flex-col p-6">
+                <h1 className="text-3xl font-bold text-zinc-700 mb-6">Mentions</h1>
+                <div className="flex-1 flex flex-col gap-3 items-center justify-center bg-muted rounded-[20px]">
+                    <Loader className="w-10 h-10 text-muted-foreground/30 animate-spin" />
+                    <div className="text-muted-foreground">Getting mentions...</div>
+                </div>
+            </div>
+        );
     }
-    if (error) {
-        return <div className="flex justify-center w-full text-red-500">{error instanceof Error ? error.message : "데이터를 가져오는 중 오류가 발생했습니다."}</div>
+
+    if (isError) {
+        return (
+            <div className="h-full w-full overflow-hidden flex flex-col p-6">
+                <h1 className="text-3xl font-bold text-zinc-700 mb-6">Mentions</h1>
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="text-red-500">
+                        {error instanceof Error ? error.message : "데이터를 가져오는 중 오류가 발생했습니다."}
+                    </div>
+                </div>
+            </div>
+        );
     }
+
     if (!isLoading && mentions.length === 0) {
-        return <div className="flex justify-center w-full text-muted-foreground">멘션이 없습니다.</div>
+        return (
+            <div className="h-full w-full overflow-hidden p-6 flex flex-col">
+                <h1 className="text-3xl font-bold text-zinc-700 mb-6">Mentions</h1>
+                <div className="flex items-center justify-center flex-1">
+                    <div className="bg-muted rounded-[20px] w-full h-full flex items-center justify-center">
+                        <div className="flex flex-col items-center justify-center gap-6">
+                            <div className="rounded-full flex items-center justify-center">
+                                <BadgeCheck className="w-8 h-8 text-muted-foreground/30" />
+                            </div>
+                            <div className="flex flex-col items-center gap-3 w-full">
+                                <h2 className="text-zinc-700 text-xl font-semibold text-center">
+                                    No mentions to reply
+                                </h2>
+                                <p className="text-zinc-500 text-sm font-normal text-center">
+                                    Post new threads to get mentions
+                                </p>
+                            </div>
+                            <Link
+                                href="/contents-cooker/topic-finder"
+                                className="bg-zinc-100 border border-muted-foreground/10 rounded-lg px-3 py-2 flex items-center justify-center gap-2.5 cursor-pointer hover:bg-zinc-200 transition-colors"
+                            >
+                                <span className="text-black text-sm font-medium">
+                                    Get Ideas
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isLoading && visibleMentions.length === 0) {
+        return (
+            <div className="h-full w-full overflow-hidden p-6 flex flex-col">
+                <h1 className="text-3xl font-bold text-zinc-700 mb-6">Mentions</h1>
+                <div className="flex items-center justify-center flex-1">
+                    <div className="bg-muted rounded-[20px] w-full h-full flex items-center justify-center">
+                        <div className="flex flex-col items-center justify-center gap-6">
+                            <div className="rounded-full flex items-center justify-center">
+                                <BadgeCheck className="w-8 h-8 text-muted-foreground/30" />
+                            </div>
+                            <div className="flex flex-col items-center gap-3 w-full">
+                                <h2 className="text-zinc-700 text-xl font-semibold text-center">
+                                    No mentions to reply
+                                </h2>
+                                <p className="text-zinc-500 text-sm font-normal text-center">
+                                    All mentions have been replied to
+                                </p>
+                            </div>
+                            <Link
+                                href="/contents-cooker/topic-finder"
+                                className="bg-zinc-100 border border-muted-foreground/10 rounded-lg px-3 py-2 flex items-center justify-center gap-2.5 cursor-pointer hover:bg-zinc-200 transition-colors"
+                            >
+                                <span className="text-black text-sm font-medium">
+                                    Get Ideas
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div>
-            <div className="w-full mx-auto max-w-7xl grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 🎯 답장하지 않은 멘션들만 표시 */}
-                {visibleMentions.map((mention) => {
-                    const post = mention.root_post_content;
-                    return (
-                        <Card className="flex flex-col min-h-[150px]" key={mention.id}>
-                            <div className="flex flex-col flex-1">
-                                {/* 게시글 */}
-                                {post && (
-                                    <div>
-                                        <p className="text-sm whitespace-pre-line">{post?.content}</p>
-                                        <p className="text-xs text-muted-foreground pt-2">
-                                            {post?.created_at && new Date(post.created_at).toLocaleString()}
+        <div className="h-full w-full overflow-hidden flex flex-col p-6">
+            <h1 className="text-3xl font-bold text-zinc-700 mb-6">Mentions</h1>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col bg-gray-50 rounded-[32px] p-6 overflow-hidden">
+                <div className="mb-6 flex justify-between items-center">
+                    <p className="text-gray-500 text-base">
+                        {remainingMentions} remaining mentions to reply
+                    </p>
+                    <Button
+                        onClick={writeAllReplies}
+                        variant="ghost"
+                        className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        <span className="text-base font-medium">Write all replies</span>
+                    </Button>
+                </div>
+
+                {/* 2-Column Grid Layout */}
+                <div
+                    className="columns-2 gap-6 flex-1 overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] scroll-pb-96 min-h-0"
+                    ref={scrollContainerRef}
+                >
+                    {visibleMentions.map((mention, index) => (
+                        <div
+                            key={mention.id}
+                            data-mention-index={index}
+                            className="bg-white rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid"
+                        >
+                            {/* Original Post */}
+                            {mention.root_post_content && (
+                                <div className="mb-4 pb-4 border-b border-gray-200">
+                                    <div className="flex gap-3">
+                                        <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="mb-2">
+                                                <h3 className="font-semibold text-black text-[17px]">
+                                                    {currentUsername || 'You'}
+                                                </h3>
+                                            </div>
+                                            <p className="text-black text-[17px] leading-relaxed line-clamp-3">
+                                                {mention.root_post_content.content}
+                                            </p>
+                                            <p className="text-sm text-gray-400">
+                                                {new Date(mention.root_post_content.created_at || '').toLocaleString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mention */}
+                            <div className="flex gap-3">
+                                <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="font-semibold text-black text-[17px]">
+                                            {mention.username}
+                                        </h4>
+                                        <p className="text-sm text-gray-400">
+                                            {new Date(mention.timestamp).toLocaleString()}
                                         </p>
                                     </div>
-                                )}
+                                    <p className="text-black text-base leading-relaxed mb-5">
+                                        {mention.text}
+                                    </p>
 
-                                {/* 댓글 */}
-                                <div className="mt-auto">
-                                    {post && (<div className="pt-4"></div>)}
-                                    {post && (<div className="border-t pt-2"></div>)}
-                                    <div>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="font-medium">{mention.username}</span>
-                                            <span className="text-xs text-muted-foreground">
-                                                {new Date(mention.timestamp).toLocaleString()}
-                                            </span>
+                                    {/* Reply Input */}
+                                    <div className="flex items-start gap-2 mt-auto">
+                                        <div className="flex-1 relative">
+                                            <Textarea
+                                                ref={(el) => {
+                                                    if (el) textareaRefs.current[mention.id] = el;
+                                                }}
+                                                rows={1}
+                                                value={replyTexts[mention.id] || ''}
+                                                onChange={(e) => handleTextareaChange(mention.id, e.target.value)}
+                                                placeholder="Reply to Mention..."
+                                                className={`
+                                                    bg-gray-100 border-gray-200 rounded-2xl text-sm placeholder:text-gray-400 resize-none py-2 px-4
+                                                    [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] focus:outline-none focus:focus-visible:ring-0
+                                                    min-h-[34px]
+                                                `}
+                                            />
                                         </div>
-                                        <p className="text-sm mb-6">{mention.text}</p>
 
-                                        {/* 답글 달기 */}
-                                        {replyingTo === mention.id ? (
-                                            <div className="mt-2">
-                                                <Input
-                                                    value={replyText}
-                                                    onChange={(e) => setReplyText(e.target.value)}
-                                                    placeholder="답글을 입력하세요..."
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                                            e.preventDefault();
-                                                            if (replyText.trim()) {
-                                                                handleReply(mention.id);
-                                                            }
-                                                        }
-                                                    }}
-                                                />
-                                                <div className="flex justify-center gap-2 mt-4">
-                                                    <Button
-                                                        onClick={() => {
-                                                            if (replyText.trim()) {
-                                                                handleReply(mention.id);
-                                                            } else {
-                                                                setReplyingTo(null);
-                                                            }
-                                                        }}
-                                                        size="sm"
-                                                    >
-                                                        {/* 🎯 로딩 상태 제거 - 즉시 처리 */}
-                                                        답글 달기
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        onClick={() => {
-                                                            setReplyingTo(null);
-                                                            setReplyText("");
-                                                        }}
-                                                        size="sm"
-                                                    >
-                                                        취소
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex justify-center mt-2">
-                                                <Button
-                                                    onClick={() => setReplyingTo(mention.id)}
-                                                    size="sm"
-                                                >
-                                                    답글 달기
-                                                </Button>
-                                            </div>
-                                        )}
+                                        <Button
+                                            onClick={() => generateAIReply(mention.text, mention.id)}
+                                            disabled={aiGenerating[mention.id]}
+                                            className={`bg-black hover:bg-gray-800 text-white rounded-full h-[34px] px-2.5 flex items-center gap-1 flex-shrink-0 ${aiGenerating[mention.id] ? 'animate-pulse' : ''}`}
+                                        >
+                                            <Sparkles className="w-4 h-4" />
+                                            <span className="text-base font-medium">
+                                                {aiGenerating[mention.id] ? 'AI...' : 'AI'}
+                                            </span>
+                                        </Button>
+
+                                        <Button
+                                            onClick={() => sendReply(mention.id)}
+                                            disabled={!replyTexts[mention.id]?.trim() || sending[mention.id]}
+                                            className={`bg-black hover:bg-gray-800 text-white rounded-full w-[34px] h-[34px] p-0 flex items-center justify-center flex-shrink-0 ${sending[mention.id] ? 'animate-pulse' : ''}`}
+                                        >
+                                            {sending[mention.id] ? (
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <ArrowUp className="w-4 h-4" />
+                                            )}
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
-                        </Card>
-                    );
-                })}
+                        </div>
+                    ))}
+                </div>
             </div>
-
-            {/* 🎯 답장한 멘션 보기 - 즉시 업데이트됨 */}
-            {repliedMentions.length > 0 && (
-                <>
-                    <div className="w-full mt-4 max-w-7xl mx-auto space-y-6">
-                        <Button
-                            className="w-full"
-                            variant="outline"
-                            onClick={() => setShowReplies((prev) => !prev)}
-                        >
-                            {showReplies ? "답장한 멘션 접기" : `답장한 멘션 보기 (${repliedMentions.length})`}
-                        </Button>
-                        {showReplies && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {repliedMentions.map((mention) => {
-                                    const post = mention.root_post_content;
-                                    return (
-                                        <Card key={mention.id}>
-                                            <CardContent className="p-4 space-y-4">
-                                                {/* 게시글 */}
-                                                {post && (
-                                                    <div>
-                                                        <p className="text-sm whitespace-pre-line">{post?.content}</p>
-                                                        <p className="text-xs text-muted-foreground pt-2">
-                                                            {post?.created_at && new Date(post.created_at).toLocaleString()}
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {/* 멘션 + 답글 */}
-                                                <div className="space-y-2">
-                                                    {post && (<div className="border-t pt-2"></div>)}
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium">{mention.username}</span>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {new Date(mention.timestamp).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm">{mention.text}</p>
-
-                                                    {/* 🎯 답글 즉시 표시 */}
-                                                    {mention.replies && mention.replies.length > 0 && (
-                                                        <div className="mt-3 p-3 bg-muted rounded-lg">
-                                                            <p className="text-xs text-muted-foreground mb-1">내 답글:</p>
-                                                            {mention.replies.map((reply: PostComment, idx: number) => (
-                                                                <p key={idx} className="text-sm">
-                                                                    {reply.text}
-                                                                </p>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </>
-            )}
         </div>
     );
 }

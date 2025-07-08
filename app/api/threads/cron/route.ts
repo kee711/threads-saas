@@ -1,6 +1,35 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createThreadsContainer } from '@/app/actions/schedule';
+import { postThreadChain, ThreadContent } from '@/app/actions/threadChain';
+
+// Helper function to rebuild thread chains from database records
+function rebuildThreadChains(records: any[]): Record<string, ThreadContent[]> {
+  const threadChains: Record<string, ThreadContent[]> = {};
+  
+  records.forEach(record => {
+    const parentId = record.parent_media_id;
+    if (!threadChains[parentId]) {
+      threadChains[parentId] = [];
+    }
+    
+    threadChains[parentId].push({
+      content: record.content,
+      media_urls: record.media_urls || [],
+      media_type: record.media_type || 'TEXT'
+    });
+  });
+  
+  // Sort each thread chain by thread_sequence
+  Object.keys(threadChains).forEach(parentId => {
+    threadChains[parentId].sort((a, b) => {
+      const aRecord = records.find(r => r.parent_media_id === parentId && r.content === a.content);
+      const bRecord = records.find(r => r.parent_media_id === parentId && r.content === b.content);
+      return (aRecord?.thread_sequence || 0) - (bRecord?.thread_sequence || 0);
+    });
+  });
+  
+  return threadChains;
+}
 
 // 배포 시 Vercel의 Cron Job 등에서 매 분 호출하도록 설정
 export async function POST() {
@@ -9,88 +38,120 @@ export async function POST() {
   try {
     const nowISO = new Date().toISOString();
 
-    // 🚀 1단계: scheduled → processing (컨테이너 생성)
+    // 🚀 1단계: Get scheduled thread chains and single posts
     const { data: scheduledList, error: scheduleError } = await supabase
       .from('my_contents')
-      .select('my_contents_id, content, social_id, media_type, media_urls')
+      .select('my_contents_id, content, social_id, media_type, media_urls, is_thread_chain, parent_media_id, thread_sequence')
       .eq('publish_status', 'scheduled')
       .lte('scheduled_at', nowISO)
+      .order('parent_media_id', { ascending: true })
+      .order('thread_sequence', { ascending: true });
 
     if (scheduleError) {
       console.error('Error selecting scheduled posts:', scheduleError);
-    } else if (scheduledList && scheduledList.length > 0) {
-      console.log(`🎬 컨테이너 생성 시작: ${scheduledList.length}개`);
+      return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
+    }
 
-      // 🎯 병렬 처리로 속도 향상하되 제한된 수량으로 timeout 방지
-      const containerResults = await Promise.allSettled(
-        scheduledList.map(async (post) => {
-          try {
-            console.log(`🔄 컨테이너 생성 시작 [${post.my_contents_id}]: ${post.media_type}`);
+    if (!scheduledList || scheduledList.length === 0) {
+      return NextResponse.json({
+        success: true,
+        processed: 0,
+        message: "No scheduled posts to process"
+      });
+    }
 
-            // 소셜 계정 정보 조회
-            const { data: socialAccount } = await supabase
-              .from('social_accounts')
-              .select('access_token, social_id')
-              .eq('social_id', post.social_id)
-              .single();
+    console.log(`🎬 Processing ${scheduledList.length} scheduled items`);
 
-            if (!socialAccount?.access_token) {
-              throw new Error(`소셜 계정 정보 없음: ${post.social_id}`);
-            }
+    // Separate thread chains from single posts
+    const threadChainRecords = scheduledList.filter(post => post.is_thread_chain);
+    const singlePosts = scheduledList.filter(post => !post.is_thread_chain);
 
-            // schedule.ts 컨테이너 함수 호출
-            const containerResult = await createThreadsContainer(
-              socialAccount.social_id,
-              socialAccount.access_token,
-              {
-                content: post.content,
-                mediaType: post.media_type,
-                media_urls: post.media_urls || []
-              }
-            );
+    let processedCount = 0;
+    const results = [];
 
-            if (containerResult.success && containerResult.creationId) {
-              console.log(`✅ 컨테이너 생성 완료: ${containerResult.creationId}`);
+    // Process thread chains
+    if (threadChainRecords.length > 0) {
+      const threadChains = rebuildThreadChains(threadChainRecords);
+      
+      for (const [parentId, threadChain] of Object.entries(threadChains)) {
+        try {
+          console.log(`🔄 Processing thread chain [${parentId}] with ${threadChain.length} threads`);
 
-              const publishUrl =
-                `https://graph.threads.net/v1.0/${post.social_id}/threads_publish` +
-                `?creation_id=${containerResult.creationId}&access_token=${socialAccount.access_token}`;
+          // Use existing postThreadChain function
+          const threadChainResult = await postThreadChain(threadChain);
 
-              // 30초 뒤에 게시 처리
-              await new Promise(resolve => setTimeout(resolve, 30000));
-
-              const publishRes = await fetch(publishUrl, { method: 'POST' });
-              const publishData = await publishRes.json();
-
-              if (publishRes.ok) {
-                // 게시 성공
+          if (threadChainResult.success) {
+            console.log(`✅ Thread chain posted successfully: ${threadChainResult.parentThreadId}`);
+            
+            // Update all threads in this chain to 'posted' status
+            const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
+            await Promise.all(
+              chainRecords.map(async (record, index) => {
                 await supabase
                   .from('my_contents')
                   .update({
                     publish_status: 'posted',
-                    media_id: publishData.id || null
+                    media_id: threadChainResult.threadIds?.[index] || threadChainResult.parentThreadId
                   })
-                  .eq('my_contents_id', post.my_contents_id);
-                console.log(`✅ 게시 성공 [${post.my_contents_id}]`);
-              } else {
-                // 게시 실패 - scheduled로 되돌려서 재시도
-                console.error(`❌ 게시 실패 [${post.my_contents_id}]:`, publishData);
-              }
-            } else {
-              console.error(`❌ 컨테이너 생성 실패 [${post.my_contents_id}]:`, containerResult.error);
-            }
-          } catch (error) {
-            console.error(`❌ 포스트 처리 오류 [${post.my_contents_id}]:`, error);
-            return { success: false, postId: post.my_contents_id, error };
+                  .eq('my_contents_id', record.my_contents_id);
+              })
+            );
+            
+            processedCount += chainRecords.length;
+            results.push({ type: 'thread_chain', parentId, success: true });
+          } else {
+            console.error(`❌ Thread chain posting failed [${parentId}]:`, threadChainResult.error);
+            results.push({ type: 'thread_chain', parentId, success: false, error: threadChainResult.error });
           }
-        })
-      );
+        } catch (error) {
+          console.error(`❌ Thread chain processing error [${parentId}]:`, error);
+          results.push({ type: 'thread_chain', parentId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+        }
+      }
+    }
+
+    // Process single posts
+    for (const post of singlePosts) {
+      try {
+        console.log(`🔄 Processing single post [${post.my_contents_id}]: ${post.media_type}`);
+
+        // Use existing postThreadChain function with single thread
+        const threadChainResult = await postThreadChain([
+          {
+            content: post.content,
+            media_urls: post.media_urls || [],
+            media_type: post.media_type || 'TEXT'
+          }
+        ]);
+
+        if (threadChainResult.success) {
+          console.log(`✅ Single post published successfully: ${threadChainResult.parentThreadId}`);
+          
+          await supabase
+            .from('my_contents')
+            .update({
+              publish_status: 'posted',
+              media_id: threadChainResult.parentThreadId || null
+            })
+            .eq('my_contents_id', post.my_contents_id);
+          
+          processedCount++;
+          results.push({ type: 'single_post', postId: post.my_contents_id, success: true });
+        } else {
+          console.error(`❌ Single post publishing failed [${post.my_contents_id}]:`, threadChainResult.error);
+          results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: threadChainResult.error });
+        }
+      } catch (error) {
+        console.error(`❌ Single post processing error [${post.my_contents_id}]:`, error);
+        results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      }
     }
 
     return NextResponse.json({
       success: true,
-      processed: scheduledList?.length || 0,
-      message: "Cron job completed successfully"
+      processed: processedCount,
+      results,
+      message: `Cron job completed successfully. Processed ${processedCount} items.`
     });
 
   } catch (error) {
