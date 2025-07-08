@@ -21,11 +21,13 @@ export default async function RootLayout({
   const session = await getServerSession(authOptions)
 
   return (
-    <html lang="ko" suppressHydrationWarning>
-      <body className={`h-full p-2 bg-muted ${inter.className}`}>
-        <Providers session={session}>
-          {children}
-        </Providers>
+    <html lang="ko" suppressHydrationWarning className="h-full">
+      <body className={`h-full bg-muted ${inter.className}`}>
+        <div className="h-full">
+          <Providers session={session}>
+            {children}
+          </Providers>
+        </div>
         <Toaster
           position="bottom-center"
           richColors

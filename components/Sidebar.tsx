@@ -340,11 +340,11 @@ function SidebarContent({
       </div> */}
 
       {/* Bottom section: User Profile */}
-      <div className="border border-slate-300 rounded-lg px-2 py-4 m-4 mt-2">
+      <div className=" border-slate-300 rounded-lg p-4 mb-4">
         {session ? (
           // 로그인된 경우
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               {/* User Avatar */}
               <Avatar>
                 <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
@@ -360,17 +360,18 @@ function SidebarContent({
                 </AvatarFallback>
               </Avatar>
               {/* User Info */}
-              <div>
+              <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium">{session.user?.name}</p>
                 <p className="text-xs text-muted-foreground">Premium Plan</p>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center">
               {/* Settings Button */}
               <Button
                 variant="ghost"
                 size="icon"
                 asChild
+                className="flex items-center gap-1 text-gray-400 hover:bg-gray-200"
               >
                 <Link href="/settings" onClick={onLinkClick}>
                   <Settings className="h-5 w-5" />

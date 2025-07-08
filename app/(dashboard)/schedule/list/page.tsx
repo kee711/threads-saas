@@ -4,7 +4,7 @@ import { Calendar } from '@/components/schedule/Calendar'
 
 export default function ListPage() {
   return (
-    <div className="container py-10">
+    <div className="h-full w-full overflow-hidden">
       <Calendar defaultView="list" />
     </div>
   );
