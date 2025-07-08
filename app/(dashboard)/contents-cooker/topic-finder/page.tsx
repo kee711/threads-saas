@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import useThreadChainStore from '@/stores/useThreadChainStore';
 import { ThreadContent } from '@/components/contents-helper/types';
 import { HeadlineButtons } from '@/components/contents-helper/HeadlineButtons';
 import { useTopicResultsStore } from '@/stores/useTopicResultsStore';
@@ -37,8 +37,7 @@ export default function TopicFinderPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
     const [isGeneratingDetails, setIsGeneratingDetails] = useState(false);
-    const addPost = useSelectedPostsStore(state => state.addPost);
-    const setPendingThreadChain = useSelectedPostsStore(state => state.setPendingThreadChain);
+    const { setPendingThreadChain } = useThreadChainStore();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
 
@@ -144,7 +143,7 @@ export default function TopicFinderPage() {
                     },
                     staleTime: 1000 * 60 * 5,
                 });
-                
+
                 queryClient.prefetchQuery({
                     queryKey: ['mentions'],
                     queryFn: async () => {
@@ -246,20 +245,20 @@ export default function TopicFinderPage() {
             });
             if (!res.ok) throw new Error('API error');
             const data = await res.json();
-            
+
             // Convert generated threads to ThreadContent format
             const threadChain: ThreadContent[] = data.threads.map((content: string) => ({
                 content,
                 media_urls: [],
                 media_type: 'TEXT' as const
             }));
-            
+
             // Set pending thread chain in store
             setPendingThreadChain(threadChain);
-            
+
             // Store detail for UI feedback
             setTopicDetail(selectedHeadline, data.threads.join('\n\n'));
-            
+
             toast.success(`Generated ${threadChain.length} threads! Check the writing sidebar to publish.`);
         } catch (e) {
             toast.error('Failed to generate thread chain');
@@ -269,16 +268,6 @@ export default function TopicFinderPage() {
         }
     };
 
-    // 토픽을 선택된 포스트에 추가
-    const handleAddPost = (topic: string, detail: string) => {
-        const post = {
-            id: `${Date.now()}`,
-            content: detail,
-            url: topic
-        };
-        addPost(post);
-        toast.success('포스트가 추가되었습니다.');
-    };
 
     useEffect(() => {
         // 필요시 topicResults 변경 추적
@@ -290,7 +279,7 @@ export default function TopicFinderPage() {
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-full mx-auto pb-48 flex flex-col items-center overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     {/* 중앙 정렬 인사말 */}
-                    <div className="flex flex-row items-center gap-4 mb-8">
+                    <div className="flex flex-row items-center gap-4 mb-6 mt-16">
                         <Image src="/saltAIIcon.svg" alt="Salt AI Icon" width={48} height={48} />
                         <h2 className="text-2xl font-semibold text-left">Hi {currentUsername || 'User'},<br />What would you like to write about?</h2>
                     </div>

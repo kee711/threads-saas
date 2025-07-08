@@ -4,7 +4,7 @@ import { Calendar } from '@/components/schedule/Calendar'
 
 export default function CalendarPage() {
   return (
-    <div className="p-4 md:p-6">
+    <div className="h-full w-full overflow-hidden">
       <Calendar />
     </div>
   );

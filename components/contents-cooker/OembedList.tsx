@@ -5,7 +5,8 @@ import { getOembedContents, changeOembedContentToPost } from "@/app/actions/oemb
 import { useSession } from 'next-auth/react';
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
-import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import useThreadChainStore from '@/stores/useThreadChainStore';
+import { toast } from 'sonner';
 
 interface OembedContent {
   id: string;
@@ -19,11 +20,11 @@ export function OembedList() {
   const [contents, setContents] = useState<OembedContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const iframeRefs = useRef<{ [id: string]: HTMLIFrameElement | null }>({});
   const [iframeHeights, setIframeHeights] = useState<{ [id: string]: number }>({});
-  const addPost = useSelectedPostsStore(state => state.addPost);
-  const selectedPosts = useSelectedPostsStore(state => state.selectedPosts);
+  const { addContentAsThread, threadChain } = useThreadChainStore();
+  const [addedContentMap, setAddedContentMap] = useState<Map<string, string>>(new Map());
   const [convertingPosts, setConvertingPosts] = useState<{ [key: string]: boolean }>({});
 
   function getSrcDocWithAutoResize(html: string, id: string) {
@@ -74,18 +75,62 @@ export function OembedList() {
       setConvertingPosts(prev => ({ ...prev, [content.id]: true }));
       const postData = await changeOembedContentToPost(content.url);
       if (postData) {
-        addPost({
-          id: content.id,
-          content: postData.content,
-          url: content.url
-        });
+        addContentAsThread(postData.content);
+        // Map content ID to its converted content text for tracking
+        setAddedContentMap(prev => new Map([...prev, [content.id, postData.content]]));
+        toast.success('Content added to thread chain');
       }
     } catch (error) {
       console.error('Error converting oembed to post:', error);
+      toast.error('Failed to add content');
     } finally {
       setConvertingPosts(prev => ({ ...prev, [content.id]: false }));
     }
   };
+
+  // Check if content is actually added to thread chain
+  const isContentAddedToThreadChain = (contentId: string): boolean => {
+    // Check if this content was previously added
+    if (!addedContentMap.has(contentId)) {
+      return false;
+    }
+    
+    const contentText = addedContentMap.get(contentId)!;
+    
+    // Check if the content still exists in threadChain
+    const contentExists = threadChain.some(thread => 
+      thread.content.trim() === contentText.trim()
+    );
+    
+    // If content doesn't exist in threadChain anymore, remove it from our tracking map
+    if (!contentExists) {
+      setAddedContentMap(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(contentId);
+        return newMap;
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Clean up tracking map when threadChain changes
+  useEffect(() => {
+    // Remove content IDs from tracking map if their content no longer exists in threadChain
+    setAddedContentMap(prev => {
+      const newMap = new Map();
+      prev.forEach((contentText, contentId) => {
+        const stillExists = threadChain.some(thread => 
+          thread.content.trim() === contentText.trim()
+        );
+        if (stillExists) {
+          newMap.set(contentId, contentText);
+        }
+      });
+      return newMap;
+    });
+  }, [threadChain]);
 
   // 로그인하지 않은 경우 메시지 표시
   if (status === 'unauthenticated') {
@@ -123,7 +168,7 @@ export function OembedList() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
       {contents.map((content) => (
-        <div key={content.id} className={`${selectedPosts.some(post => post.id === content.id) ? "bg-accent rounded-xl border-none" : "bg-card"}`}>
+        <div key={content.id} className={`${isContentAddedToThreadChain(content.id) ? "bg-accent rounded-xl border-none" : "bg-card"}`}>
           <iframe
             key={content.id}
             ref={el => { iframeRefs.current[content.id] = el; }}
@@ -144,7 +189,7 @@ export function OembedList() {
               size="default"
               className="gap-1 px-4"
               onClick={() => handleAddPost(content)}
-              disabled={selectedPosts.some(post => post.id === content.id) || convertingPosts[content.id]}
+              disabled={isContentAddedToThreadChain(content.id) || convertingPosts[content.id]}
             >
               {convertingPosts[content.id] ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -154,7 +199,7 @@ export function OembedList() {
               <span>
                 {convertingPosts[content.id]
                   ? "Loading..."
-                  : selectedPosts.some(post => post.id === content.id)
+                  : isContentAddedToThreadChain(content.id)
                     ? "Added"
                     : "Add"}
               </span>

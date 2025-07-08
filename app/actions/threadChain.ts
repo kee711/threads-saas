@@ -3,8 +3,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { authOptions } from "@/lib/auth/authOptions";
 import { getServerSession } from "next-auth/next";
-import axios from 'axios';
 import { postComment } from './comment';
+import { createThreadsContainer, PublishPostParams } from './schedule';
 
 export interface ThreadContent {
   content: string;
@@ -56,72 +56,202 @@ async function getThreadsAccessToken() {
   return { accessToken, selectedSocialId };
 }
 
-// Create a regular Threads post
+// Create a regular Threads post using schedule.ts container logic
 async function createThreadsPost(content: string, mediaUrls?: string[], mediaType?: string) {
   const { accessToken, selectedSocialId } = await getThreadsAccessToken();
   
-  const apiUrl = 'https://graph.threads.net/v1.0/me/threads';
-  
   try {
-    // Create media container
-    const payload = new URLSearchParams({
-      media_type: mediaType || 'TEXT',
-      text: content,
+    // Use createThreadsContainer from schedule.ts for consistent media handling
+    const containerParams: PublishPostParams = {
+      content,
+      mediaType: (mediaType as any) || 'TEXT',
+      media_urls: mediaUrls || []
+    };
+
+    const containerResult = await createThreadsContainer(selectedSocialId, accessToken, containerParams);
+
+    if (!containerResult.success) {
+      throw new Error(containerResult.error || 'Failed to create thread container');
+    }
+
+    const mediaContainerId = containerResult.creationId;
+    console.log(`Created media container: ${mediaContainerId}`);
+
+    // Publish the post
+    const publishUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads_publish`;
+    const publishParams = new URLSearchParams({
+      creation_id: mediaContainerId,
       access_token: accessToken,
     });
 
-    // Add media URLs if provided
-    if (mediaUrls && mediaUrls.length > 0) {
-      // For now, handle single image - extend later for carousel
-      if (mediaUrls.length === 1) {
-        payload.append('image_url', mediaUrls[0]);
-      }
-    }
+    // Wait and retry publishing
+    const maxAttempts = 10;
+    let attempt = 0;
 
-    const createResponse = await axios.post(apiUrl, payload);
+    while (attempt < maxAttempts) {
+      console.log(`Attempt ${attempt + 1}: Publishing thread...`);
+      try {
+        const publishResponse = await fetch(publishUrl, { 
+          method: "POST",
+          body: publishParams
+        });
 
-    if (createResponse.status === 200) {
-      const mediaContainerId = createResponse.data.id;
-      console.log(`Created media container: ${mediaContainerId}`);
-
-      // Publish the post
-      const publishUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads_publish`;
-      const publishParams = new URLSearchParams({
-        creation_id: mediaContainerId,
-        access_token: accessToken,
-      });
-
-      // Wait and retry publishing
-      const maxAttempts = 10;
-      let attempt = 0;
-
-      while (attempt < maxAttempts) {
-        console.log(`Attempt ${attempt + 1}: Publishing thread...`);
-        try {
-          const publishResponse = await axios.post(publishUrl, publishParams);
-
-          if (publishResponse.status === 200) {
-            console.log('Thread published successfully!');
-            return {
-              success: true,
-              threadId: publishResponse.data.id,
-              mediaContainerId
-            };
-          }
-        } catch (error) {
-          console.error('Error during publish attempt:', error);
+        if (publishResponse.ok) {
+          const publishData = await publishResponse.json();
+          console.log('Thread published successfully!');
+          return {
+            success: true,
+            threadId: publishData.id,
+            mediaContainerId
+          };
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 15000)); // 15초 대기
-        attempt++;
+      } catch (error) {
+        console.error('Error during publish attempt:', error);
       }
 
-      throw new Error('Failed to publish thread after multiple attempts.');
-    } else {
-      throw new Error('Failed to create thread container.');
+      await new Promise((resolve) => setTimeout(resolve, 15000)); // 15초 대기
+      attempt++;
     }
+
+    throw new Error('Failed to publish thread after multiple attempts.');
   } catch (error) {
     console.error('Error creating thread:', error);
+    throw error;
+  }
+}
+
+// Create a reply comment with media support using schedule.ts container logic
+async function createThreadsReply(content: string, replyToId: string, mediaUrls?: string[], mediaType?: string) {
+  const { accessToken, selectedSocialId } = await getThreadsAccessToken();
+  
+  try {
+    // If no media, use the existing postComment function
+    if (!mediaUrls || mediaUrls.length === 0 || mediaType === 'TEXT') {
+      return await postComment({
+        media_type: 'TEXT_POST',
+        text: content,
+        reply_to_id: replyToId
+      });
+    }
+
+    // For media replies, use createThreadsContainer with reply_to_id
+    const baseUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads`;
+    let mediaContainerId;
+
+    // Handle different media types
+    if (mediaType === "IMAGE" && mediaUrls.length === 1) {
+      const urlParams = new URLSearchParams();
+      urlParams.append("media_type", "IMAGE");
+      urlParams.append("image_url", mediaUrls[0]);
+      urlParams.append("text", content);
+      urlParams.append("reply_to_id", replyToId);
+      urlParams.append("access_token", accessToken);
+
+      const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      const response = await fetch(containerUrl, { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`댓글 이미지 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+      }
+      mediaContainerId = data.id;
+    }
+    else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
+      const urlParams = new URLSearchParams();
+      urlParams.append("media_type", "VIDEO");
+      urlParams.append("video_url", mediaUrls[0]);
+      urlParams.append("text", content);
+      urlParams.append("reply_to_id", replyToId);
+      urlParams.append("access_token", accessToken);
+
+      const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      const response = await fetch(containerUrl, { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`댓글 비디오 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+      }
+      mediaContainerId = data.id;
+    }
+    else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
+      // Create carousel reply
+      const itemContainers = [];
+
+      for (const imageUrl of mediaUrls) {
+        const urlParams = new URLSearchParams();
+        urlParams.append("media_type", "IMAGE");
+        urlParams.append("image_url", imageUrl);
+        urlParams.append("is_carousel_item", "true");
+        urlParams.append("access_token", accessToken);
+
+        const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+        const response = await fetch(containerUrl, { method: "POST" });
+
+        if (!response.ok) {
+          throw new Error(`댓글 캐러셀 아이템 생성 실패: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        itemContainers.push(data.id);
+      }
+
+      // Create carousel container with reply_to_id
+      const urlParams = new URLSearchParams();
+      urlParams.append("media_type", "CAROUSEL");
+      urlParams.append("text", content);
+      urlParams.append("children", itemContainers.join(","));
+      urlParams.append("reply_to_id", replyToId);
+      urlParams.append("access_token", accessToken);
+
+      const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      const response = await fetch(containerUrl, { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`댓글 캐러셀 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+      }
+      mediaContainerId = data.id;
+    } else {
+      throw new Error("지원하지 않는 댓글 미디어 타입입니다.");
+    }
+
+    console.log(`Created reply media container: ${mediaContainerId}`);
+
+    // Publish the reply
+    const publishUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads_publish`;
+    const publishParams = new URLSearchParams({
+      creation_id: mediaContainerId,
+      access_token: accessToken,
+    });
+
+    // Wait and retry publishing
+    const maxAttempts = 10;
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+      console.log(`Attempt ${attempt + 1}: Publishing reply...`);
+      try {
+        const publishResponse = await fetch(publishUrl, { 
+          method: "POST",
+          body: publishParams
+        });
+
+        if (publishResponse.ok) {
+          const publishData = await publishResponse.json();
+          console.log('Reply published successfully!');
+          return { id: publishData.id };
+        }
+      } catch (error) {
+        console.error('Error during reply publish attempt:', error);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 15000)); // 15초 대기
+      attempt++;
+    }
+
+    throw new Error('Failed to publish reply after multiple attempts.');
+  } catch (error) {
+    console.error('Error creating reply:', error);
     throw error;
   }
 }
@@ -207,6 +337,14 @@ export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadC
     threadIds.push(firstResult.threadId);
     parentThreadId = firstResult.threadId;
 
+    // Wait for parent post to be fully uploaded before posting replies
+    // This is especially important for posts with media which take longer to process
+    const hasMedia = firstThread.media_urls && firstThread.media_urls.length > 0;
+    const waitTime = hasMedia ? 30000 : 5000; // 30 seconds for media posts, 5 seconds for text-only
+    
+    console.log(`Waiting ${waitTime}ms for parent post to be fully processed...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+
     // Post subsequent threads as replies
     for (let i = 1; i < threads.length; i++) {
       const thread = threads[i];
@@ -217,11 +355,12 @@ export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadC
       }
 
       try {
-        const replyResult = await postComment({
-          media_type: thread.media_type || 'TEXT_POST',
-          text: thread.content,
-          reply_to_id: parentThreadId
-        });
+        const replyResult = await createThreadsReply(
+          thread.content,
+          parentThreadId,
+          thread.media_urls,
+          thread.media_type
+        );
 
         // Extract thread ID from reply result if available
         threadIds.push(replyResult?.id || `reply_${i}`);
@@ -260,17 +399,21 @@ export async function scheduleThreadChain(
       throw new Error('Thread chain cannot be empty');
     }
 
-    // For scheduling, we save to database with scheduled status
-    // The actual posting will be handled by a background job
-    const tempThreadIds = threads.map((_, index) => `scheduled_${index}_${Date.now()}`);
-    const tempParentId = `scheduled_parent_${Date.now()}`;
+    // Generate a random parent_media_id for scheduling (not posting yet)
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(Math.random() * 10000);
+    const parentThreadId = `scheduled_${timestamp}_${randomSuffix}`;
+    
+    // Generate placeholder IDs for all threads
+    const threadIds = threads.map((_, index) => `${parentThreadId}_thread_${index}`);
 
-    await saveThreadChainToDatabase(threads, tempThreadIds, tempParentId, scheduledAt);
+    // Save to database with scheduled status (no actual posting)
+    await saveThreadChainToDatabase(threads, threadIds, parentThreadId, scheduledAt);
 
     return {
       success: true,
-      parentThreadId: tempParentId,
-      threadIds: tempThreadIds
+      parentThreadId,
+      threadIds
     };
 
   } catch (error) {

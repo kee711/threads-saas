@@ -54,6 +54,8 @@ interface PostCardProps {
   onAddThread?: () => void;
   onRemoveThread?: () => void;
   isLastInChain?: boolean;
+  // Height adjustment trigger
+  triggerHeightAdjustment?: boolean;
 }
 
 // 점수 계산 함수
@@ -108,6 +110,7 @@ export function PostCard({
   onAddThread,
   onRemoveThread,
   isLastInChain = true,
+  triggerHeightAdjustment,
 }: PostCardProps) {
   const [isAiActive, setIsAiActive] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string[]>(media);
@@ -160,7 +163,10 @@ export function PostCard({
   // 컨텐츠가 변경될 때마다 높이 조절
   useEffect(() => {
     if (isWriting && textareaRef.current) {
-      textareaRef.current.focus();
+      // 포커스는 처음에만 설정
+      if (content.length === 0) {
+        textareaRef.current.focus();
+      }
 
       // 모바일에서 키보드가 나타난 후 스크롤 조정
       if (window.innerWidth <= 768) { // 모바일 기준
@@ -181,10 +187,22 @@ export function PostCard({
       }
     }
 
+    // 콘텐츠 변경시 항상 높이 조정 (AI 생성이나 외부 변경 포함)
     if (isWriting) {
-      adjustTextareaHeight();
+      setTimeout(() => {
+        adjustTextareaHeight();
+      }, 1); // 약간의 지연으로 DOM 업데이트 보장
     }
   }, [content, isWriting, onTextareaFocus]);
+
+  // 외부에서 높이 조정을 트리거할 때
+  useEffect(() => {
+    if (triggerHeightAdjustment && isWriting) {
+      setTimeout(() => {
+        adjustTextareaHeight();
+      }, 1);
+    }
+  }, [triggerHeightAdjustment, isWriting]);
 
   // 이미지 추가 기능
   const handleImageClick = () => {
@@ -286,7 +304,6 @@ export function PostCard({
   const [isImproving, setIsImproving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [showAiInput, setShowAiInput] = useState(false);
-  const [writingContent, setWritingContent] = useState(content);
 
   // Improve Post 기능
   const handleImprovePost = async (prompt?: string) => {
@@ -295,20 +312,27 @@ export function PostCard({
       return;
     }
 
-    if (!aiPrompt.trim()) {
+    const effectivePrompt = prompt || aiPrompt;
+    if (!effectivePrompt.trim()) {
       toast.error("개선 지시사항을 입력해주세요.");
       return;
     }
 
     setIsImproving(true);
     try {
-      const result = await improvePost(content, prompt || aiPrompt);
+      const result = await improvePost(content, effectivePrompt);
 
       if (result.error) {
         throw new Error(result.error);
       }
 
       onContentChange?.(result.content);
+
+      // AI 생성 후 높이 조정
+      setTimeout(() => {
+        adjustTextareaHeight();
+      }, 0);
+
       toast.success("콘텐츠가 성공적으로 개선되었습니다.");
     } catch (error) {
       console.error("Error improving content:", error);
@@ -513,6 +537,12 @@ export function PostCard({
           {/* Writing variant Buttons */}
           {isWriting && (
             <div className="flex items-center justify-end space-x-2">
+              {/* Character limit indicator */}
+              <div className="text-xs text-muted-foreground mr-2">
+                <span className={content.length > 500 ? "text-red-500" : ""}>
+                  {content.length}/500
+                </span>
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
@@ -594,15 +624,21 @@ export function PostCard({
       {/* Subsequent thread */}
       {shouldShowLine && isLastInChain && (
         <div
-          className="flex items-center justify-start gap-3 cursor-pointer rounded-lg px-1 py-5 transition-colors"
-          onClick={onAddThread}
+          className={`flex items-center justify-start gap-3 rounded-lg px-1 py-5 transition-colors ${
+            content.trim() ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed opacity-50'
+          }`}
+          onClick={content.trim() ? onAddThread : undefined}
         >
           {/* Avatar */}
           <Avatar className="flex-shrink-0 h-8 w-8">
             <AvatarImage src={avatar} alt={username} />
             <AvatarFallback>{username[0]}</AvatarFallback>
           </Avatar>
-          <p className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <p className={`text-sm transition-colors ${
+            content.trim() 
+              ? 'text-muted-foreground hover:text-foreground' 
+              : 'text-muted-foreground/50'
+          }`}>
             Add to threads
           </p>
         </div>

@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { PostCard } from "@/components/PostCard";
 import { ThreadChain } from "@/components/ThreadChain";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import useSelectedPostsStore from "@/stores/useSelectedPostsStore";
-import { Sparkles, TextSearch, Radio, PencilLine, ImageIcon, Video, ChevronRight, PanelRightClose, PanelLeftClose, ChevronDown, ChevronUp, X } from "lucide-react";
+import useThreadChainStore from "@/stores/useThreadChainStore";
+import { TextSearch, PencilLine, PanelRightClose, PanelLeftClose, ChevronDown } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
-import { improvePost } from "@/app/actions/improvePost";
-import { schedulePost } from "@/app/actions/schedule";
 import { postThreadChain, scheduleThreadChain, ThreadContent } from "@/app/actions/threadChain";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
@@ -26,43 +22,46 @@ interface RightSidebarProps {
 
 export function RightSidebar({ className }: RightSidebarProps) {
   const [showAiInput, setShowAiInput] = useState(false);
-  const [isComposing, setIsComposing] = useState(false);
-  const [activePostId, setActivePostId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number>(0);
-  const { selectedPosts, removePost, updatePostType, addPost, pendingThreadChain, clearPendingThreadChain } =
-    useSelectedPostsStore();
   const { currentSocialId, getSelectedAccount } = useSocialAccountStore();
   const { isRightSidebarOpen, openRightSidebar, closeRightSidebar, isMobile } = useMobileSidebar();
   const pathname = usePathname();
 
-  // Thread chain state (single source of truth)
-  const [threadChain, setThreadChain] = useState<ThreadContent[]>([
-    { content: '', media_urls: [], media_type: 'TEXT' }
-  ]);
+  // Use global thread chain store
+  const {
+    threadChain,
+    setThreadChain,
+    updateThreadContent,
+    updateThreadMedia,
+    addThread,
+    removeThread,
+    clearThreadChain,
+    pendingThreadChain,
+    applyPendingThreadChain
+  } = useThreadChainStore();
 
   // Schedule data
   const [publishTimes, setPublishTimes] = useState<string[]>([]);
   const [reservedTimes, setReservedTimes] = useState<string[]>([]);
   const [scheduleTime, setScheduleTime] = useState<string | null>(null);
-  const [onPublishTimeChange, setOnPublishTimeChange] = useState(false);
 
   // 모바일에서는 isRightSidebarOpen 상태 사용, 데스크톱에서는 기존 isCollapsed 사용
-  const isVisible = isMobile ? isRightSidebarOpen : !isCollapsed;
   const toggleSidebar = isMobile ?
     (isRightSidebarOpen ? closeRightSidebar : openRightSidebar) :
     () => setIsCollapsed(prev => !prev);
 
-  // selectedPosts가 추가될때만 사이드바 펼치기
+  // threadChain이 추가될때만 사이드바 펼치기
   useEffect(() => {
+    const hasContent = threadChain.some(thread => thread.content.trim() !== '');
     if (isMobile) {
-      if (selectedPosts.length > 0 && !isRightSidebarOpen) {
+      if (hasContent && !isRightSidebarOpen) {
         toggleSidebar();
       }
-    } else if (selectedPosts.length > 0 && isCollapsed) {
+    } else if (hasContent && isCollapsed) {
       toggleSidebar();
     }
-  }, [selectedPosts.length]);
+  }, [threadChain.length, threadChain]);
 
   // 모바일에서 오버레이 클릭 시 사이드바 닫기
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -77,7 +76,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
     try {
       const savedContent = localStorage.getItem("draftContent");
-      if (savedContent && selectedPosts.length === 0 && threadChain[0].content === '') {
+      if (savedContent && threadChain[0]?.content === '') {
         setThreadChain([{ content: savedContent, media_urls: [], media_type: 'TEXT' }]);
       }
     } catch (error) {
@@ -91,21 +90,20 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
     const content = threadChain[0]?.content || '';
     try {
-      if (content && selectedPosts.length === 0) {
+      if (content) {
         localStorage.setItem("draftContent", content);
-      } else if (!content) {
+      } else {
         localStorage.removeItem("draftContent");
       }
     } catch (error) {
       console.warn('localStorage save failed:', error);
     }
-  }, [threadChain, selectedPosts.length]);
+  }, [threadChain]);
 
   // 컴포넌트 mount 될 때만 자동으로 처음 한번 실행
   useEffect(() => {
     fetchPublishTimes();
     fetchScheduledTimes();
-    setOnPublishTimeChange(false);
   }, []);
 
   // publishTimes와 reservedTimes가 모두 있을 때 예약 가능한 시간 찾기
@@ -124,21 +122,11 @@ export function RightSidebar({ className }: RightSidebarProps) {
   }, [publishTimes, reservedTimes]);
 
 
-  // activePostId 업데이트 useEffect
-  useEffect(() => {
-    if (selectedPosts.length > 0) {
-      // 새로운 포스트가 추가되면 마지막 포스트를 active로 설정
-      setActivePostId(selectedPosts[selectedPosts.length - 1].id);
-    } else {
-      setActivePostId(null);
-    }
-  }, [selectedPosts.length]);
 
   // Handle pending thread chain from topic finder
   useEffect(() => {
     if (pendingThreadChain && pendingThreadChain.length > 0) {
-      setThreadChain(pendingThreadChain);
-      clearPendingThreadChain();
+      applyPendingThreadChain();
 
       // Open sidebar if on mobile
       if (isMobile && !isRightSidebarOpen) {
@@ -149,20 +137,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   }, [pendingThreadChain]);
 
-  // 포스트 클릭 핸들러
-  const handlePostClick = (postId: string) => {
-    setActivePostId(postId);
-  };
-
-  // activePostId가 변경될 때 처리 (현재는 thread chain 시스템이므로 불필요)
-  useEffect(() => {
-    if (activePostId) {
-      const activePost = selectedPosts.find(post => post.id === activePostId);
-      if (activePost) {
-        // Thread chain system handles content directly
-      }
-    }
-  }, [activePostId, selectedPosts]);
 
 
 
@@ -203,10 +177,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
     };
   }, [isMobile]);
 
-  // Media change handler for the first thread
-  const handleMediaChange = (media: string[]) => {
-    updateThreadMedia(0, media);
-  };
 
   function findAvailablePublishTime(
     publishTimes: string[],
@@ -316,6 +286,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       const { error } = await createContent({
         content: threadChain[0]?.content || '',
         publish_status: "draft",
+        social_id: currentSocialId,
       });
 
       if (error) throw error;
@@ -329,31 +300,6 @@ export function RightSidebar({ className }: RightSidebarProps) {
     }
   };
 
-  // Thread chain functions
-  const addNewThread = () => {
-    setThreadChain(prev => [...prev, { content: '', media_urls: [], media_type: 'TEXT' }]);
-  };
-
-  const removeThread = (index: number) => {
-    if (threadChain.length <= 1) return;
-    setThreadChain(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateThreadContent = (index: number, content: string) => {
-    setThreadChain(prev => prev.map((thread, i) =>
-      i === index ? { ...thread, content } : thread
-    ));
-  };
-
-  const updateThreadMedia = (index: number, media_urls: string[]) => {
-    setThreadChain(prev => prev.map((thread, i) =>
-      i === index ? {
-        ...thread,
-        media_urls,
-        media_type: media_urls.length > 1 ? 'CAROUSEL' : media_urls.length === 1 ? 'IMAGE' : 'TEXT'
-      } : thread
-    ));
-  };
 
   // Check if social account is connected
   const checkSocialAccountConnection = () => {
@@ -388,7 +334,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       if (!result.success) throw new Error(result.error);
 
       // Reset to empty thread
-      setThreadChain([{ content: '', media_urls: [], media_type: 'TEXT' }]);
+      clearThreadChain();
       localStorage.removeItem("draftContent");
       fetchScheduledTimes();
     } catch (error) {
@@ -410,7 +356,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
       toast.success(message);
 
       // Reset UI immediately
-      setThreadChain([{ content: '', media_urls: [], media_type: 'TEXT' }]);
+      clearThreadChain();
       localStorage.removeItem("draftContent");
 
       // Publish threads
@@ -430,7 +376,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
     <>
       {/* 데스크톱 RightSidebar */}
       <div className={cn(
-        "bg-muted h-[calc(100vh-48px)] rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
+        "bg-muted h-full rounded-l-xl transition-all duration-300 ease-in-out overflow-hidden hidden md:block",
         !isCollapsed ? "w-[380px]" : "w-[50px]",
         className
       )}>
@@ -447,12 +393,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
           </div>
         ) : (
           <RightSidebarContent
-            selectedPosts={selectedPosts}
             showAiInput={showAiInput}
             setShowAiInput={setShowAiInput}
-            activePostId={activePostId}
-            handlePostClick={handlePostClick}
-            removePost={removePost}
             pathname={pathname}
             scheduleTime={scheduleTime}
             handleSaveToDraft={handleSaveToDraft}
@@ -465,7 +407,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
             mobileViewportHeight={mobileViewportHeight}
             // Thread chain props
             threadChain={threadChain}
-            addNewThread={addNewThread}
+            addNewThread={addThread}
             removeThread={removeThread}
             updateThreadContent={updateThreadContent}
             updateThreadMedia={updateThreadMedia}
@@ -498,12 +440,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
             }}
           >
             <RightSidebarContent
-              selectedPosts={selectedPosts}
               showAiInput={showAiInput}
               setShowAiInput={setShowAiInput}
-              activePostId={activePostId}
-              handlePostClick={handlePostClick}
-              removePost={removePost}
               pathname={pathname}
               scheduleTime={scheduleTime}
               handleSaveToDraft={handleSaveToDraft}
@@ -516,7 +454,7 @@ export function RightSidebar({ className }: RightSidebarProps) {
               mobileViewportHeight={mobileViewportHeight}
               // Thread chain props
               threadChain={threadChain}
-              addNewThread={addNewThread}
+              addNewThread={addThread}
               removeThread={removeThread}
               updateThreadContent={updateThreadContent}
               updateThreadMedia={updateThreadMedia}
@@ -548,12 +486,8 @@ export function RightSidebar({ className }: RightSidebarProps) {
 
 // RightSidebar 콘텐츠 분리 컴포넌트
 function RightSidebarContent({
-  selectedPosts,
   showAiInput,
   setShowAiInput,
-  activePostId,
-  handlePostClick,
-  removePost,
   pathname,
   scheduleTime,
   handleSaveToDraft,
@@ -571,12 +505,8 @@ function RightSidebarContent({
   updateThreadContent,
   updateThreadMedia,
 }: {
-  selectedPosts: any[];
   showAiInput: boolean;
   setShowAiInput: (show: boolean) => void;
-  activePostId: string | null;
-  handlePostClick: (postId: string) => void;
-  removePost: (postId: string) => void;
   pathname: string;
   scheduleTime: string | null;
   handleSaveToDraft: () => void;
@@ -596,58 +526,18 @@ function RightSidebarContent({
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // 키보드가 나타났을 때 텍스트 영역을 적절한 위치로 스크롤
-  const handleTextareaFocus = useCallback(() => {
-    if (!isMobile || !scrollContainerRef.current) return;
-
-    setTimeout(() => {
-      if (!scrollContainerRef.current) return;
-
-      // Visual Viewport API를 사용하여 실제 키보드 높이 감지
-      let keyboardHeight = 320; // 기본값
-      if (window.visualViewport) {
-        keyboardHeight = window.innerHeight - window.visualViewport.height;
-      }
-
-      const containerHeight = scrollContainerRef.current.clientHeight;
-      const textarea = scrollContainerRef.current.querySelector('textarea');
-
-      if (textarea) {
-        const textareaRect = textarea.getBoundingClientRect();
-        const containerRect = scrollContainerRef.current.getBoundingClientRect();
-
-        // 텍스트 영역의 상대적 위치 계산
-        const relativeTop = textareaRect.top - containerRect.top;
-        const textareaHeight = textareaRect.height;
-
-        // 키보드 위쪽에 텍스트 영역이 보이도록 스크롤 위치 계산
-        const visibleHeight = containerHeight - Math.max(keyboardHeight - 100, 0); // 바텀시트 하단 여백 고려
-        const targetScrollTop = relativeTop - (visibleHeight - textareaHeight - 50);
-
-        if (targetScrollTop > 0) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollTop + targetScrollTop,
-            behavior: 'smooth'
-          });
-        }
-      }
-    }, 300); // 키보드 애니메이션 완료 대기
-  }, [isMobile]);
+  // Check if any thread exceeds character limit
+  const hasCharacterLimitViolation = () => {
+    return threadChain.some(thread => thread.content.length > 500);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden rounded-xl border border-gray-200 shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-background">
-        {selectedPosts.length === 0 && (
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Write or Add contents
-          </h2>
-        )}
-        {selectedPosts.length > 0 && (
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Selected Posts ({selectedPosts.length}/3)
-          </h2>
-        )}
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Write or Add contents
+        </h2>
 
         {/* 모바일에서는 아래로 내리기 버튼, 데스크톱에서는 닫기 버튼 */}
         <Button
@@ -678,49 +568,20 @@ function RightSidebarContent({
               : undefined
         }}
       >
-        {/* Selected Posts Section */}
+        {/* Thread Chain Section */}
         <div className="space-y-4">
-          {/* Thread Chain or Single Post */}
-          {selectedPosts.length === 0 ? (
-            <>
-              {/* Always render thread chain */}
-              <ThreadChain
-                threads={threadChain}
-                variant="writing"
-                avatar={getSelectedAccount()?.threads_profile_picture_url}
-                username={getSelectedAccount()?.username}
-                onThreadContentChange={updateThreadContent}
-                onThreadMediaChange={updateThreadMedia}
-                onAddThread={addNewThread}
-                onRemoveThread={removeThread}
-                onAiClick={() => setShowAiInput(!showAiInput)}
-              />
-            </>
-          ) : (
-            /* Selected Posts from external content */
-            selectedPosts.map((post, index) => (
-              <div
-                key={post.id}
-                onClick={() => handlePostClick(post.id)}
-                className="cursor-pointer"
-              >
-                <PostCard
-                  variant="writing"
-                  avatar={getSelectedAccount()?.threads_profile_picture_url}
-                  username={getSelectedAccount()?.username}
-                  content={post.content}
-                  url={post.url}
-                  onMinus={() => removePost(post.id)}
-                  onAiClick={() => setShowAiInput(!showAiInput)}
-                  order={index}
-                  // Always show thread chain functionality
-                  showAddThread={true}
-                  onAddThread={addNewThread}
-                  isLastInChain={index === selectedPosts.length - 1}
-                />
-              </div>
-            ))
-          )}
+          {/* Always render thread chain */}
+          <ThreadChain
+            threads={threadChain}
+            variant="writing"
+            avatar={getSelectedAccount()?.threads_profile_picture_url}
+            username={getSelectedAccount()?.username}
+            onThreadContentChange={updateThreadContent}
+            onThreadMediaChange={updateThreadMedia}
+            onAddThread={addNewThread}
+            onRemoveThread={removeThread}
+            onAiClick={() => setShowAiInput(!showAiInput)}
+          />
           {/* Divider with Text */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -785,7 +646,7 @@ function RightSidebarContent({
             handleSaveToDraft();
             toggleSidebar();
           }}
-          disabled={!threadChain.some(thread => thread.content.trim() !== '')}
+          disabled={!threadChain.some(thread => thread.content.trim() !== '') || hasCharacterLimitViolation()}
         >
           Save to Draft
         </Button>
@@ -797,7 +658,7 @@ function RightSidebarContent({
               size="xl"
               className="!p-0 w-full rounded-r-sm mr-8 border-r border-dotted border-r-white bg-black text-white hover:bg-black/90"
               onClick={handleSchedule}
-              disabled={!threadChain.some(thread => thread.content.trim() !== '')}
+              disabled={!threadChain.some(thread => thread.content.trim() !== '') || hasCharacterLimitViolation()}
             >
               <div className="flex-col">
                 <div>Schedule Post</div>
@@ -819,7 +680,7 @@ function RightSidebarContent({
               <ChangePublishTimeDialog
                 variant="icon"
                 onPublishTimeChange={() => fetchPublishTimes()}
-                ondisabled={!threadChain.some(thread => thread.content.trim() !== '')}
+                ondisabled={!threadChain.some(thread => thread.content.trim() !== '') || hasCharacterLimitViolation()}
               />
             </div>
           </div>
@@ -828,7 +689,7 @@ function RightSidebarContent({
             size="xl"
             className="bg-black text-white hover:bg-black/90"
             onClick={handlePublish}
-            disabled={!threadChain.some(thread => thread.content.trim() !== '')}
+            disabled={!threadChain.some(thread => thread.content.trim() !== '') || hasCharacterLimitViolation()}
           >
             Post Now
           </Button>

@@ -385,9 +385,9 @@ export default function StatisticsPage() {
     }
 
     return (
-        <div className="space-y-4 p-4 md:p-6">
+        <div className="h-full overflow-y-auto space-y-4 pb-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="sticky top-0 z-10 bg-white p-2 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl md:text-3xl font-bold">Statistics</h1>

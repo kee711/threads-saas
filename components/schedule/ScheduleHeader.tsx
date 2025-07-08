@@ -45,7 +45,7 @@ export function ScheduleHeader({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between sticky top-0 z-10 bg-white">
       {/* View Toggle */}
       <div className="flex items-center gap-2 text-xl font-semibold">
         <button

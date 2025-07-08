@@ -116,16 +116,23 @@
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
 
+  html,
   body {
     @apply bg-background text-foreground;
+    height: 100%;
   }
+}
+
+/* Radix UI 모달/드롭다운으로 인한 body 스타일 변경 시 layout shift 방지 */
+body[data-scroll-locked] {
+  /* 패딩은 최상위 컨테이너에서 관리하므로 body의 변경사항 무시 */
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .animate-spin {

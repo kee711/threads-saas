@@ -5,7 +5,7 @@ import { PostCard } from '@/components/PostCard';
 import { ThreadChain } from '@/components/ThreadChain';
 import { ContentCategory, ContentItem, ContentListProps } from './types';
 import { ThreadContent } from '@/app/actions/threadChain';
-import useSelectedPostsStore from '@/stores/useSelectedPostsStore';
+import useThreadChainStore from '@/stores/useThreadChainStore';
 import { getContents } from '@/app/actions/content';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
@@ -15,8 +15,8 @@ export function ContentList({ category, title }: ContentListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const addPost = useSelectedPostsStore(state => state.addPost);
-  const selectedPosts = useSelectedPostsStore(state => state.selectedPosts);
+  const { addContentAsThread, threadChain } = useThreadChainStore();
+  const [addedContentMap, setAddedContentMap] = useState<Map<string, string>>(new Map());
   const { currentSocialId } = useSocialAccountStore();
 
   // 🔐 사용자 세션 확인
@@ -95,6 +95,48 @@ export function ContentList({ category, title }: ContentListProps) {
     media_type: 'TEXT' // TODO: media_type 필드가 있다면 추가
   });
 
+  // Check if content is actually added to thread chain
+  const isContentAddedToThreadChain = (contentId: string, contentText: string): boolean => {
+    // Check if this content was previously added
+    if (!addedContentMap.has(contentId)) {
+      return false;
+    }
+    
+    // Check if the content still exists in threadChain
+    const contentExists = threadChain.some(thread => 
+      thread.content.trim() === contentText.trim()
+    );
+    
+    // If content doesn't exist in threadChain anymore, remove it from our tracking map
+    if (!contentExists) {
+      setAddedContentMap(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(contentId);
+        return newMap;
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Clean up tracking map when threadChain changes
+  useEffect(() => {
+    // Remove content IDs from tracking map if their content no longer exists in threadChain
+    setAddedContentMap(prev => {
+      const newMap = new Map();
+      prev.forEach((contentText, contentId) => {
+        const stillExists = threadChain.some(thread => 
+          thread.content.trim() === contentText.trim()
+        );
+        if (stillExists) {
+          newMap.set(contentId, contentText);
+        }
+      });
+      return newMap;
+    });
+  }, [threadChain]);
+
   // 로그인하지 않은 경우 메시지 표시
   if (status === 'unauthenticated') {
     return (
@@ -127,11 +169,13 @@ export function ContentList({ category, title }: ContentListProps) {
                     username={session?.user?.name || "user"}
                     content={content.content}
                     url={content.url}
-                    onAdd={() => addPost({
-                      id: content.my_contents_id,
-                      content: content.content,
-                    })}
-                    isSelected={selectedPosts.some(post => post.id === content.my_contents_id)}
+                    onAdd={() => {
+                      addContentAsThread(content.content);
+                      // Map content ID to its content text for tracking
+                      setAddedContentMap(prev => new Map([...prev, [content.my_contents_id, content.content]]));
+                      toast.success('Content added to thread chain');
+                    }}
+                    isSelected={isContentAddedToThreadChain(content.my_contents_id, content.content)}
                   />
                 </div>
               ))}
