@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import useThreadChainStore from '@/stores/useThreadChainStore';
+import useSocialAccountStore from '@/stores/useSocialAccountStore';
 import { toast } from 'sonner';
 
 interface OembedContent {
@@ -13,6 +14,7 @@ interface OembedContent {
   url: string;
   created_at: string;
   user_id: string;
+  social_id: string;
   html: string;
 }
 
@@ -24,6 +26,7 @@ export function OembedList() {
   const iframeRefs = useRef<{ [id: string]: HTMLIFrameElement | null }>({});
   const [iframeHeights, setIframeHeights] = useState<{ [id: string]: number }>({});
   const { addContentAsThread, threadChain } = useThreadChainStore();
+  const { currentSocialId } = useSocialAccountStore();
   const [addedContentMap, setAddedContentMap] = useState<Map<string, string>>(new Map());
   const [convertingPosts, setConvertingPosts] = useState<{ [key: string]: boolean }>({});
 
@@ -57,7 +60,11 @@ export function OembedList() {
 
     async function fetchData() {
       try {
-        const result = await getOembedContents();
+        if (!currentSocialId) {
+          setFetchError("소셜 계정을 선택해주세요");
+          return;
+        }
+        const result = await getOembedContents(currentSocialId);
         setContents(result);
       } catch (err) {
         console.error(err);
@@ -68,7 +75,7 @@ export function OembedList() {
     };
 
     fetchData();
-  }, [status]);
+  }, [status, currentSocialId]);
 
   const handleAddPost = async (content: OembedContent) => {
     try {
@@ -132,17 +139,6 @@ export function OembedList() {
     });
   }, [threadChain]);
 
-  // 로그인하지 않은 경우 메시지 표시
-  if (status === 'unauthenticated') {
-    return (
-      <div className="pt-6">
-        <div className="text-center text-muted-foreground">
-          🔒 컨텐츠를 보려면 로그인이 필요합니다.
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (
@@ -161,29 +157,47 @@ export function OembedList() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
+  // 로그인하지 않은 경우 메시지 표시
+  if (status === 'unauthenticated') {
+    return (
+      <div className="pt-6">
+        <div className="text-center text-muted-foreground">
+          🔒 컨텐츠를 보려면 로그인이 필요합니다.
+        </div>
+      </div>
+    );
+  }
+
   if (loading) return <div className="text-muted-foreground">Loading...</div>;
   if (fetchError) return <p className="text-red-500">{fetchError}</p>;
   if (contents.length === 0) return <p>저장된 콘텐츠가 없습니다.</p>;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
+    <div className="columns-2 gap-6 flex-1 overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] scroll-pb-96 min-h-0">
       {contents.map((content) => (
-        <div key={content.id} className={`${isContentAddedToThreadChain(content.id) ? "bg-accent rounded-xl border-none" : "bg-card"}`}>
+        <div 
+          key={content.id} 
+          className={`break-inside-avoid mb-6 ${
+            isContentAddedToThreadChain(content.id) 
+              ? "bg-white rounded-[20px] p-5 border-2 border-green-200" 
+              : "bg-white rounded-[20px] p-5"
+          }`}
+        >
           <iframe
             key={content.id}
             ref={el => { iframeRefs.current[content.id] = el; }}
-            className="max-w-full"
+            className="max-w-full rounded-[12px] overflow-hidden"
             srcDoc={getSrcDocWithAutoResize(content.html, content.id)}
             style={{
               width: "100%",
               border: "none",
-              height: iframeHeights[content.id] ? `${iframeHeights[content.id] + 40}px` : "300px", // 기본값 300px
+              height: iframeHeights[content.id] ? `${iframeHeights[content.id] + 40}px` : "300px",
               transition: "height 0.2s",
             }}
             sandbox="allow-scripts allow-same-origin"
             loading="lazy"
           />
-          <div className="flex justify-end items-end mb-4">
+          <div className="flex justify-end items-end mt-4">
             <Button
               variant="outline"
               size="default"

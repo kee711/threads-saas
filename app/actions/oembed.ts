@@ -12,6 +12,7 @@ interface OembedContent {
   url: string;
   created_at: string;
   user_id: string;
+  social_id: string;
   html: string;
 }
 
@@ -65,7 +66,7 @@ export async function fetchOembedContents(content_url: string) {
   }
 }
 
-export async function getOembedContents() {
+export async function getOembedContents(currentSocialId: string) {
   console.log('Creating Supabase client...');
 
   const session = await getServerSession(authOptions);
@@ -82,6 +83,7 @@ export async function getOembedContents() {
       .from('oembed_contents')
       .select('*')
       .eq('user_id', userId)
+      .eq('social_id', currentSocialId)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -109,15 +111,15 @@ export async function postOembedContents(data: OembedContent[]) {
   }
 }
 
-export async function saveOembedContentFromUrl(contentUrl: string) {
+export async function saveOembedContentFromUrl(contentUrl: string, currentSocialId: string) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.id) {
     throw new Error("로그인이 필요합니다.");
   }
   const userId = session.user.id;
 
-  if (!contentUrl || !userId) {
-    throw new Error('Missing url or user ID');
+  if (!contentUrl || !userId || !currentSocialId) {
+    throw new Error('Missing url, user ID, or social ID');
   }
 
   const fetched = await fetchOembedContents(contentUrl);
@@ -125,10 +127,11 @@ export async function saveOembedContentFromUrl(contentUrl: string) {
   const shortcode = match ? match[1] : null;
 
   const postData = [{
-    id: userId + shortcode,
+    id: currentSocialId + shortcode,
     url: contentUrl,
     created_at: new Date().toISOString(),
     user_id: userId,
+    social_id: currentSocialId,
     html: fetched?.html,
   }];
 
@@ -175,7 +178,7 @@ export async function changeOembedContentToPost(contentUrl: string) {
 
 
     const content: ContentItem = {
-      id: postData.shortcode,
+      my_contents_id: postData.shortcode,
       content: postData.text,
     };
 

@@ -1,6 +1,7 @@
 "use server";
 
 import OpenAI from "openai";
+import { IMPROVE_POST_SYSTEM_PROMPT, IMPROVE_POST_USER_PROMPT } from "@/lib/prompts";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -13,20 +14,11 @@ export async function improvePost(content: string, prompt: string) {
       messages: [
         {
           role: "system",
-          content:
-            "You are an expert content creator specialized in optimizing content for the Threads platform. You create engaging, participation-driving, and shareable content that captures attention.",
+          content: IMPROVE_POST_SYSTEM_PROMPT,
         },
         {
           role: "user",
-          content: `Please improve the following Threads post based on the specific instruction:
-
-Original content:
-${content}
-
-Improvement instruction:
-${prompt}
-
-Please enhance the content to be more engaging, increase participation, and have viral potential. Add appropriate hashtags, improve sentence structure, and make it clearer and more concise. Maintain the core message and intent of the original while transforming it into a format optimized for the Threads platform.`,
+          content: IMPROVE_POST_USER_PROMPT(content, prompt),
         },
       ],
       temperature: 0.7,

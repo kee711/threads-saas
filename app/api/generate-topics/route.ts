@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COMMON_SETTINGS, USER_SETTINGS, INSTRUCTIONS } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
+import { COMMON_SETTINGS, USER_SETTINGS, INSTRUCTIONS } from '@/lib/prompts';
 import { handleOptions, handleCors } from '@/lib/utils/cors';
 
 export const runtime = 'edge';

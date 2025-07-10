@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PostCard } from '@/components/PostCard';
-import { ThreadChain } from '@/components/ThreadChain';
 import { ContentCategory, ContentItem, ContentListProps } from './types';
-import { ThreadContent } from '@/app/actions/threadChain';
 import useThreadChainStore from '@/stores/useThreadChainStore';
 import { getContents } from '@/app/actions/content';
 import { toast } from 'sonner';
@@ -88,12 +86,6 @@ export function ContentList({ category, title }: ContentListProps) {
     return { singlePosts, threadChains };
   };
 
-  // ContentItem을 ThreadContent로 변환
-  const convertToThreadContent = (content: ContentItem): ThreadContent => ({
-    content: content.content,
-    media_urls: [], // TODO: media_urls 필드가 있다면 추가
-    media_type: 'TEXT' // TODO: media_type 필드가 있다면 추가
-  });
 
   // Check if content is actually added to thread chain
   const isContentAddedToThreadChain = (contentId: string, contentText: string): boolean => {
@@ -101,12 +93,12 @@ export function ContentList({ category, title }: ContentListProps) {
     if (!addedContentMap.has(contentId)) {
       return false;
     }
-    
+
     // Check if the content still exists in threadChain
-    const contentExists = threadChain.some(thread => 
+    const contentExists = threadChain.some(thread =>
       thread.content.trim() === contentText.trim()
     );
-    
+
     // If content doesn't exist in threadChain anymore, remove it from our tracking map
     if (!contentExists) {
       setAddedContentMap(prev => {
@@ -116,7 +108,7 @@ export function ContentList({ category, title }: ContentListProps) {
       });
       return false;
     }
-    
+
     return true;
   };
 
@@ -126,7 +118,7 @@ export function ContentList({ category, title }: ContentListProps) {
     setAddedContentMap(prev => {
       const newMap = new Map();
       prev.forEach((contentText, contentId) => {
-        const stillExists = threadChain.some(thread => 
+        const stillExists = threadChain.some(thread =>
           thread.content.trim() === contentText.trim()
         );
         if (stillExists) {
@@ -142,7 +134,7 @@ export function ContentList({ category, title }: ContentListProps) {
     return (
       <div className="pt-6">
         <div className="text-center text-muted-foreground">
-          🔒 컨텐츠를 보려면 로그인이 필요합니다.
+          🔒 You need to login to view contents.
         </div>
       </div>
     );
@@ -151,10 +143,10 @@ export function ContentList({ category, title }: ContentListProps) {
   const { singlePosts, threadChains } = groupContents(contents);
 
   return (
-    <div className="pt-6">
+    <div className="h-full w-full overflow-hidden flex flex-col">
       {/* 컨텐츠 목록 */}
       {isExpanded && (
-        <div className="columns-1 md:columns-2 gap-6 space-y-6">
+        <div className="columns-2 gap-6 flex-1 overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] scroll-pb-96 min-h-0">
           {isLoading ? (
             <div key={category} className="text-center text-muted-foreground">
               Loading...
@@ -163,32 +155,73 @@ export function ContentList({ category, title }: ContentListProps) {
             <>
               {/* 단일 포스트 렌더링 */}
               {singlePosts.map((content) => (
-                <div key={content.my_contents_id} className="break-inside-avoid mb-6">
+                <div
+                  key={content.my_contents_id}
+                  className="bg-white rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    if (!isContentAddedToThreadChain(content.my_contents_id, content.content)) {
+                      addContentAsThread(content.content);
+                      // Map content ID to its content text for tracking
+                      setAddedContentMap(prev => new Map([...prev, [content.my_contents_id, content.content]]));
+                      toast.success('Content added to thread chain');
+                    }
+                  }}
+                >
                   <PostCard
                     variant="default"
                     username={session?.user?.name || "user"}
                     content={content.content}
                     url={content.url}
-                    onAdd={() => {
-                      addContentAsThread(content.content);
-                      // Map content ID to its content text for tracking
-                      setAddedContentMap(prev => new Map([...prev, [content.my_contents_id, content.content]]));
-                      toast.success('Content added to thread chain');
-                    }}
+                    hideAddButton={true}
+                    showGrade={false}
                     isSelected={isContentAddedToThreadChain(content.my_contents_id, content.content)}
                   />
                 </div>
               ))}
-              
+
               {/* 스레드 체인 렌더링 */}
               {Object.entries(threadChains).map(([parentId, chainContents]) => (
-                <div key={parentId} className="break-inside-avoid mb-6">
-                  <ThreadChain
-                    threads={chainContents.map(convertToThreadContent)}
-                    variant="default"
-                    username={session?.user?.name || "user"}
-                    className="border rounded-lg p-4"
-                  />
+                <div key={parentId} className="bg-white rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid">
+                  <div className="space-y-4">
+                    {/* Individual Thread Posts */}
+                    {chainContents.map((content, index) => (
+                      <div key={`${parentId}-${index}`} className="relative">
+                        <div
+                          className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                          onClick={() => {
+                            // Add entire thread chain if not already added
+                            const isAnyThreadAdded = chainContents.some(c =>
+                              isContentAddedToThreadChain(c.my_contents_id, c.content)
+                            );
+
+                            if (!isAnyThreadAdded) {
+                              chainContents.forEach(c => {
+                                addContentAsThread(c.content);
+                                setAddedContentMap(prev => new Map([...prev, [c.my_contents_id, c.content]]));
+                              });
+                              toast.success('Thread chain added to thread chain');
+                            }
+                          }}
+                        >
+                          <PostCard
+                            variant="default"
+                            username={session?.user?.name || "user"}
+                            content={content.content}
+                            url={content.url}
+                            isPartOfChain={true}
+                            threadIndex={index}
+                            hideAddButton={true}
+                            showGrade={false}
+                            isSelected={chainContents.some(c => isContentAddedToThreadChain(c.my_contents_id, c.content))}
+                          />
+                        </div>
+                        {/* Connecting line for threads */}
+                        {index < chainContents.length - 1 && (
+                          <div className="absolute left-1 top-8 w-0.5 h-6 bg-gray-300"></div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </>

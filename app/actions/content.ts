@@ -93,6 +93,9 @@ export async function getContents(params?: {
     if (category === 'saved') {
       query = query.eq('publish_status', 'draft')
       console.log("query data : \n\n\n\n\n", query)
+    } else {
+      // saved가 아닌 경우에만 scheduled, posted로 필터링
+      query = query.in('publish_status', ['scheduled', 'posted'])
     }
 
     const { data, error } = await query
