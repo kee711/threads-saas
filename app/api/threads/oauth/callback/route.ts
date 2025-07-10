@@ -170,10 +170,10 @@ export async function GET(req: NextRequest) {
     if (isNewAccount) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/onboarding?type=social&account_id=${accountId}`);
     } else {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents-cooker/topic-finder`);
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents/topic-finder`);
     }
   } catch (error) {
     console.error("Threads OAuth 콜백 처리 중 오류:", error);
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents-cooker/topic-finder`);
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/contents/topic-finder`);
   }
 }

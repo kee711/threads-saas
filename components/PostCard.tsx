@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { improvePost } from "@/app/actions/improvePost";
 import { uploadMediaFilesClient, deleteMediaFileClient } from "@/lib/utils/upload";
 import { useSession } from "next-auth/react";
+import { PRESET_PROMPTS } from "@/lib/prompts";
 
 interface PostCardProps {
   variant?: "default" | "writing" | "compact";
@@ -47,6 +48,8 @@ interface PostCardProps {
   media?: string[];
   onMediaChange?: (media: string[]) => void;
   onTextareaFocus?: () => void;
+  hideAddButton?: boolean;
+  showGrade?: boolean;
   // Thread chain props
   isPartOfChain?: boolean;
   threadIndex?: number;
@@ -103,6 +106,8 @@ export function PostCard({
   media = [],
   onMediaChange,
   onTextareaFocus,
+  hideAddButton = false,
+  showGrade = true,
   // Thread chain props
   isPartOfChain = false,
   threadIndex = 0,
@@ -349,30 +354,30 @@ export function PostCard({
     {
       icon: ChevronsLeftRightEllipsis,
       text: "Expand post",
-      prompt: "더 매력적이고 흥미로운 글로 확장해줘",
+      prompt: PRESET_PROMPTS.EXPAND_POST,
       delay: "delay-100"
     },
     {
       icon: Anchor,
       text: "Add hooks",
-      prompt: "이 글에 흥미로운 훅을 추가해줘",
+      prompt: PRESET_PROMPTS.ADD_HOOKS,
       delay: "delay-200"
     },
     {
       icon: LibraryBig,
       text: "Add information",
-      prompt: "이 글에 더 많은 정보와 내용을 추가해줘",
+      prompt: PRESET_PROMPTS.ADD_INFORMATION,
       delay: "delay-300"
     }
   ];
 
   // 선을 표시할 조건 정의
-  const shouldShowLine = (variant === "writing") || (variant === "default" && showAddThread);
+  const isDefault = variant === "default";
 
   // PostCard UI
   return (
     <div
-      className={`space-y-4 w-full h-auto rounded-xl mb-3 ${isSelected ? "bg-accent rounded-xl border-none" : "bg-card"}`}
+      className="space-y-3 w-full h-auto rounded-xl mb-3"
     >
       <div className="flex gap-3 relative">
         {/* Avatar with connecting line */}
@@ -383,11 +388,11 @@ export function PostCard({
           </Avatar>
 
           {/* Connecting line to next thread */}
-          {shouldShowLine && (
+          {(isWriting || (isDefault && !isLastInChain)) && (
             <div className="absolute left-1/2 transform -translate-x-1/2 w-0.5 bg-gray-200"
               style={{
                 top: '52px', /* 40px avatar + 12px spacing */
-                bottom: showAddThread ? '-24px' : '0px' /* extends to next avatar with 12px spacing */
+                bottom: '0px' /* extends to next avatar with 12px spacing */
               }}>
             </div>
           )}
@@ -500,23 +505,27 @@ export function PostCard({
 
           {/* Buttons variation by variants */}
 
-          {/* Default variant Buttons */}
+          {/* Bottom section with optional grade and Add button */}
           {!isCompact && !isWriting && (
             <div className="flex justify-between">
-              <div className="flex text-sm gap-2">
-                <ChartNoAxesCombined className="h-4 w-4" />
-                {score.grade}
-              </div>
-              <Button
-                variant="outline"
-                size="default"
-                className="gap-1 px-4"
-                onClick={onAdd}
-                disabled={isSelected}
-              >
-                <Plus className="h-4 w-4" />
-                <span>{isSelected ? "Added" : "Add"}</span>
-              </Button>
+              {showGrade && (
+                <div className="flex text-sm gap-2">
+                  <ChartNoAxesCombined className="h-4 w-4" />
+                  {score.grade}
+                </div>
+              )}
+              {!hideAddButton && (
+                <Button
+                  variant="outline"
+                  size="default"
+                  className="gap-1 px-4"
+                  onClick={onAdd}
+                  disabled={isSelected}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>{isSelected ? "Added" : "Add"}</span>
+                </Button>
+              )}
             </div>
           )}
 
@@ -622,11 +631,10 @@ export function PostCard({
         </div>
       </div>
       {/* Subsequent thread */}
-      {shouldShowLine && isLastInChain && (
+      {isWriting && isLastInChain && showAddThread && (
         <div
-          className={`flex items-center justify-start gap-3 rounded-lg px-1 py-5 transition-colors ${
-            content.trim() ? 'cursor-pointer hover:bg-gray-50' : 'cursor-not-allowed opacity-50'
-          }`}
+          className={`flex items-center justify-start gap-3 rounded-lg px-1 transition-colors ${content.trim() ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+            }`}
           onClick={content.trim() ? onAddThread : undefined}
         >
           {/* Avatar */}
@@ -634,11 +642,10 @@ export function PostCard({
             <AvatarImage src={avatar} alt={username} />
             <AvatarFallback>{username[0]}</AvatarFallback>
           </Avatar>
-          <p className={`text-sm transition-colors ${
-            content.trim() 
-              ? 'text-muted-foreground hover:text-foreground' 
-              : 'text-muted-foreground/50'
-          }`}>
+          <p className={`text-sm transition-colors ${content.trim()
+            ? 'text-muted-foreground hover:text-foreground/70'
+            : 'text-muted-foreground/50'
+            }`}>
             Add to threads
           </p>
         </div>

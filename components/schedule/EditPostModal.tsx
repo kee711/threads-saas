@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import useSocialAccountStore from '@/stores/useSocialAccountStore'
 import { Trash2, Calendar as CalendarIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -35,7 +36,9 @@ export function EditPostModal({
   const [editTime, setEditTime] = useState('')
   const [editDate, setEditDate] = useState<Date | undefined>(undefined)
   const [isLoadingThreads, setIsLoadingThreads] = useState(false)
+  const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState(false)
   const timeSectionRef = useRef<HTMLDivElement>(null)
+  const { currentUsername } = useSocialAccountStore()
 
   useEffect(() => {
     async function loadThreadChainData() {
@@ -50,7 +53,7 @@ export function EditPostModal({
       setEditContent(event.title)
       setEditTime(event.time)
       setEditDate(event.date)
-      
+
       // Load complete thread chain data if this is a thread chain
       if (event.is_thread_chain) {
         setIsLoadingThreads(true)
@@ -60,7 +63,7 @@ export function EditPostModal({
           console.log('Loading thread chain for parentId:', parentId, 'event:', event)
           const { data: threadChainData, error } = await getThreadChainByParentId(parentId)
           console.log('Thread chain data received:', threadChainData, 'error:', error)
-          
+
           if (error) {
             console.error('Error loading thread chain:', error)
             // Fallback to single thread
@@ -116,6 +119,55 @@ export function EditPostModal({
       }, 100);
     }
   }, [isOpen]);
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = () => {
+    if (!event) return false
+
+    // Check time change
+    if (editTime !== event.time) return true
+
+    // Check date change
+    if (editDate && event.date) {
+      if (editDate.getTime() !== event.date.getTime()) return true
+    } else if (editDate !== event.date) {
+      return true
+    }
+
+    // Check content changes
+    if (event.is_thread_chain) {
+      // For thread chains, check if any thread content changed
+      const originalThreads = event.threads || [{
+        content: event.title,
+        media_urls: event.media_urls || [],
+        media_type: event.media_type
+      }]
+
+      if (editThreads.length !== originalThreads.length) return true
+
+      for (let i = 0; i < editThreads.length; i++) {
+        if (editThreads[i].content !== originalThreads[i]?.content) return true
+      }
+    } else {
+      // For single posts, check content change
+      if (editContent !== event.title) return true
+    }
+
+    return false
+  }
+
+  // Handle modal close with unsaved changes check
+  const handleModalClose = (open: boolean) => {
+    if (!open && hasUnsavedChanges()) {
+      // If trying to close and there are unsaved changes, show confirmation dialog
+      setIsUnsavedChangesDialogOpen(true)
+      return // Don't close the modal
+    }
+
+    // If no changes or opening modal, proceed normally
+    onOpenChange(open)
+  }
+
 
   const handleSaveChanges = () => {
     if (!event || !editDate) return
@@ -179,107 +231,132 @@ export function EditPostModal({
 
   const handleDelete = () => {
     if (!event) return
-    onOpenChange(false) // 먼저 EditPostModal 닫기
     onEventDelete(event.id) // 삭제 요청
   }
 
   if (!event) return null
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl">Edit content</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={handleModalClose}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Edit content</DialogTitle>
+          </DialogHeader>
 
-        <div className="py-4">
-          {isLoadingThreads ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-muted-foreground">Loading thread chain...</div>
-            </div>
-          ) : event?.is_thread_chain ? (
-            <ThreadChain
-              threads={editThreads}
-              variant="writing"
-              username="내 계정" // TODO: 실제 사용자 이름으로 변경
-              onThreadContentChange={updateThreadContent}
-              onThreadMediaChange={updateThreadMedia}
-              onAddThread={addNewThread}
-              onRemoveThread={removeThread}
-            />
-          ) : (
-            <PostCard
-              variant="writing"
-              username="내 계정" // TODO: 실제 사용자 이름으로 변경
-              content={editContent}
-              onContentChange={setEditContent}
-            />
-          )}
-        </div>
-
-        <div ref={timeSectionRef} className="flex items-center justify-end gap-4 pb-4">
-          <div className="font-medium">일정:</div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  "w-[180px] justify-start text-left font-normal",
-                  !editDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {editDate ? format(editDate, "PPP", { locale: ko }) : <span>날짜 선택</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={editDate}
-                onSelect={setEditDate}
-                initialFocus
+          <div className="py-4">
+            {isLoadingThreads ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-muted-foreground">Loading thread chain...</div>
+              </div>
+            ) : event?.is_thread_chain ? (
+              <ThreadChain
+                threads={editThreads}
+                variant="writing"
+                username={currentUsername || 'Me'}
+                onThreadContentChange={updateThreadContent}
+                onThreadMediaChange={updateThreadMedia}
+                onAddThread={addNewThread}
+                onRemoveThread={removeThread}
               />
-            </PopoverContent>
-          </Popover>
-
-          <Select value={editTime} onValueChange={setEditTime}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="시간 선택" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[200px] overflow-y-auto">
-              {Array.from({ length: 24 }).flatMap((_, hour) =>
-                Array.from({ length: 4 }).map((_, minuteIndex) => {
-                  const minute = minuteIndex * 15
-                  const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-                  return (
-                    <SelectItem key={timeString} value={timeString}>
-                      {timeString}
-                    </SelectItem>
-                  )
-                })
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <DialogFooter className="flex justify-between items-center pt-4 border-t">
-          <div className="flex justify-between w-full">
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Schedule
-            </Button>
-
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveChanges}>
-                Change Schedule
-              </Button>
-            </div>
+            ) : (
+              <PostCard
+                variant="writing"
+                username={currentUsername || 'Me'}
+                content={editContent}
+                onContentChange={setEditContent}
+              />
+            )}
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          <div ref={timeSectionRef} className="flex items-center justify-end gap-4 pb-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-[180px] justify-start text-left font-normal",
+                    !editDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {editDate ? format(editDate, "PPP", { locale: ko }) : <span>날짜 선택</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={editDate}
+                  onSelect={setEditDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Select value={editTime} onValueChange={setEditTime}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="시간 선택" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[200px] overflow-y-auto">
+                {Array.from({ length: 24 }).flatMap((_, hour) =>
+                  Array.from({ length: 4 }).map((_, minuteIndex) => {
+                    const minute = minuteIndex * 15
+                    const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+                    return (
+                      <SelectItem key={timeString} value={timeString}>
+                        {timeString}
+                      </SelectItem>
+                    )
+                  })
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="flex justify-between items-center pt-4 border-t">
+            <div className="flex justify-between w-full">
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Schedule
+              </Button>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => handleModalClose(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveChanges}>
+                  Change Schedule
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUnsavedChangesDialogOpen} onOpenChange={setIsUnsavedChangesDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              You have unsaved changes. Are you sure you want to close?
+              Your changes will not be saved.
+            </p>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsUnsavedChangesDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => {
+              setIsUnsavedChangesDialogOpen(false)
+              onOpenChange(false)
+            }}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 } 

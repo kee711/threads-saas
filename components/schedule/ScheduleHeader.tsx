@@ -45,7 +45,7 @@ export function ScheduleHeader({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between sticky top-0 z-10 bg-white">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between sticky top-0 z-10 pb-4 bg-white">
       {/* View Toggle */}
       <div className="flex items-center gap-2 text-xl font-semibold">
         <button
@@ -70,9 +70,9 @@ export function ScheduleHeader({
       </div>
 
       {/* Right Section */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
         {/* Scheduled & Posted Count */}
-        <div className="flex items-center gap-4 text-sm sm:text-base">
+        <div className="flex items-center gap-3 text-sm sm:text-base">
           <div className="flex items-center gap-2 text-muted-foreground">
             <CalendarIcon className="h-4 w-4" />
             <span>{scheduledCount} Scheduled</span>
@@ -85,14 +85,14 @@ export function ScheduleHeader({
         </div>
 
         {/* Controls */}
-        <div className="flex gap-2 sm:items-center sm:gap-4">
+        <div className="flex gap-2 sm:items-center sm:gap-3">
           {/* Change Publish Time */}
           <ChangePublishTimeDialog />
 
           {/* Month/Date Selector */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 w-full sm:w-auto">
+              <Button variant="outline" className="gap-2 w-full sm:w-auto text-muted-foreground rounded-xl">
                 {view === 'list' && selectedDate
                   ? format(selectedDate, 'yyyy년 MM월 dd일', { locale: ko })
                   : format(month, 'yyyy년 MM월', { locale: ko })}

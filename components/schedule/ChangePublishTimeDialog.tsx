@@ -89,13 +89,13 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
           console.error("Invalid local time format:", localTime);
           return '00:00';
         }
-        
+
         const timeParts = localTime.split(':');
         if (timeParts.length !== 2) {
           console.error("Invalid local time format:", localTime);
           return '00:00';
         }
-        
+
         const [hours, minutes] = timeParts.map(Number)
 
         const date = new Date()
@@ -123,7 +123,7 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant === 'icon' ? 'default' : 'outline'} disabled={ondisabled} className={`flex items-center gap-2 ${variant === 'icon' ? 'h-full w-8 p-0 rounded-l-sm rounded-r-lg bg-black text-white hover:bg-black/90' : ''}`}>
+        <Button variant={variant === 'icon' ? 'default' : 'outline'} disabled={ondisabled} className={`flex items-center gap-2 ${variant === 'icon' ? 'h-full w-8 p-0 rounded-l-sm rounded-r-lg bg-black text-white hover:bg-black/90' : 'text-muted-foreground rounded-xl'}`}>
           {variant === 'icon' ? (
             <Clock className="h-full w-4" />
           ) : (

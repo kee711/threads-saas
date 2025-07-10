@@ -8,7 +8,7 @@ export const config = {
     // 대시보드 관련 경로들
     '/(dashboard)/:path*',
     '/comments/:path*',
-    '/contents-cooker/:path*',
+    '/contents/:path*',
     '/mentions/:path*',
     '/schedule/:path*',
     '/settings/:path*',

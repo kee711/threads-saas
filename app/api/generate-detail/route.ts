@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COMMON_DETAIL_SETTINGS, USER_SETTINGS, GIVEN_TOPIC, GIVEN_INSTRUCTIONS, THREAD_CHAIN_SETTINGS } from '@/app/(dashboard)/contents-cooker/topic-finder/prompts';
+import { COMMON_DETAIL_SETTINGS, USER_SETTINGS, GIVEN_TOPIC, GIVEN_INSTRUCTIONS, THREAD_CHAIN_SETTINGS } from '@/lib/prompts';
 import { handleOptions, handleCors } from '@/lib/utils/cors';
 
 export const runtime = 'edge';
@@ -41,10 +41,10 @@ export async function POST(req: NextRequest) {
     try {
         // Parse the JSON response to get thread chain
         const parsedThreads = JSON.parse(text);
-        
+
         // Ensure it's an array
         const threads = Array.isArray(parsedThreads) ? parsedThreads : [parsedThreads];
-        
+
         const response = NextResponse.json({ threads });
         return handleCors(response);
     } catch (error) {

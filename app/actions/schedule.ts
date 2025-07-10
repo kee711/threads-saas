@@ -103,15 +103,36 @@ export async function deleteSchedule(id: string) {
   try {
     const supabase = await createClient();
 
-    const { error } = await supabase
+    // First, get the record to check if it's part of a thread chain
+    const { data: record } = await supabase
       .from("my_contents")
-      .update({
-        publish_status: "draft",
-        scheduled_at: null,
-      })
-      .eq("id", id);
+      .select("is_thread_chain, parent_media_id")
+      .eq("my_contents_id", id)
+      .single();
 
-    if (error) throw error;
+    if (record?.is_thread_chain && record?.parent_media_id) {
+      // If it's a thread chain, update all threads in the chain
+      const { error } = await supabase
+        .from("my_contents")
+        .update({
+          publish_status: "draft",
+          scheduled_at: null,
+        })
+        .eq("parent_media_id", record.parent_media_id);
+
+      if (error) throw error;
+    } else {
+      // If it's a single post, update only this record
+      const { error } = await supabase
+        .from("my_contents")
+        .update({
+          publish_status: "draft",
+          scheduled_at: null,
+        })
+        .eq("my_contents_id", id);
+
+      if (error) throw error;
+    }
 
     revalidatePath("/schedule");
     return { error: null };

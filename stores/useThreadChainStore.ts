@@ -21,6 +21,7 @@ interface ThreadChainState {
   
   // Add content from external sources
   addContentAsThread: (content: string) => void
+  removeContentFromThread: (content: string) => void
   
   // Pending thread chain (from topic finder)
   pendingThreadChain: ThreadContent[] | null
@@ -85,6 +86,22 @@ const useThreadChainStore = create<ThreadChainState>()(
         return {
           threadChain: [...state.threadChain, { content, media_urls: [], media_type: 'TEXT' }]
         };
+      }),
+
+      // Remove specific content from thread chain
+      removeContentFromThread: (content) => set((state) => {
+        const updatedThreadChain = state.threadChain.filter(thread =>
+          thread.content.trim() !== content.trim()
+        );
+        
+        // If we removed all content, ensure at least one empty thread remains
+        if (updatedThreadChain.length === 0) {
+          return {
+            threadChain: [{ content: '', media_urls: [], media_type: 'TEXT' }]
+          };
+        }
+        
+        return { threadChain: updatedThreadChain };
       }),
 
       // Pending thread chain functionality

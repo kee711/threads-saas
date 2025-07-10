@@ -43,7 +43,7 @@ export default function OnboardingPage() {
       setSocialAccountId(accountId);
     } else {
       // Invalid parameters, redirect to dashboard
-      router.push('/contents-cooker/topic-finder');
+      router.push('/contents/topic-finder');
       return;
     }
 

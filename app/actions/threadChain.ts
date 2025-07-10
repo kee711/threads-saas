@@ -19,8 +19,22 @@ interface ThreadChainResult {
   error?: string;
 }
 
-// Get Threads access token (copied from comment.ts)
-async function getThreadsAccessToken() {
+export interface AuthOptions {
+  accessToken?: string;
+  selectedSocialId?: string;
+}
+
+// Get Threads access token - supports both session-based and provided tokens
+async function getThreadsAccessToken(options?: AuthOptions) {
+  // If tokens are provided (from cron job), use them directly
+  if (options?.accessToken && options?.selectedSocialId) {
+    return {
+      accessToken: options.accessToken,
+      selectedSocialId: options.selectedSocialId
+    };
+  }
+
+  // Fall back to session-based authentication (for user actions)
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.id) {
     throw new Error("로그인이 필요합니다.");
@@ -57,9 +71,9 @@ async function getThreadsAccessToken() {
 }
 
 // Create a regular Threads post using schedule.ts container logic
-async function createThreadsPost(content: string, mediaUrls?: string[], mediaType?: string) {
-  const { accessToken, selectedSocialId } = await getThreadsAccessToken();
-  
+async function createThreadsPost(content: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
+  const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
+
   try {
     // Use createThreadsContainer from schedule.ts for consistent media handling
     const containerParams: PublishPostParams = {
@@ -91,7 +105,7 @@ async function createThreadsPost(content: string, mediaUrls?: string[], mediaTyp
     while (attempt < maxAttempts) {
       console.log(`Attempt ${attempt + 1}: Publishing thread...`);
       try {
-        const publishResponse = await fetch(publishUrl, { 
+        const publishResponse = await fetch(publishUrl, {
           method: "POST",
           body: publishParams
         });
@@ -121,9 +135,9 @@ async function createThreadsPost(content: string, mediaUrls?: string[], mediaTyp
 }
 
 // Create a reply comment with media support using schedule.ts container logic
-async function createThreadsReply(content: string, replyToId: string, mediaUrls?: string[], mediaType?: string) {
-  const { accessToken, selectedSocialId } = await getThreadsAccessToken();
-  
+async function createThreadsReply(content: string, replyToId: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
+  const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
+
   try {
     // If no media, use the existing postComment function
     if (!mediaUrls || mediaUrls.length === 0 || mediaType === 'TEXT') {
@@ -231,7 +245,7 @@ async function createThreadsReply(content: string, replyToId: string, mediaUrls?
     while (attempt < maxAttempts) {
       console.log(`Attempt ${attempt + 1}: Publishing reply...`);
       try {
-        const publishResponse = await fetch(publishUrl, { 
+        const publishResponse = await fetch(publishUrl, {
           method: "POST",
           body: publishParams
         });
@@ -312,8 +326,12 @@ async function saveThreadChainToDatabase(
   return data;
 }
 
+// Function overloads for postThreadChain
+export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadChainResult>;
+export async function postThreadChain(threads: ThreadContent[], options: AuthOptions): Promise<ThreadChainResult>;
+
 // Main function to post thread chain immediately
-export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadChainResult> {
+export async function postThreadChain(threads: ThreadContent[], options?: AuthOptions): Promise<ThreadChainResult> {
   try {
     if (!threads || threads.length === 0) {
       throw new Error('Thread chain cannot be empty');
@@ -327,7 +345,8 @@ export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadC
     const firstResult = await createThreadsPost(
       firstThread.content,
       firstThread.media_urls,
-      firstThread.media_type
+      firstThread.media_type,
+      options
     );
 
     if (!firstResult.success) {
@@ -341,14 +360,14 @@ export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadC
     // This is especially important for posts with media which take longer to process
     const hasMedia = firstThread.media_urls && firstThread.media_urls.length > 0;
     const waitTime = hasMedia ? 30000 : 5000; // 30 seconds for media posts, 5 seconds for text-only
-    
+
     console.log(`Waiting ${waitTime}ms for parent post to be fully processed...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
 
     // Post subsequent threads as replies
     for (let i = 1; i < threads.length; i++) {
       const thread = threads[i];
-      
+
       // Add delay between posts to avoid rate limiting
       if (i > 1) {
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
@@ -359,7 +378,8 @@ export async function postThreadChain(threads: ThreadContent[]): Promise<ThreadC
           thread.content,
           parentThreadId,
           thread.media_urls,
-          thread.media_type
+          thread.media_type,
+          options
         );
 
         // Extract thread ID from reply result if available
@@ -403,7 +423,7 @@ export async function scheduleThreadChain(
     const timestamp = Date.now();
     const randomSuffix = Math.floor(Math.random() * 10000);
     const parentThreadId = `scheduled_${timestamp}_${randomSuffix}`;
-    
+
     // Generate placeholder IDs for all threads
     const threadIds = threads.map((_, index) => `${parentThreadId}_thread_${index}`);
 
@@ -494,7 +514,7 @@ export async function getThreadChains() {
     }
 
     // Get all thread chains
-    const { data, error } = await supabase
+    const { data, error: queryError } = await supabase
       .from('my_contents')
       .select('*')
       .eq('user_id', userId)
@@ -503,8 +523,8 @@ export async function getThreadChains() {
       .order('parent_media_id', { ascending: true })
       .order('thread_sequence', { ascending: true });
 
-    if (error) {
-      throw error;
+    if (queryError) {
+      throw queryError;
     }
 
     // Group by parent_media_id
@@ -522,5 +542,157 @@ export async function getThreadChains() {
   } catch (error) {
     console.error('Error fetching thread chains:', error);
     return { data: null, error };
+  }
+}
+
+// Delete a thread chain by parent_media_id
+export async function deleteThreadChain(parentMediaId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    const supabase = await createClient();
+    const userId = session.user.id;
+
+    // Get selected social account
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('selected_social_id')
+      .eq('user_id', userId)
+      .single();
+
+    const selectedSocialId = profile?.selected_social_id;
+    if (!selectedSocialId) {
+      throw new Error('선택된 소셜 계정이 없습니다.');
+    }
+
+    // Delete all threads in the chain
+    const { error } = await supabase
+      .from('my_contents')
+      .delete()
+      .eq('user_id', userId)
+      .eq('social_id', selectedSocialId)
+      .eq('is_thread_chain', true)
+      .eq('parent_media_id', parentMediaId);
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error deleting thread chain:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// Update a thread chain
+export async function updateThreadChain(
+  parentMediaId: string,
+  threads: ThreadContent[],
+  scheduledAt?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    const supabase = await createClient();
+    const userId = session.user.id;
+
+    // Get selected social account
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('selected_social_id')
+      .eq('user_id', userId)
+      .single();
+
+    const selectedSocialId = profile?.selected_social_id;
+    if (!selectedSocialId) {
+      throw new Error('선택된 소셜 계정이 없습니다.');
+    }
+
+    // Get existing thread chain to preserve media_ids
+    const { data: existingThreads } = await supabase
+      .from('my_contents')
+      .select('my_contents_id, media_id, thread_sequence')
+      .eq('user_id', userId)
+      .eq('social_id', selectedSocialId)
+      .eq('is_thread_chain', true)
+      .eq('parent_media_id', parentMediaId)
+      .order('thread_sequence', { ascending: true });
+
+    // Update existing threads with new content
+    const updatePromises = threads.map(async (thread, index) => {
+      const existingThread = existingThreads?.[index];
+
+      if (existingThread) {
+        // Update existing thread
+        return supabase
+          .from('my_contents')
+          .update({
+            content: thread.content,
+            media_urls: thread.media_urls || [],
+            media_type: thread.media_type || 'TEXT',
+            publish_status: scheduledAt ? 'scheduled' : 'draft',
+            scheduled_at: scheduledAt,
+          })
+          .eq('my_contents_id', existingThread.my_contents_id);
+      } else {
+        // Insert new thread if more threads than before
+        return supabase
+          .from('my_contents')
+          .insert({
+            content: thread.content,
+            media_urls: thread.media_urls || [],
+            media_type: thread.media_type || 'TEXT',
+            user_id: userId,
+            social_id: selectedSocialId,
+            media_id: `${parentMediaId}_thread_${index}`,
+            publish_status: scheduledAt ? 'scheduled' : 'draft',
+            scheduled_at: scheduledAt,
+            parent_media_id: parentMediaId,
+            thread_sequence: index,
+            is_thread_chain: true,
+            created_at: new Date().toISOString(),
+          });
+      }
+    });
+
+    // Delete excess threads if new chain is shorter
+    if (existingThreads && existingThreads.length > threads.length) {
+      const excessThreadIds = existingThreads
+        .slice(threads.length)
+        .map(t => t.my_contents_id);
+
+      await supabase
+        .from('my_contents')
+        .delete()
+        .in('my_contents_id', excessThreadIds);
+    }
+
+    const results = await Promise.all(updatePromises);
+    const errors = results.filter(result => result.error);
+
+    if (errors.length > 0) {
+      throw new Error(`Failed to update some threads: ${errors.map(e => e.error?.message).join(', ')}`);
+    }
+
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error updating thread chain:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ThreadChain } from "@/components/ThreadChain";
 import { cn } from "@/lib/utils";
 import useThreadChainStore from "@/stores/useThreadChainStore";
-import { TextSearch, PencilLine, PanelRightClose, PanelLeftClose, ChevronDown } from "lucide-react";
+import { TextSearch, PencilLine, FileText, PanelRightClose, PanelLeftClose, ChevronDown, FileEdit, Bookmark } from "lucide-react";
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { postThreadChain, scheduleThreadChain, ThreadContent } from "@/app/actions/threadChain";
@@ -593,45 +593,62 @@ function RightSidebarContent({
           </div>
 
           {/* Navigation Buttons */}
-          <div className={cn(
-            "grid gap-2 grid-cols-2"
-          )}>
+          <div className="grid gap-2 grid-cols-3">
             <Link
-              href="/contents-cooker/topic-finder"
+              href="/contents/topic-finder"
               onClick={() => toggleSidebar()}
               className={cn(
                 "flex flex-col items-center p-4 rounded-xl transition-colors",
-                pathname === "/contents-cooker/topic-finder"
+                pathname === "/contents/topic-finder"
                   ? "bg-gray-300 text-gray-900"
                   : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
               )}
             >
               <TextSearch className={cn(
                 "w-6 h-6 mb-2",
-                pathname === "/contents-cooker/topic-finder"
+                pathname === "/contents/topic-finder"
                   ? "text-gray-900"
                   : "text-muted-foreground"
               )} />
               <span className="text-xs">Topic Finder</span>
             </Link>
             <Link
-              href="/contents-cooker/saved"
+              href="/contents/draft"
               onClick={() => toggleSidebar()}
               className={cn(
                 "flex flex-col items-center p-4 rounded-xl transition-colors",
-                pathname === "/contents-cooker/saved"
+                pathname === "/contents/draft"
                   ? "bg-gray-300 text-gray-900"
                   : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
               )}
             >
-              <PencilLine className={cn(
+              <FileText className={cn(
                 "w-6 h-6 mb-2",
-                pathname === "/contents-cooker/saved"
+                pathname === "/contents/draft"
+                  ? "text-gray-900"
+                  : "text-muted-foreground"
+              )} />
+              <span className="text-xs">Draft</span>
+            </Link>
+            <Link
+              href="/contents/saved"
+              onClick={() => toggleSidebar()}
+              className={cn(
+                "flex flex-col items-center p-4 rounded-xl transition-colors",
+                pathname === "/contents/saved"
+                  ? "bg-gray-300 text-gray-900"
+                  : "bg-gray-100 hover:bg-gray-200 text-muted-foreground"
+              )}
+            >
+              <Bookmark className={cn(
+                "w-6 h-6 mb-2",
+                pathname === "/contents/saved"
                   ? "text-gray-900"
                   : "text-muted-foreground"
               )} />
               <span className="text-xs">Saved</span>
             </Link>
+
           </div>
         </div>
       </div>
