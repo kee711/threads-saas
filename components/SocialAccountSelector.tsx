@@ -223,13 +223,13 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
   const selectedAccount = accounts.find(acc => acc.social_id === currentSocialId);
 
   return (
-    <div className="p-0">
+    <div className="p-0 mb-4">
       <Select
         value={currentSocialId || undefined}
         onValueChange={handleAccountSelect}
         disabled={isLoading}
       >
-        <SelectTrigger className="mt-2 p-4 flex justify-between items-center w-full bg-gray-200 dark:bg-gray-900 border-0 rounded-lg">
+        <SelectTrigger className="mt-2 p-4 flex justify-between items-center w-full bg-muted-foreground/10 dark:bg-gray-900 border-0 rounded-xl">
           <div className="flex items-center gap-2">
             {selectedAccount?.threads_profile_picture_url && (
               <img
@@ -238,7 +238,7 @@ export function SocialAccountSelector({ className }: SocialAccountSelectorProps)
                 className="w-6 h-6 rounded-full"
               />
             )}
-            <div className="font-medium text-base">
+            <div className="font-medium text-base text-muted-foreground">
               {selectedAccount
                 ? (selectedAccount.username || selectedAccount.social_id)
                 : '계정 선택'}

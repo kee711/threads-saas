@@ -2,6 +2,26 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { postThreadChain, ThreadContent } from '@/app/actions/threadChain';
 
+// Helper function to fetch access tokens by social_id
+async function getAccessTokenBySocialId(socialId: string): Promise<string | null> {
+  const supabase = await createClient();
+  
+  const { data: account, error } = await supabase
+    .from('social_accounts')
+    .select('access_token')
+    .eq('social_id', socialId)
+    .eq('platform', 'threads')
+    .eq('is_active', true)
+    .single();
+
+  if (error) {
+    console.error(`Error fetching access token for social_id ${socialId}:`, error);
+    return null;
+  }
+
+  return account?.access_token || null;
+}
+
 // Helper function to rebuild thread chains from database records
 function rebuildThreadChains(records: any[]): Record<string, ThreadContent[]> {
   const threadChains: Record<string, ThreadContent[]> = {};
@@ -77,8 +97,25 @@ export async function POST() {
         try {
           console.log(`🔄 Processing thread chain [${parentId}] with ${threadChain.length} threads`);
 
-          // Use existing postThreadChain function
-          const threadChainResult = await postThreadChain(threadChain);
+          // Get social_id from the first record of this chain
+          const chainRecord = threadChainRecords.find(r => r.parent_media_id === parentId);
+          const socialId = chainRecord?.social_id;
+          
+          if (!socialId) {
+            throw new Error(`No social_id found for thread chain ${parentId}`);
+          }
+
+          // Fetch access token for this social account
+          const accessToken = await getAccessTokenBySocialId(socialId);
+          if (!accessToken) {
+            throw new Error(`No access token found for social_id ${socialId}`);
+          }
+
+          // Use existing postThreadChain function with auth options
+          const threadChainResult = await (postThreadChain as any)(
+            threadChain, 
+            { accessToken, selectedSocialId: socialId }
+          );
 
           if (threadChainResult.success) {
             console.log(`✅ Thread chain posted successfully: ${threadChainResult.parentThreadId}`);
@@ -115,14 +152,23 @@ export async function POST() {
       try {
         console.log(`🔄 Processing single post [${post.my_contents_id}]: ${post.media_type}`);
 
-        // Use existing postThreadChain function with single thread
-        const threadChainResult = await postThreadChain([
-          {
-            content: post.content,
-            media_urls: post.media_urls || [],
-            media_type: post.media_type || 'TEXT'
-          }
-        ]);
+        // Fetch access token for this social account
+        const accessToken = await getAccessTokenBySocialId(post.social_id);
+        if (!accessToken) {
+          throw new Error(`No access token found for social_id ${post.social_id}`);
+        }
+
+        // Use existing postThreadChain function with single thread and auth options
+        const threadChainResult = await (postThreadChain as any)(
+          [
+            {
+              content: post.content,
+              media_urls: post.media_urls || [],
+              media_type: post.media_type || 'TEXT'
+            }
+          ], 
+          { accessToken, selectedSocialId: post.social_id }
+        );
 
         if (threadChainResult.success) {
           console.log(`✅ Single post published successfully: ${threadChainResult.parentThreadId}`);

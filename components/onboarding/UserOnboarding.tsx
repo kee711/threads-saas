@@ -240,7 +240,7 @@ export function UserOnboarding({ onComplete }: UserOnboardingProps) {
               </Button>
             )}
             <Button
-              onClick={currentStep === 4 ? () => window.location.href = '/contents-cooker/topic-finder' : handleNext}
+              onClick={currentStep === 4 ? () => window.location.href = '/contents/topic-finder' : handleNext}
               disabled={!canProceed}
               className="flex items-center gap-2"
             >

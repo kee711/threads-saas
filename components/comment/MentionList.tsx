@@ -187,17 +187,17 @@ export function MentionList() {
         console.log('Unreplied mentions:', unrepliedMentions.length);
 
         if (unrepliedMentions.length === 0) {
-            toast.info("모든 멘션에 이미 답글이 작성되었습니다.");
+            toast.info("All mentions have been replied to.");
             return;
         }
 
-        toast.info("Writing replies to all mentions...");
+        toast.info("Drafting replies to all mentions...");
 
         for (const mention of unrepliedMentions) {
             await generateAIReply(mention.text, mention.id);
         }
 
-        toast.success("Completed writing!");
+        toast.success("Completed drafting!");
     };
 
     // Handle sending reply
@@ -268,7 +268,7 @@ export function MentionList() {
                                 </p>
                             </div>
                             <Link
-                                href="/contents-cooker/topic-finder"
+                                href="/contents/topic-finder"
                                 className="bg-zinc-100 border border-muted-foreground/10 rounded-lg px-3 py-2 flex items-center justify-center gap-2.5 cursor-pointer hover:bg-zinc-200 transition-colors"
                             >
                                 <span className="text-black text-sm font-medium">
@@ -301,7 +301,7 @@ export function MentionList() {
                                 </p>
                             </div>
                             <Link
-                                href="/contents-cooker/topic-finder"
+                                href="/contents/topic-finder"
                                 className="bg-zinc-100 border border-muted-foreground/10 rounded-lg px-3 py-2 flex items-center justify-center gap-2.5 cursor-pointer hover:bg-zinc-200 transition-colors"
                             >
                                 <span className="text-black text-sm font-medium">
@@ -331,7 +331,7 @@ export function MentionList() {
                         className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
                     >
                         <Sparkles className="w-4 h-4" />
-                        <span className="text-base font-medium">Write all replies</span>
+                        <span className="text-base font-medium">Draft all replies</span>
                     </Button>
                 </div>
 
@@ -409,9 +409,6 @@ export function MentionList() {
                                             className={`bg-black hover:bg-gray-800 text-white rounded-full h-[34px] px-2.5 flex items-center gap-1 flex-shrink-0 ${aiGenerating[mention.id] ? 'animate-pulse' : ''}`}
                                         >
                                             <Sparkles className="w-4 h-4" />
-                                            <span className="text-base font-medium">
-                                                {aiGenerating[mention.id] ? 'AI...' : 'AI'}
-                                            </span>
                                         </Button>
 
                                         <Button

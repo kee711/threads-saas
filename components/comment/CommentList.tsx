@@ -226,17 +226,17 @@ export function CommentList() {
         const unrepliedComments = currentPostComments.filter(c => !c.is_replied);
 
         if (unrepliedComments.length === 0) {
-            toast.info("모든 댓글에 이미 답글이 작성되었습니다.");
+            toast.info("All comments have been replied to.");
             return;
         }
 
-        toast.info("Writing replies to all comments...");
+        toast.info("Drafting replies to all comments...");
 
         for (const comment of unrepliedComments) {
             await generateAIReply(comment.text, comment.id);
         }
 
-        toast.success("Completed writing!");
+        toast.success("Completed drafting!");
     };
 
     // Handle post click with dynamic positioning
@@ -284,7 +284,7 @@ export function CommentList() {
 
                             {/* Get Ideas Button */}
                             <Link
-                                href="/contents-cooker/topic-finder"
+                                href="/contents/topic-finder"
                                 className="bg-zinc-100 border border-muted-foreground/10 rounded-lg px-3 py-2 flex items-center justify-center gap-2.5 cursor-pointer hover:bg-zinc-200 transition-colors"
                             >
                                 <span className="text-black text-sm font-medium">
@@ -379,7 +379,7 @@ export function CommentList() {
                                     className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700"
                                 >
                                     <Sparkles className="w-4 h-4" />
-                                    <span className="text-base font-medium">Write all replies</span>
+                                    <span className="text-base font-medium">Draft all replies</span>
                                 </Button>
                             </div>
 
@@ -467,9 +467,6 @@ export function CommentList() {
                                                                 className={`bg-black hover:bg-gray-800 text-white rounded-full h-[34px] px-2.5 flex items-center gap-1 flex-shrink-0 ${aiGenerating[comment.id] ? 'animate-pulse' : ''}`}
                                                             >
                                                                 <Sparkles className="w-4 h-4" />
-                                                                <span className="text-base font-medium">
-                                                                    AI
-                                                                </span>
                                                             </Button>
 
                                                             <Button
