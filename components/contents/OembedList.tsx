@@ -29,6 +29,7 @@ export function OembedList() {
   const { currentSocialId } = useSocialAccountStore();
   const [addedContentMap, setAddedContentMap] = useState<Map<string, string>>(new Map());
   const [convertingPosts, setConvertingPosts] = useState<{ [key: string]: boolean }>({});
+  const [storeRehydrated, setStoreRehydrated] = useState(false);
 
   function getSrcDocWithAutoResize(html: string, id: string) {
     // id로 구분(여러 개 있을 때)
@@ -50,20 +51,37 @@ export function OembedList() {
     `;
   }
 
+  // Store rehydration 체크
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setStoreRehydrated(true);
+    }, 500); // 500ms 후에 store가 rehydrate 되었다고 가정
+
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     // 로그인 상태 확인
     if (status === 'loading') return; // 로딩 중에는 실행하지 않음
     if (status === 'unauthenticated') {
       setContents([]);
+      setLoading(false);
       return;
     }
 
     async function fetchData() {
       try {
         if (!currentSocialId) {
+          // Store가 아직 rehydrate되지 않았다면 기다림
+          if (!storeRehydrated) {
+            return;
+          }
+          // Store가 rehydrate되었는데도 currentSocialId가 없다면 에러 표시
           setFetchError("소셜 계정을 선택해주세요");
+          setLoading(false);
           return;
         }
+        setFetchError(""); // 이전 에러 클리어
         const result = await getOembedContents(currentSocialId);
         setContents(result);
       } catch (err) {
@@ -75,7 +93,7 @@ export function OembedList() {
     };
 
     fetchData();
-  }, [status, currentSocialId]);
+  }, [status, currentSocialId, storeRehydrated]);
 
   const handleAddPost = async (content: OembedContent) => {
     try {
@@ -101,14 +119,14 @@ export function OembedList() {
     if (!addedContentMap.has(contentId)) {
       return false;
     }
-    
+
     const contentText = addedContentMap.get(contentId)!;
-    
+
     // Check if the content still exists in threadChain
-    const contentExists = threadChain.some(thread => 
+    const contentExists = threadChain.some(thread =>
       thread.content.trim() === contentText.trim()
     );
-    
+
     // If content doesn't exist in threadChain anymore, remove it from our tracking map
     if (!contentExists) {
       setAddedContentMap(prev => {
@@ -118,7 +136,7 @@ export function OembedList() {
       });
       return false;
     }
-    
+
     return true;
   };
 
@@ -128,7 +146,7 @@ export function OembedList() {
     setAddedContentMap(prev => {
       const newMap = new Map();
       prev.forEach((contentText, contentId) => {
-        const stillExists = threadChain.some(thread => 
+        const stillExists = threadChain.some(thread =>
           thread.content.trim() === contentText.trim()
         );
         if (stillExists) {
@@ -175,18 +193,17 @@ export function OembedList() {
   return (
     <div className="columns-2 gap-6 flex-1 overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] scroll-pb-96 min-h-0">
       {contents.map((content) => (
-        <div 
-          key={content.id} 
-          className={`break-inside-avoid mb-6 ${
-            isContentAddedToThreadChain(content.id) 
-              ? "bg-white rounded-[20px] p-5 border-2 border-green-200" 
-              : "bg-white rounded-[20px] p-5"
-          }`}
+        <div
+          key={content.id}
+          className={`break-inside-avoid mb-6 ${isContentAddedToThreadChain(content.id)
+            ? "bg-white rounded-[20px] p-5 border-muted border"
+            : "bg-white rounded-[20px] p-5"
+            }`}
         >
           <iframe
             key={content.id}
             ref={el => { iframeRefs.current[content.id] = el; }}
-            className="max-w-full rounded-[12px] overflow-hidden"
+            className=""
             srcDoc={getSrcDocWithAutoResize(content.html, content.id)}
             style={{
               width: "100%",
@@ -197,7 +214,7 @@ export function OembedList() {
             sandbox="allow-scripts allow-same-origin"
             loading="lazy"
           />
-          <div className="flex justify-end items-end mt-4">
+          <div className="flex justify-end items-end -mt-4">
             <Button
               variant="outline"
               size="default"

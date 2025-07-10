@@ -20,7 +20,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/schedule/:path*',
-    '/contents-cooker/:path*',
+    '/contents/:path*',
     '/statistics/:path*',
     '/comments/:path*',
     // 로그인이 필요한 다른 경로들 추가

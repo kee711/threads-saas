@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Newspaper,
   FileEdit,
+  FileText,
   Calendar,
   BarChart2,
   MessageSquare,
@@ -19,7 +20,8 @@ import {
   Flame,
   X,
   MessageSquareReply,
-  AtSign
+  AtSign,
+  Bookmark
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -112,9 +114,10 @@ export function Sidebar({ className }: SidebarProps) {
       icon: FileEdit,
       isExpandable: true,
       subItems: [
-        { name: 'Topic Finder', href: '/contents-cooker/topic-finder', icon: TrendingUp },
-        // { name: 'Post Radar', href: '/contents-cooker/post-radar', icon: Newspaper },
-        { name: 'Saved', href: '/contents-cooker/saved', icon: FileEdit },
+        { name: 'Topic Finder', href: '/contents/topic-finder', icon: TrendingUp },
+        // { name: 'Post Radar', href: '/contents/post-radar', icon: Newspaper },
+        { name: 'Draft', href: '/contents/draft', icon: FileText },
+        { name: 'Saved', href: '/contents/saved', icon: Bookmark },
       ],
     },
     {
@@ -152,7 +155,7 @@ export function Sidebar({ className }: SidebarProps) {
     <>
       {/* 데스크톱 사이드바 */}
       <div className={cn(
-        "w-[250px] hidden md:block",
+        "w-[224px] hidden md:block",
         className
       )}>
         <SidebarContent
@@ -241,7 +244,7 @@ function SidebarContent({
         <Link className={cn(
           "mb-4 px-3 py-2",
           isMobile ? "mt-1" : "mt-2"
-        )} href="/contents-cooker/topic-finder" onClick={onLinkClick}>
+        )} href="/contents/topic-finder" onClick={onLinkClick}>
           <Image
             src={logoSrc}
             alt="Logo"
@@ -251,7 +254,7 @@ function SidebarContent({
         </Link>
 
         {/* 소셜 계정 전환 dropdown */}
-        <div className="border-t border-slate-300 mb-4">
+        <div className="mb-4">
           <SocialAccountSelector />
         </div>
 
@@ -266,11 +269,11 @@ function SidebarContent({
                   {/* Dropdown trigger button */}
                   <Button
                     variant="ghost"
-                    className="w-full justify-between font-normal px-3"
+                    className="w-full justify-between font-normal px-3 text-sm text-muted-foreground"
                     onClick={() => toggleItem(item.name)}
                   >
                     <div className="flex items-center">
-                      <item.icon className="mr-3 h-5 w-5" />
+                      <item.icon className="mr-3 h-4 w-4" />
                       {item.name}
                     </div>
                     <ChevronDown
@@ -292,13 +295,13 @@ function SidebarContent({
                         href={subItem.href}
                         onClick={onLinkClick}
                         className={cn(
-                          "flex items-center rounded-lg px-6 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                          "flex items-center rounded-xl px-6 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted-foreground/10 hover:text-accent-foreground",
                           pathname === subItem.href
                             ? "bg-accent text-accent-foreground"
                             : "transparent"
                         )}
                       >
-                        <subItem.icon className="mr-3 h-5 w-5" />
+                        <subItem.icon className="mr-3 h-4 w-4" />
                         {subItem.name}
                       </Link>
                     ))}
@@ -317,13 +320,13 @@ function SidebarContent({
                 href={item.href}
                 onClick={onLinkClick}
                 className={cn(
-                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  "flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted-foreground/10 hover:text-accent-foreground",
                   pathname === item.href
                     ? "bg-accent text-accent-foreground"
                     : "transparent"
                 )}
               >
-                <item.icon className="mr-3 h-5 w-5" />
+                <item.icon className="mr-3 h-4 w-4" />
                 {item.name}
               </Link>
             );

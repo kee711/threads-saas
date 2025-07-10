@@ -10,7 +10,7 @@ import { checkOnboardingStatus } from '@/lib/utils/onboarding'
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/contents-cooker/topic-finder'
+  const callbackUrl = searchParams.get('callbackUrl') || '/contents/topic-finder'
   const { data: session, status } = useSession()
 
   // 세션이 있으면 온보딩 상태 확인 후 리다이렉트

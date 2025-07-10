@@ -8,14 +8,17 @@ import { getContents } from '@/app/actions/content';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
 import useSocialAccountStore from '@/stores/useSocialAccountStore';
+import { Button } from '../ui/button';
+import Link from 'next/link';
 
 export function ContentList({ category, title }: ContentListProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { addContentAsThread, threadChain } = useThreadChainStore();
+  const { addContentAsThread, removeContentFromThread, threadChain } = useThreadChainStore();
   const [addedContentMap, setAddedContentMap] = useState<Map<string, string>>(new Map());
   const { currentSocialId } = useSocialAccountStore();
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   // 🔐 사용자 세션 확인
   const { data: session, status } = useSession();
@@ -112,22 +115,46 @@ export function ContentList({ category, title }: ContentListProps) {
     return true;
   };
 
-  // Clean up tracking map when threadChain changes
+  // Clean up tracking map when threadChain changes and sync with selectedItems
   useEffect(() => {
     // Remove content IDs from tracking map if their content no longer exists in threadChain
     setAddedContentMap(prev => {
       const newMap = new Map();
+      const removedContentIds = new Set<string>();
+
       prev.forEach((contentText, contentId) => {
         const stillExists = threadChain.some(thread =>
           thread.content.trim() === contentText.trim()
         );
         if (stillExists) {
           newMap.set(contentId, contentText);
+        } else {
+          removedContentIds.add(contentId);
         }
       });
+
+      // Update selectedItems to remove items that are no longer in threadChain
+      if (removedContentIds.size > 0) {
+        setSelectedItems(prevSelected => {
+          const newSelected = new Set(prevSelected);
+          removedContentIds.forEach(id => {
+            newSelected.delete(id);
+            // Also check for thread chain parent IDs
+            const threadChainEntry = Object.entries(groupContents(contents).threadChains)
+              .find(([, chainContents]) =>
+                chainContents.some(c => c.my_contents_id === id)
+              );
+            if (threadChainEntry) {
+              newSelected.delete(threadChainEntry[0]);
+            }
+          });
+          return newSelected;
+        });
+      }
+
       return newMap;
     });
-  }, [threadChain]);
+  }, [threadChain, contents]);
 
   // 로그인하지 않은 경우 메시지 표시
   if (status === 'unauthenticated') {
@@ -142,28 +169,74 @@ export function ContentList({ category, title }: ContentListProps) {
 
   const { singlePosts, threadChains } = groupContents(contents);
 
+
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex-1 flex flex-col gap-3 items-center justify-center rounded-[20px] min-h-0">
+        <div className="w-10 h-10 text-muted-foreground/30 animate-spin">
+          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="text-muted-foreground">Loading contents...</div>
+      </div>
+    );
+  }
+  if (!isLoading && contents.length === 0) {
+    return (
+      <div className="h-full w-full flex-1 flex flex-col gap-3 items-center justify-center rounded-[20px] min-h-0">
+        <div className="text-muted-foreground">No contents found for {category}.</div>
+        <Link href="/contents/topic-finder" className="flex justify-center">
+          <Button variant="outline" className="w-full bg-accent rounded-xl">
+            Add content
+          </Button>
+        </Link>
+      </div>
+    );
+  }
   return (
     <div className="h-full w-full overflow-hidden flex flex-col">
       {/* 컨텐츠 목록 */}
       {isExpanded && (
         <div className="columns-2 gap-6 flex-1 overflow-y-scroll [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] scroll-pb-96 min-h-0">
-          {isLoading ? (
-            <div key={category} className="text-center text-muted-foreground">
-              Loading...
-            </div>
-          ) : contents.length > 0 ? (
+          {contents.length > 0 && (
             <>
               {/* 단일 포스트 렌더링 */}
               {singlePosts.map((content) => (
                 <div
                   key={content.my_contents_id}
-                  className="bg-white rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid cursor-pointer hover:bg-gray-50 transition-colors"
+                  className={`rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid cursor-pointer transition-colors ${selectedItems.has(content.my_contents_id) ? "bg-accent border-muted-foreground" : "bg-white"}`}
                   onClick={() => {
-                    if (!isContentAddedToThreadChain(content.my_contents_id, content.content)) {
-                      addContentAsThread(content.content);
-                      // Map content ID to its content text for tracking
-                      setAddedContentMap(prev => new Map([...prev, [content.my_contents_id, content.content]]));
-                      toast.success('Content added to thread chain');
+                    const isCurrentlySelected = selectedItems.has(content.my_contents_id);
+                    const isAlreadyAdded = isContentAddedToThreadChain(content.my_contents_id, content.content);
+
+                    if (isCurrentlySelected) {
+                      // 선택 해제 및 thread chain에서 제거
+                      setSelectedItems(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(content.my_contents_id);
+                        return newSet;
+                      });
+
+                      if (isAlreadyAdded) {
+                        // thread chain에서 해당 콘텐츠 제거
+                        removeContentFromThread(content.content);
+                        setAddedContentMap(prev => {
+                          const newMap = new Map(prev);
+                          newMap.delete(content.my_contents_id);
+                          return newMap;
+                        });
+                        toast.success('Content removed from thread chain');
+                      }
+                    } else {
+                      // 선택 및 thread chain에 추가
+                      setSelectedItems(prev => new Set([...prev, content.my_contents_id]));
+
+                      if (!isAlreadyAdded) {
+                        addContentAsThread(content.content);
+                        setAddedContentMap(prev => new Map([...prev, [content.my_contents_id, content.content]]));
+                        toast.success('Content added to thread chain');
+                      }
                     }
                   }}
                 >
@@ -181,25 +254,50 @@ export function ContentList({ category, title }: ContentListProps) {
 
               {/* 스레드 체인 렌더링 */}
               {Object.entries(threadChains).map(([parentId, chainContents]) => (
-                <div key={parentId} className="bg-white rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid">
-                  <div className="space-y-4">
+                <div key={parentId} className={`rounded-[20px] p-5 flex flex-col h-fit mb-6 break-inside-avoid cursor-pointer ${selectedItems.has(parentId) ? "bg-accent border-muted-foreground" : "bg-white"}`}>
+                  <div>
                     {/* Individual Thread Posts */}
                     {chainContents.map((content, index) => (
                       <div key={`${parentId}-${index}`} className="relative">
                         <div
-                          className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                          className={`transition-colors`}
                           onClick={() => {
-                            // Add entire thread chain if not already added
+                            const isCurrentlySelected = selectedItems.has(parentId);
                             const isAnyThreadAdded = chainContents.some(c =>
                               isContentAddedToThreadChain(c.my_contents_id, c.content)
                             );
 
-                            if (!isAnyThreadAdded) {
-                              chainContents.forEach(c => {
-                                addContentAsThread(c.content);
-                                setAddedContentMap(prev => new Map([...prev, [c.my_contents_id, c.content]]));
+                            if (isCurrentlySelected) {
+                              // 선택 해제 및 thread chain에서 제거
+                              setSelectedItems(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(parentId);
+                                return newSet;
                               });
-                              toast.success('Thread chain added to thread chain');
+
+                              if (isAnyThreadAdded) {
+                                // Remove all threads from thread chain
+                                chainContents.forEach(c => {
+                                  removeContentFromThread(c.content);
+                                  setAddedContentMap(prev => {
+                                    const newMap = new Map(prev);
+                                    newMap.delete(c.my_contents_id);
+                                    return newMap;
+                                  });
+                                });
+                                toast.success('Thread chain removed from thread chain');
+                              }
+                            } else {
+                              // 선택 및 thread chain에 추가
+                              setSelectedItems(prev => new Set([...prev, parentId]));
+
+                              if (!isAnyThreadAdded) {
+                                chainContents.forEach(c => {
+                                  addContentAsThread(c.content);
+                                  setAddedContentMap(prev => new Map([...prev, [c.my_contents_id, c.content]]));
+                                });
+                                toast.success('Thread chain added to thread chain');
+                              }
                             }
                           }}
                         >
@@ -212,26 +310,20 @@ export function ContentList({ category, title }: ContentListProps) {
                             threadIndex={index}
                             hideAddButton={true}
                             showGrade={false}
+                            isLastInChain={index === chainContents.length - 1}
                             isSelected={chainContents.some(c => isContentAddedToThreadChain(c.my_contents_id, c.content))}
                           />
                         </div>
-                        {/* Connecting line for threads */}
-                        {index < chainContents.length - 1 && (
-                          <div className="absolute left-1 top-8 w-0.5 h-6 bg-gray-300"></div>
-                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
             </>
-          ) : (
-            <div key={category} className="text-center text-muted-foreground">
-              {category}에 대한 컨텐츠를 찾을 수 없습니다.
-            </div>
           )}
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 } 

@@ -111,7 +111,7 @@ export function OnboardingModal({ open, onClose, socialAccountId }: OnboardingMo
             onClose();
 
             // '/contents-cooker/topic-finder'로 리다이렉트
-            router.push('/contents-cooker/topic-finder');
+            router.push('/contents/topic-finder');
         } catch (error) {
             console.error('온보딩 저장 오류:', error);
             toast.error('온보딩 정보 저장 중 오류가 발생했습니다.');
