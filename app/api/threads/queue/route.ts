@@ -7,7 +7,7 @@ import { ThreadQueue } from '@/lib/services/threadQueue';
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Starting queue processing...');
+    console.log('📝 [API] Queue processing request received');
     
     const queue = ThreadQueue.getInstance();
     await queue.processQueue();
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       message: 'Queue processing completed'
     });
   } catch (error) {
-    console.error('Queue processing error:', error);
+    console.error('❌ [API] Queue processing error:', error);
     return NextResponse.json(
       { 
         success: false, 
@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    console.log('📝 [API] Queue cleanup request received');
+    
     const queue = ThreadQueue.getInstance();
     await queue.cleanupQueue();
     
@@ -41,7 +43,34 @@ export async function DELETE(request: NextRequest) {
       message: 'Queue cleanup completed'
     });
   } catch (error) {
-    console.error('Queue cleanup error:', error);
+    console.error('❌ [API] Queue cleanup error:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * 큐 상태 조회를 위한 엔드포인트
+ */
+export async function GET(request: NextRequest) {
+  try {
+    console.log('📝 [API] Queue status request received');
+    
+    const queue = ThreadQueue.getInstance();
+    const status = await queue.getQueueStatus();
+    
+    return NextResponse.json({
+      success: true,
+      status,
+      message: 'Queue status retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ [API] Queue status error:', error);
     return NextResponse.json(
       { 
         success: false, 
