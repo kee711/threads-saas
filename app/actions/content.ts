@@ -94,8 +94,8 @@ export async function getContents(params?: {
       query = query.eq('publish_status', 'draft')
       console.log("query data : \n\n\n\n\n", query)
     } else {
-      // saved가 아닌 경우에만 scheduled, posted로 필터링
-      query = query.in('publish_status', ['scheduled', 'posted'])
+      // saved가 아닌 경우에만 scheduled, posted, failed로 필터링
+      query = query.in('publish_status', ['scheduled', 'posted', 'failed'])
     }
 
     const { data, error } = await query
@@ -126,9 +126,17 @@ export async function updateContent(id: string, content: Partial<Content>) {
     const supabase = await createClient()
     const userId = session.user.id
 
+    // 업데이트할 데이터 준비
+    const updateData = { ...content }
+    
+    // scheduled_at이 제공되고 현재 상태가 failed인 경우 scheduled로 변경
+    if (content.scheduled_at) {
+      updateData.publish_status = 'scheduled'
+    }
+
     const { data, error } = await supabase
       .from('my_contents')
-      .update(content)
+      .update(updateData)
       .eq('my_contents_id', id)
       .eq('user_id', userId) // 🔒 RLS: 자신의 데이터만 수정 가능
       .select()
