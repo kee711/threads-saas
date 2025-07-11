@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { authOptions } from "@/lib/auth/authOptions";
 import { getServerSession } from "next-auth/next";
+import { decryptToken } from '@/lib/utils/crypto';
 import { ContentItem } from "@/components/contents-helper/types";
 import axios from 'axios';
 
@@ -53,10 +54,13 @@ export async function getThreadsAccessToken() {
     .eq('is_active', true)
     .single();
 
-  const accessToken = account?.access_token;
-  if (!accessToken) {
+  const encryptedToken = account?.access_token;
+  if (!encryptedToken) {
     throw new Error('Threads access token이 없습니다.');
   }
+
+  // 토큰 복호화
+  const accessToken = decryptToken(encryptedToken);
   return accessToken;
 }
 
@@ -205,10 +209,13 @@ export async function postComment({ media_type, text, reply_to_id }: PostComment
       .eq('is_active', true)
       .single();
 
-    const token = account?.access_token;
-    if (!token) {
+    const encryptedToken = account?.access_token;
+    if (!encryptedToken) {
       throw new Error('Threads access token이 없습니다.');
     }
+
+    // 토큰 복호화
+    const token = decryptToken(encryptedToken);
 
     // 댓글 media container 생성
     const payload = new URLSearchParams({

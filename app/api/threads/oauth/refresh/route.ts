@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
+import { encryptToken, decryptToken } from "@/lib/utils/crypto";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -21,16 +22,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not connected" }, { status: 400 });
   }
 
+  // 토큰 복호화
+  const decryptedToken = decryptToken(acct.access_token);
+
   const now = Date.now();
   const updatedAt = new Date(acct.updated_at).getTime();
   // only refresh once per 24h
   if (now - updatedAt < 24 * 3600 * 1000) {
-    return NextResponse.json({ access_token: acct.access_token });
+    return NextResponse.json({ access_token: decryptedToken });
   }
 
   // call the refresh endpoint
   const refreshRes = await fetch(
-    `https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${acct.access_token}`
+    `https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${decryptedToken}`
   );
   const refreshData = await refreshRes.json();
 
@@ -63,14 +67,15 @@ export async function GET(req: NextRequest) {
     }
 
     // 기타 에러의 경우 기존 토큰 반환
-    return NextResponse.json({ access_token: acct.access_token });
+    return NextResponse.json({ access_token: decryptedToken });
   }
 
   const newExpiresAt = new Date(Date.now() + Number(refreshData.expires_in) * 1000).toISOString();
+  const encryptedNewToken = encryptToken(refreshData.access_token);
   await supabase
     .from("social_accounts")
     .update({
-      access_token: refreshData.access_token,
+      access_token: encryptedNewToken,
       expires_at: newExpiresAt,
       updated_at: new Date().toISOString(),
     })

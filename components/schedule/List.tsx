@@ -34,7 +34,7 @@ export function List({
   const allDates = eachDayOfInterval({ start: startDate, end: endDate })
 
   const handleEventClick = (event: Event) => {
-    if (event.status === 'scheduled') {
+    if (event.status === 'scheduled' || event.status === 'failed') {
       setSelectedEvent(event)
       setIsEditModalOpen(true)
     }

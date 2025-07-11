@@ -251,7 +251,14 @@ export function EditPostModal({
       <Dialog open={isOpen} onOpenChange={handleModalClose}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl">Edit content</DialogTitle>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              Edit content
+              {event.status === 'failed' && (
+                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                  Failed - Will reschedule on save
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="py-4">
