@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth/authOptions';
 import puppeteer from "puppeteer";
 import { ContentItem } from '@/components/contents-helper/types';
+import { decryptToken } from '@/lib/utils/crypto';
 
 interface OembedContent {
   id: string;
@@ -45,10 +46,13 @@ export async function fetchOembedContents(content_url: string) {
     .eq('is_active', true)
     .single();
 
-  const accessToken = account?.access_token;
-  if (!accessToken) {
+  const encryptedToken = account?.access_token;
+  if (!encryptedToken) {
     throw new Error('Threads access token이 없습니다.');
   }
+
+  // 토큰 복호화
+  const accessToken = decryptToken(encryptedToken);
 
   // oembed API 요청
   const url = `https://graph.threads.net/oembed?url=${content_url}&access_token=${accessToken}`;
