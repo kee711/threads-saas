@@ -56,6 +56,8 @@ export class ThreadQueue {
     const supabase = await createClient();
     const currentTime = getCurrentUTCISO();
 
+    console.log(`🔄 [QUEUE] Enqueueing thread chain [${parentMediaId}] with ${threads.length} items`);
+
     // 큐 아이템들을 생성
     const queueItems: QueuedThread[] = threads.map((thread, index) => ({
       id: `${parentMediaId}_${index}`,
@@ -95,9 +97,11 @@ export class ThreadQueue {
       })));
 
     if (error) {
-      console.error('Failed to enqueue thread chain:', error);
+      console.error('❌ [QUEUE] Failed to enqueue thread chain:', error);
       throw new Error('Failed to enqueue thread chain');
     }
+
+    console.log(`✅ [QUEUE] Successfully enqueued ${threads.length} items for chain [${parentMediaId}]`);
 
     // 첫 번째 스레드가 완료되었으므로 큐 처리 시작
     if (firstThreadId) {
@@ -110,14 +114,16 @@ export class ThreadQueue {
    */
   async processQueue(): Promise<void> {
     if (this.processing) {
+      console.log(`⏳ [QUEUE] Already processing queue, skipping...`);
       return;
     }
 
     this.processing = true;
+    console.log(`🚀 [QUEUE] Starting queue processing...`);
 
     try {
       const supabase = await createClient();
-      
+
       // 대기 중인 항목들을 가져옴
       const { data: pendingItems, error } = await supabase
         .from('thread_queue')
@@ -127,17 +133,25 @@ export class ThreadQueue {
         .limit(this.MAX_CONCURRENT);
 
       if (error) {
-        console.error('Failed to fetch pending queue items:', error);
+        console.error('❌ [QUEUE] Failed to fetch pending queue items:', error);
         return;
       }
 
       if (!pendingItems || pendingItems.length === 0) {
+        console.log(`✅ [QUEUE] No pending items found`);
         return;
       }
 
+      console.log(`📋 [QUEUE] Found ${pendingItems.length} pending items to process`);
+
       // 병렬 처리
       const processPromises = pendingItems.map(item => this.processQueueItem(item));
-      await Promise.allSettled(processPromises);
+      const results = await Promise.allSettled(processPromises);
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failureCount = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`📊 [QUEUE] Batch processing completed - Success: ${successCount}, Failed: ${failureCount}`);
 
       // 더 처리할 항목이 있는지 확인
       const { data: remainingItems } = await supabase
@@ -147,8 +161,10 @@ export class ThreadQueue {
         .limit(1);
 
       if (remainingItems && remainingItems.length > 0) {
-        // 잠시 대기 후 다시 처리
+        console.log(`🔄 [QUEUE] More items found, scheduling next batch in 2 seconds...`);
         setTimeout(() => this.processQueue(), 2000);
+      } else {
+        console.log(`✅ [QUEUE] All items processed successfully`);
       }
     } finally {
       this.processing = false;
@@ -177,6 +193,8 @@ export class ThreadQueue {
       maxRetries: item.max_retries
     };
 
+    console.log(`🔄 [QUEUE] Processing item [${queueItem.id}] - Sequence: ${queueItem.threadSequence}`);
+
     try {
       // 상태를 processing으로 변경
       await supabase
@@ -188,6 +206,8 @@ export class ThreadQueue {
       const result = await this.postThread(queueItem);
 
       if (result.success) {
+        console.log(`✅ [QUEUE] Item [${queueItem.id}] processed successfully - Thread ID: ${result.threadId}`);
+
         // 성공 시 상태 업데이트
         await supabase
           .from('thread_queue')
@@ -208,11 +228,12 @@ export class ThreadQueue {
           .eq('thread_sequence', queueItem.threadSequence);
 
       } else {
+        console.error(`❌ [QUEUE] Item [${queueItem.id}] failed: ${result.error}`);
         // 실패 시 재시도 로직
-        await this.handleFailure(queueItem, result.error);
+        await this.handleFailure(queueItem, result.error || 'Unknown error');
       }
     } catch (error) {
-      console.error(`Error processing queue item ${queueItem.id}:`, error);
+      console.error(`❌ [QUEUE] Error processing item [${queueItem.id}]:`, error);
       await this.handleFailure(queueItem, error instanceof Error ? error.message : 'Unknown error');
     }
   }
@@ -254,7 +275,7 @@ export class ThreadQueue {
     try {
       // Import the optimized function from schedule.ts
       const { createThreadsContainer } = await import('../../app/actions/schedule');
-      
+
       const containerParams = {
         content,
         mediaType: mediaType as any,
@@ -263,7 +284,7 @@ export class ThreadQueue {
 
       const containerResult = await createThreadsContainer(socialId, accessToken, containerParams);
       if (!containerResult.success) {
-        return { success: false, error: containerResult.error };
+        return { success: false, error: containerResult.error || 'Unknown error' };
       }
 
       const publishUrl = `https://graph.threads.net/v1.0/${socialId}/threads_publish`;
@@ -293,9 +314,9 @@ export class ThreadQueue {
 
       return { success: false, error: 'Failed to publish after retries' };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
@@ -391,9 +412,9 @@ export class ThreadQueue {
 
       return { success: false, error: 'Failed to publish reply after retries' };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
@@ -406,6 +427,8 @@ export class ThreadQueue {
     const newRetryCount = queueItem.retryCount + 1;
 
     if (newRetryCount <= queueItem.maxRetries) {
+      console.log(`🔄 [QUEUE] Retrying item [${queueItem.id}] - Attempt ${newRetryCount}/${queueItem.maxRetries}`);
+
       // 재시도 가능
       await supabase
         .from('thread_queue')
@@ -416,6 +439,8 @@ export class ThreadQueue {
         })
         .eq('queue_id', queueItem.id);
     } else {
+      console.error(`❌ [QUEUE] Item [${queueItem.id}] failed permanently after ${queueItem.maxRetries} attempts: ${error}`);
+
       // 최대 재시도 횟수 초과
       await supabase
         .from('thread_queue')
@@ -425,6 +450,15 @@ export class ThreadQueue {
           processed_at: getCurrentUTCISO()
         })
         .eq('queue_id', queueItem.id);
+
+      // my_contents 테이블도 failed 상태로 업데이트
+      await supabase
+        .from('my_contents')
+        .update({
+          publish_status: 'failed'
+        })
+        .eq('parent_media_id', queueItem.parentMediaId)
+        .eq('thread_sequence', queueItem.threadSequence);
     }
   }
 
@@ -435,10 +469,44 @@ export class ThreadQueue {
     const supabase = await createClient();
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24시간 전
 
-    await supabase
+    console.log(`🧹 [QUEUE] Starting cleanup for items older than ${cutoffTime.toISOString()}`);
+
+    const { data, error } = await supabase
       .from('thread_queue')
       .delete()
       .eq('status', 'completed')
       .lt('processed_at', cutoffTime.toISOString());
+
+    if (error) {
+      console.error('❌ [QUEUE] Cleanup failed:', error);
+    } else {
+      console.log(`✅ [QUEUE] Cleanup completed successfully`);
+    }
+  }
+
+  /**
+   * 큐 상태 조회
+   */
+  async getQueueStatus(): Promise<{ pending: number; processing: number; completed: number; failed: number }> {
+    const supabase = await createClient();
+
+    const { data: stats, error } = await supabase
+      .from('thread_queue')
+      .select('status')
+      .in('status', ['pending', 'processing', 'completed', 'failed']);
+
+    if (error) {
+      console.error('❌ [QUEUE] Failed to get queue status:', error);
+      return { pending: 0, processing: 0, completed: 0, failed: 0 };
+    }
+
+    const result = { pending: 0, processing: 0, completed: 0, failed: 0 };
+    stats.forEach(item => {
+      result[item.status as keyof typeof result]++;
+    });
+
+    console.log(`📊 [QUEUE] Current status - Pending: ${result.pending}, Processing: ${result.processing}, Completed: ${result.completed}, Failed: ${result.failed}`);
+
+    return result;
   }
 }

@@ -81,7 +81,7 @@ export async function POST() {
       });
     }
 
-    console.log(`🎬 Processing ${scheduledList.length} scheduled items at ${nowISO}`);
+    console.log(`🎬 [CRON] Processing ${scheduledList.length} scheduled items at ${nowISO}`);
 
     // Separate thread chains from single posts
     const threadChainRecords = scheduledList.filter(post => post.is_thread_chain);
@@ -93,10 +93,11 @@ export async function POST() {
     // Process thread chains
     if (threadChainRecords.length > 0) {
       const threadChains = rebuildThreadChains(threadChainRecords);
+      console.log(`🔗 [CRON] Found ${Object.keys(threadChains).length} thread chains to process`);
       
       for (const [parentId, threadChain] of Object.entries(threadChains)) {
         try {
-          console.log(`🔄 Processing thread chain [${parentId}] with ${threadChain.length} threads`);
+          console.log(`🔄 [CRON] Processing thread chain [${parentId}] with ${threadChain.length} threads`);
 
           // Get social_id from the first record of this chain
           const chainRecord = threadChainRecords.find(r => r.parent_media_id === parentId);
@@ -119,7 +120,7 @@ export async function POST() {
           );
 
           if (threadChainResult.success) {
-            console.log(`✅ Thread chain posted successfully: ${threadChainResult.parentThreadId}`);
+            console.log(`✅ [CRON] Thread chain posted successfully: ${threadChainResult.parentThreadId}`);
             
             // Update all threads in this chain to 'posted' status
             const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
@@ -138,20 +139,52 @@ export async function POST() {
             processedCount += chainRecords.length;
             results.push({ type: 'thread_chain', parentId, success: true });
           } else {
-            console.error(`❌ Thread chain posting failed [${parentId}]:`, threadChainResult.error);
+            console.error(`❌ [CRON] Thread chain posting failed [${parentId}]:`, threadChainResult.error);
+            
+            // Update all threads in this chain to 'failed' status
+            const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
+            await Promise.all(
+              chainRecords.map(async (record) => {
+                await supabase
+                  .from('my_contents')
+                  .update({
+                    publish_status: 'failed'
+                  })
+                  .eq('my_contents_id', record.my_contents_id);
+              })
+            );
+            
             results.push({ type: 'thread_chain', parentId, success: false, error: threadChainResult.error });
           }
         } catch (error) {
-          console.error(`❌ Thread chain processing error [${parentId}]:`, error);
+          console.error(`❌ [CRON] Thread chain processing error [${parentId}]:`, error);
+          
+          // Update all threads in this chain to 'failed' status on exception
+          const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
+          await Promise.all(
+            chainRecords.map(async (record) => {
+              await supabase
+                .from('my_contents')
+                .update({
+                  publish_status: 'failed'
+                })
+                .eq('my_contents_id', record.my_contents_id);
+            })
+          );
+          
           results.push({ type: 'thread_chain', parentId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
         }
       }
     }
 
     // Process single posts
+    if (singlePosts.length > 0) {
+      console.log(`📄 [CRON] Found ${singlePosts.length} single posts to process`);
+    }
+    
     for (const post of singlePosts) {
       try {
-        console.log(`🔄 Processing single post [${post.my_contents_id}]: ${post.media_type}`);
+        console.log(`🔄 [CRON] Processing single post [${post.my_contents_id}]: ${post.media_type}`);
 
         // Fetch access token for this social account
         const accessToken = await getAccessTokenBySocialId(post.social_id);
@@ -172,7 +205,7 @@ export async function POST() {
         );
 
         if (threadChainResult.success) {
-          console.log(`✅ Single post published successfully: ${threadChainResult.parentThreadId}`);
+          console.log(`✅ [CRON] Single post published successfully: ${threadChainResult.parentThreadId}`);
           
           await supabase
             .from('my_contents')
@@ -185,24 +218,52 @@ export async function POST() {
           processedCount++;
           results.push({ type: 'single_post', postId: post.my_contents_id, success: true });
         } else {
-          console.error(`❌ Single post publishing failed [${post.my_contents_id}]:`, threadChainResult.error);
+          console.error(`❌ [CRON] Single post publishing failed [${post.my_contents_id}]:`, threadChainResult.error);
+          
+          // Update single post to 'failed' status
+          await supabase
+            .from('my_contents')
+            .update({
+              publish_status: 'failed'
+            })
+            .eq('my_contents_id', post.my_contents_id);
+          
           results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: threadChainResult.error });
         }
       } catch (error) {
-        console.error(`❌ Single post processing error [${post.my_contents_id}]:`, error);
+        console.error(`❌ [CRON] Single post processing error [${post.my_contents_id}]:`, error);
+        
+        // Update single post to 'failed' status on exception
+        await supabase
+          .from('my_contents')
+          .update({
+            publish_status: 'failed'
+          })
+          .eq('my_contents_id', post.my_contents_id);
+        
         results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }
     }
 
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    console.log(`🎯 [CRON] Job completed - Success: ${successCount}, Failed: ${failureCount}, Total processed: ${processedCount}`);
+    
     return NextResponse.json({
       success: true,
       processed: processedCount,
       results,
+      stats: {
+        success: successCount,
+        failed: failureCount,
+        total: results.length
+      },
       message: `Cron job completed successfully. Processed ${processedCount} items.`
     });
 
   } catch (error) {
-    console.error('Cron job 실행 오류:', error);
+    console.error('❌ [CRON] Job execution error:', error);
     return NextResponse.json(
       { error: 'Cron job failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

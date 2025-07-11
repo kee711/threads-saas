@@ -380,11 +380,13 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                               'relative rounded-xl px-1 py-2 md:p-3 text-sm transition-colors',
                               event.status === 'scheduled'
                                 ? 'bg-white border-gray-200 text-foreground cursor-grab hover:bg-gray-50'
-                                : 'bg-muted-foreground/5 border-gray-200 text-gray-500',
+                                : event.status === 'failed'
+                                  ? 'bg-red-50 border-red-200 text-red-700 cursor-grab hover:bg-red-100'
+                                  : 'bg-muted-foreground/5 border-gray-200 text-gray-500',
                               draggedEvent?.id === event.id && "opacity-50 ring-2 ring-primary ring-offset-2"
                             )}
                             onClick={() => handleEventClick(event)}
-                            draggable={event.status === 'scheduled'}
+                            draggable={event.status === 'scheduled' || event.status === 'failed'}
                             onDragStart={(e) => handleDragStart(e, event)}
                             onDragEnd={() => {
                               setDraggedEvent(null)
@@ -396,7 +398,9 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                                 "absolute bottom-2 md:top-2 right-1 md:right-2 h-1.5 w-1.5 md:h-2 md:w-2 rounded-full",
                                 event.status === 'scheduled'
                                   ? "bg-green-400 animate-pulse"
-                                  : ""
+                                  : event.status === 'failed'
+                                    ? "bg-red-500 animate-pulse"
+                                    : ""
                               )}
                             />
                             <div className="font-semibold text-xs mb-1">{event.time}</div>
