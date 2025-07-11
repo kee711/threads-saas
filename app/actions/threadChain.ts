@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/authOptions";
 import { getServerSession } from "next-auth/next";
 import { postComment } from './comment';
 import { createThreadsContainer, PublishPostParams } from './schedule';
+import { getCurrentUTCISO } from '@/lib/utils/time';
 
 export interface ThreadContent {
   content: string;
@@ -310,7 +311,7 @@ async function saveThreadChainToDatabase(
     parent_media_id: parentThreadId,
     thread_sequence: index,
     is_thread_chain: true,
-    created_at: new Date().toISOString(),
+    created_at: getCurrentUTCISO(),
   }));
 
   const { data, error } = await supabase
@@ -661,7 +662,7 @@ export async function updateThreadChain(
             parent_media_id: parentMediaId,
             thread_sequence: index,
             is_thread_chain: true,
-            created_at: new Date().toISOString(),
+            created_at: getCurrentUTCISO(),
           });
       }
     });

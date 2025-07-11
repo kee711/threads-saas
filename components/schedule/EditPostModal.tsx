@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Event } from './types'
 import { ThreadContent, getThreadChainByParentId } from '@/app/actions/threadChain'
+import { localTimeToUTCISO } from '@/lib/utils/time'
 
 interface EditPostModalProps {
   isOpen: boolean
@@ -183,9 +184,9 @@ export function EditPostModal({
       return;
     }
 
-    const [hours, minutes] = timeParts.map(Number)
-    const newDate = new Date(editDate)
-    newDate.setHours(hours, minutes, 0, 0)
+    // 로컬 시간을 UTC ISO 문자열로 변환
+    const utcDateTime = localTimeToUTCISO(editTime, new Date(editDate))
+    const newDate = new Date(utcDateTime)
 
     const updatedEvent = {
       ...event,

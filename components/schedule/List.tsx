@@ -6,6 +6,7 @@ import { ko } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { EditPostModal } from './EditPostModal'
 import { Event } from './types' // Event 타입을 별도 파일로 분리했다고 가정
+import { localTimeToUTCISO } from '@/lib/utils/time'
 
 interface ListProps {
   events: Event[]
@@ -85,9 +86,9 @@ export function List({
         return
       }
 
-      const [hours, minutes] = timeParts.map(Number)
-      const newDate = new Date(dropDate)
-      newDate.setHours(hours, minutes, 0, 0)
+      // 로컬 시간을 UTC ISO 문자열로 변환하여 저장
+      const utcDateTime = localTimeToUTCISO(eventData.time, dropDate)
+      const newDate = new Date(utcDateTime)
 
       const updatedEvent = {
         ...eventData,

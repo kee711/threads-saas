@@ -16,6 +16,7 @@ import { List } from './List'
 import { EditPostModal } from './EditPostModal'
 import { Event } from './types'
 import { deleteSchedule } from '@/app/actions/schedule'
+import { utcISOToLocalTime } from '@/lib/utils/time'
 
 interface CalendarProps {
   defaultView?: 'calendar' | 'list'
@@ -75,7 +76,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                 id: content.my_contents_id,
                 title: content.content,
                 date: eventDate,
-                time: format(eventDate, 'HH:mm'),
+                time: utcISOToLocalTime(dateField), // UTC ISO 문자열을 로컬 시간으로 변환
                 status: content.publish_status,
                 media_type: content.media_type || 'TEXT',
                 media_urls: content.media_urls || [],
