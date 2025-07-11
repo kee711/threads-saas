@@ -132,10 +132,12 @@ export function List({
                       'relative flex items-center justify-between p-3 rounded-lg',
                       event.status === 'scheduled'
                         ? 'bg-blue-100 hover:bg-blue-200 text-foreground cursor-grab'
-                        : 'bg-[#D9D9D9] hover:bg-[#CCCCCC] text-foreground',
+                        : event.status === 'failed'
+                          ? 'bg-red-100 hover:bg-red-200 text-foreground cursor-grab'
+                          : 'bg-[#D9D9D9] hover:bg-[#CCCCCC] text-foreground',
                       draggedEvent?.id === event.id && "opacity-50"
                     )}
-                    draggable={event.status === 'scheduled'}
+                    draggable={event.status === 'scheduled' || event.status === 'failed'}
                     onDragStart={(e) => handleDragStart(e, event)}
                     onClick={() => handleEventClick(event)}
                   >
@@ -143,8 +145,10 @@ export function List({
                       className={cn(
                         "absolute top-3 right-3 h-2 w-2 rounded-full",
                         event.status === 'scheduled'
-                          ? "bg-red-500 animate-pulse"
-                          : "bg-green-500"
+                          ? "bg-yellow-500 animate-pulse"
+                          : event.status === 'failed'
+                            ? "bg-red-500 animate-pulse"
+                            : "bg-green-500"
                       )}
                     />
 
@@ -157,7 +161,7 @@ export function List({
               </div>
             ) : (
               <div className="text-sm text-muted-foreground h-10 flex items-center justify-center">
-                예약된 일정이 없습니다.
+                No scheduled posts.
               </div>
             )}
           </div>
