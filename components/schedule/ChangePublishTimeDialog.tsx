@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button"
 import { Clock, Edit, Plus, Check } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { utcTimeToLocalTime, localTimeToUTCTime, isUTCISOString } from "@/lib/utils/time"
 
 interface ChangePublishTimeDialogProps {
   variant?: 'default' | 'icon'
@@ -36,23 +37,20 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
     }
 
     const localTimes = dbTimes.map(time => {
-      if (typeof time === 'string' && time.includes('T')) {
-        const date = new Date(time)
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-      } else if (typeof time === 'string' && time.includes(':')) {
-        const timeParts = time.split(':');
-        if (timeParts.length !== 2) {
-          console.error("Invalid time format:", time);
-          return '00:00';
+      try {
+        if (typeof time === 'string' && isUTCISOString(time)) {
+          // UTC ISO 문자열인 경우 (예: "2024-01-01T14:30:00.000Z")
+          const date = new Date(time)
+          return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+        } else if (typeof time === 'string' && time.includes(':')) {
+          // UTC HH:MM 형태인 경우 (예: "14:30")
+          return utcTimeToLocalTime(time)
         }
-        const [hours, minutes] = timeParts.map(Number)
-
-        const date = new Date()
-        date.setUTCHours(hours, minutes, 0, 0)
-
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+        return time
+      } catch (error) {
+        console.error("Time conversion error:", error, "for time:", time);
+        return '00:00';
       }
-      return time
     })
 
     setPublishTimes(localTimes)
@@ -85,26 +83,12 @@ export function ChangePublishTimeDialog({ variant = 'default', onPublishTimeChan
   const saveToDatabase = async () => {
     try {
       const utcTimes = publishTimes.map(localTime => {
-        if (!localTime || typeof localTime !== 'string') {
-          console.error("Invalid local time format:", localTime);
+        try {
+          return localTimeToUTCTime(localTime)
+        } catch (error) {
+          console.error("Time conversion error:", error, "for time:", localTime);
           return '00:00';
         }
-
-        const timeParts = localTime.split(':');
-        if (timeParts.length !== 2) {
-          console.error("Invalid local time format:", localTime);
-          return '00:00';
-        }
-
-        const [hours, minutes] = timeParts.map(Number)
-
-        const date = new Date()
-        date.setHours(hours, minutes, 0, 0)
-
-        const utcHours = date.getUTCHours()
-        const utcMinutes = date.getUTCMinutes()
-
-        return `${utcHours.toString().padStart(2, '0')}:${utcMinutes.toString().padStart(2, '0')}`
       })
 
       const response = await updatePublishTimes(utcTimes)

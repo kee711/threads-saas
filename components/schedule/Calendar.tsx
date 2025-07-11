@@ -16,6 +16,7 @@ import { List } from './List'
 import { EditPostModal } from './EditPostModal'
 import { Event } from './types'
 import { deleteSchedule } from '@/app/actions/schedule'
+import { utcISOToLocalTime } from '@/lib/utils/time'
 
 interface CalendarProps {
   defaultView?: 'calendar' | 'list'
@@ -75,7 +76,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
                 id: content.my_contents_id,
                 title: content.content,
                 date: eventDate,
-                time: format(eventDate, 'HH:mm'),
+                time: utcISOToLocalTime(dateField), // UTC ISO 문자열을 로컬 시간으로 변환
                 status: content.publish_status,
                 media_type: content.media_type || 'TEXT',
                 media_urls: content.media_urls || [],
@@ -146,6 +147,13 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
   const handleEventUpdate = async (updatedEvent: Event) => {
     try {
+      // 과거 시간 확인 (현재 시간보다 이전인지 체크)
+      const currentTime = new Date()
+      if (updatedEvent.date <= currentTime) {
+        toast.error('The scheduled time must be in the future.')
+        return
+      }
+
       if (updatedEvent.is_thread_chain && updatedEvent.threads) {
         // ⭐ threadChain인 경우 updateThreadChain 사용
         const parentId = updatedEvent.parent_media_id || updatedEvent.id
@@ -176,7 +184,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
       ))
     } catch (error) {
       console.error('Error updating event:', error)
-      toast.error('업데이트에 실패했습니다.')
+      toast.error('Update failed.')
     }
   }
 
@@ -248,6 +256,13 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
 
       const [hours, minutes] = timeParts.map(Number);
       newDateTime.setHours(hours, minutes, 0, 0); // 시간, 분 설정
+
+      // 과거 시간 확인 (현재 시간보다 이전인지 체크)
+      const currentTime = new Date()
+      if (newDateTime <= currentTime) {
+        toast.error('The scheduled time must be in the future.')
+        return
+      }
 
       const updatedEvent: Event = {
         ...eventData,
