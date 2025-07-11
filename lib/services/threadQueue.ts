@@ -317,6 +317,9 @@ export class ThreadQueue {
         if (publishResponse.ok) {
           const publishData = await publishResponse.json();
           return { success: true, threadId: publishData.id };
+        } else {
+          const errorText = await publishResponse.text();
+          console.error(`Publish attempt ${attempt + 1} failed:`, errorText);
         }
 
         // Wait 5 seconds between attempts
@@ -372,11 +375,13 @@ export class ThreadQueue {
         });
 
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        const data = await response.json();
-
+        
         if (!response.ok) {
-          return { success: false, error: `Failed to create image container: ${JSON.stringify(data)}` };
+          const errorText = await response.text();
+          return { success: false, error: `Failed to create image container: ${errorText}` };
         }
+        
+        const data = await response.json();
         mediaContainerId = data.id;
       } else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
         const urlParams = new URLSearchParams({
@@ -388,11 +393,13 @@ export class ThreadQueue {
         });
 
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        const data = await response.json();
-
+        
         if (!response.ok) {
-          return { success: false, error: `Failed to create video container: ${JSON.stringify(data)}` };
+          const errorText = await response.text();
+          return { success: false, error: `Failed to create video container: ${errorText}` };
         }
+        
+        const data = await response.json();
         mediaContainerId = data.id;
       } else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
         // Handle carousel replies with retry logic
@@ -413,15 +420,16 @@ export class ThreadQueue {
           while (attempts < maxAttempts && !success) {
             try {
               const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-              const data = await response.json();
               
               if (response.ok) {
+                const data = await response.json();
                 itemContainers.push(data.id);
                 success = true;
               } else {
-                console.error(`Carousel item creation attempt ${attempts + 1} failed:`, data);
+                const errorText = await response.text();
+                console.error(`Carousel item creation attempt ${attempts + 1} failed:`, errorText);
                 if (attempts === maxAttempts - 1) {
-                  return { success: false, error: `Failed to create carousel item after ${maxAttempts} attempts: ${JSON.stringify(data)}` };
+                  return { success: false, error: `Failed to create carousel item after ${maxAttempts} attempts: ${errorText}` };
                 }
               }
             } catch (error) {
@@ -449,11 +457,13 @@ export class ThreadQueue {
         });
         
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        const data = await response.json();
         
         if (!response.ok) {
-          return { success: false, error: `Failed to create carousel container: ${JSON.stringify(data)}` };
+          const errorText = await response.text();
+          return { success: false, error: `Failed to create carousel container: ${errorText}` };
         }
+        
+        const data = await response.json();
         mediaContainerId = data.id;
       } else {
         return { success: false, error: 'Unsupported media type for replies' };
@@ -476,6 +486,9 @@ export class ThreadQueue {
         if (publishResponse.ok) {
           const publishData = await publishResponse.json();
           return { success: true, threadId: publishData.id };
+        } else {
+          const errorText = await publishResponse.text();
+          console.error(`Reply publish attempt ${attempt + 1} failed:`, errorText);
         }
 
         // Wait 5 seconds between attempts

@@ -3,6 +3,7 @@ import { handleOptions, corsResponse } from '@/lib/utils/cors';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
+import { decryptToken } from '@/lib/utils/crypto';
 
 /**
  * My Contents Sync API
@@ -94,8 +95,11 @@ async function getThreadsAccessToken(userId: string): Promise<{ accessToken: str
     return null;
   }
 
+  // 토큰 복호화
+  const decryptedToken = decryptToken(account.access_token);
+  
   return {
-    accessToken: account.access_token,
+    accessToken: decryptedToken,
     socialId: account.social_id
   };
 }
@@ -138,12 +142,30 @@ async function getUserThreadsPosts(
 
   try {
     const response = await fetch(url);
-    const data = await response.json();
-
+    
     if (!response.ok) {
-      return data as ThreadsApiError;
+      const errorText = await response.text();
+      console.error('Threads API 응답 오류:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        return errorData as ThreadsApiError;
+      } catch {
+        return {
+          error: {
+            message: errorText || 'Unknown API error',
+            type: 'api_error',
+            code: response.status
+          }
+        } as ThreadsApiError;
+      }
     }
-
+    
+    const data = await response.json();
     return data as ThreadsPostsResponse;
   } catch (error) {
     console.error('Threads API 호출 오류:', error);
@@ -251,8 +273,9 @@ export async function POST(request: NextRequest) {
     }
     const { limit, forceRefresh = false } = body;
 
-    // limit 파라미터 검증
-    if (typeof limit !== 'number' || limit < 1 || limit > 100) {
+    // limit 파라미터 검증 (더 유연하게)
+    const validLimit = limit || 25; // 기본값 25
+    if (typeof validLimit !== 'number' || validLimit < 1 || validLimit > 100) {
       return corsResponse(
         {
           error: 'Invalid limit parameter',
@@ -280,7 +303,7 @@ export async function POST(request: NextRequest) {
     const threadsResult = await getUserThreadsPosts(
       authData.socialId,
       authData.accessToken,
-      limit
+      validLimit
     );
 
     console.log("threadsResult", threadsResult);

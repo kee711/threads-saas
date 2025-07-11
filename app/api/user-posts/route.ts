@@ -3,6 +3,7 @@ import { handleOptions, corsResponse } from '@/lib/utils/cors';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
+import { decryptToken } from '@/lib/utils/crypto';
 
 /**
  * Threads User Posts API
@@ -82,7 +83,8 @@ async function getThreadsAccessToken(userId: string, threadsUserId: string): Pro
     return null;
   }
 
-  return data.access_token;
+  // 토큰 복호화
+  return decryptToken(data.access_token);
 }
 
 // 사용자의 모든 Threads 포스트 조회
