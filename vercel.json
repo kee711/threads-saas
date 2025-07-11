@@ -2,7 +2,15 @@
   "crons": [
     {
       "path": "/api/threads/cron",
-      "schedule": "0 1 * * *"
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/threads/queue",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/threads/queue/cleanup",
+      "schedule": "0 2 * * *"
     }
   ]
 }
