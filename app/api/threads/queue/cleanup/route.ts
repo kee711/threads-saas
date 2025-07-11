@@ -8,16 +8,16 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET() {
   try {
     console.log('🧹 Starting queue cleanup...');
-    
+
     const supabase = await createClient();
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24시간 전
 
-    // 완료된 큐 아이템 삭제
+    // 완료된 큐 아이템 삭제 (processed_at이 null이거나 cutoff time보다 이전인 것들)
     const { error: deleteError, count } = await supabase
       .from('thread_queue')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('status', 'completed')
-      .lt('processed_at', cutoffTime.toISOString());
+      .or(`processed_at.is.null,processed_at.lt.${cutoffTime.toISOString()}`);
 
     if (deleteError) {
       console.error('Queue cleanup error:', deleteError);
@@ -28,7 +28,7 @@ export async function GET() {
     }
 
     console.log(`🧹 Cleaned up ${count} completed queue items`);
-    
+
     return NextResponse.json({
       success: true,
       message: `Queue cleanup completed. Removed ${count} items.`,
@@ -37,9 +37,9 @@ export async function GET() {
   } catch (error) {
     console.error('Queue cleanup error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
