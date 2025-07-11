@@ -20,7 +20,7 @@ export function encryptToken(token: string): string {
   try {
     const key = getEncryptionKey();
     const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipher(ALGORITHM, key);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
     let encrypted = cipher.update(token, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -43,7 +43,12 @@ export function decryptToken(encryptedToken: string): string {
     const combined = Buffer.from(encryptedToken, 'base64').toString();
     const [ivHex, encryptedHex] = combined.split(':');
 
-    const decipher = crypto.createDecipher(ALGORITHM, key);
+    if (!ivHex || !encryptedHex) {
+      throw new Error('Invalid encrypted token format');
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
 
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
