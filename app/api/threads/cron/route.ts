@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { postThreadChain, ThreadContent } from '@/app/actions/threadChain';
+import { getCurrentUTCISO } from '@/lib/utils/time';
 
 // Helper function to fetch access tokens by social_id
 async function getAccessTokenBySocialId(socialId: string): Promise<string | null> {
@@ -56,7 +57,7 @@ export async function POST() {
   const supabase = await createClient();
 
   try {
-    const nowISO = new Date().toISOString();
+    const nowISO = getCurrentUTCISO();
 
     // 🚀 1단계: Get scheduled thread chains and single posts
     const { data: scheduledList, error: scheduleError } = await supabase
@@ -80,7 +81,7 @@ export async function POST() {
       });
     }
 
-    console.log(`🎬 Processing ${scheduledList.length} scheduled items`);
+    console.log(`🎬 Processing ${scheduledList.length} scheduled items at ${nowISO}`);
 
     // Separate thread chains from single posts
     const threadChainRecords = scheduledList.filter(post => post.is_thread_chain);

@@ -9,6 +9,7 @@ import { TextSearch, PencilLine, FileText, PanelRightClose, PanelLeftClose, Chev
 import { createContent } from "@/app/actions/content";
 import { toast } from "sonner";
 import { postThreadChain, scheduleThreadChain, ThreadContent } from "@/app/actions/threadChain";
+import { formatLocalDateTime } from "@/lib/utils/time";
 import { ChangePublishTimeDialog } from "./schedule/ChangePublishTimeDialog";
 import useSocialAccountStore from "@/stores/useSocialAccountStore";
 import NextImage from 'next/image';
@@ -681,7 +682,7 @@ function RightSidebarContent({
                 <div>Schedule Post</div>
                 {scheduleTime && (
                   <div className="text-xs text-muted-foreground">
-                    {new Date(scheduleTime).toLocaleString(undefined, {
+                    {formatLocalDateTime(scheduleTime, {
                       year: "numeric",
                       month: "numeric",
                       day: "numeric",
