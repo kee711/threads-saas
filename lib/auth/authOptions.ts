@@ -13,7 +13,6 @@ declare module 'next-auth' {
       email: string
       name?: string | null
       image?: string | null
-      accessToken?: string
       provider?: string
     }
   }
@@ -22,7 +21,6 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     userId: string
-    accessToken: string
     provider: string
   }
 }
@@ -48,32 +46,20 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async jwt({ token, account, profile }) {
-      console.log('JWT Callback - Token:', token)
-      console.log('JWT Callback - Account:', account)
-      console.log('JWT Callback - Profile:', profile)
-
       if (account && profile) {
-        token.accessToken = account.access_token ?? ''
         token.userId = profile.sub ?? ''
         token.provider = account.provider ?? ''
       }
       return token
     },
     async session({ session, token }) {
-      console.log('Session Callback - Session:', session)
-      console.log('Session Callback - Token:', token)
-
       if (session.user) {
         session.user.id = token.userId as string
-        session.user.accessToken = token.accessToken as string
         session.user.provider = token.provider as string
       }
       return session
     },
     async signIn({ user, account, profile }) {
-      console.log('SignIn Callback - User:', user)
-      console.log('SignIn Callback - Account:', account)
-      console.log('SignIn Callback - Profile:', profile)
 
       try {
         // 사용자가 존재하는지 확인하고 deleted_at 필드 체크
@@ -158,5 +144,5 @@ export const authOptions: AuthOptions = {
     signIn: '/signin',
     error: '/error',
   },
-  debug: process.env.NODE_ENV === 'development',
+  debug: false,
 }

@@ -139,7 +139,7 @@ export function Calendar({ defaultView = 'calendar' }: CalendarProps) {
   }, [selectedDate, view])
 
   const handleEventClick = (event: Event) => {
-    if (event.status === 'scheduled') {
+    if (event.status === 'scheduled' || event.status === 'failed') {
       setSelectedEvent(event)
       setIsEditModalOpen(true)
     }

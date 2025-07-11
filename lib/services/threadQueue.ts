@@ -144,14 +144,27 @@ export class ThreadQueue {
 
       console.log(`📋 [QUEUE] Found ${pendingItems.length} pending items to process`);
 
-      // 병렬 처리
-      const processPromises = pendingItems.map(item => this.processQueueItem(item));
-      const results = await Promise.allSettled(processPromises);
+      // 순차 처리로 변경 (API 제한 방지)
+      const results = [];
+      for (const item of pendingItems) {
+        try {
+          await this.processQueueItem(item);
+          results.push({ status: 'fulfilled' });
+        } catch (error) {
+          console.error(`[QUEUE] Item processing failed:`, error);
+          results.push({ status: 'rejected', error });
+        }
+        
+        // 아이템 간 간격 (API 제한 방지)
+        if (pendingItems.indexOf(item) < pendingItems.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failureCount = results.filter(r => r.status === 'rejected').length;
 
-      console.log(`📊 [QUEUE] Batch processing completed - Success: ${successCount}, Failed: ${failureCount}`);
+      console.log(`📊 [QUEUE] Sequential processing completed - Success: ${successCount}, Failed: ${failureCount}`);
 
       // 더 처리할 항목이 있는지 확인
       const { data: remainingItems } = await supabase
@@ -379,6 +392,67 @@ export class ThreadQueue {
 
         if (!response.ok) {
           return { success: false, error: `Failed to create video container: ${JSON.stringify(data)}` };
+        }
+        mediaContainerId = data.id;
+      } else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
+        // Handle carousel replies with retry logic
+        const itemContainers = [];
+        
+        for (const imageUrl of mediaUrls) {
+          const urlParams = new URLSearchParams({
+            media_type: "IMAGE",
+            image_url: imageUrl,
+            is_carousel_item: "true",
+            access_token: accessToken
+          });
+          
+          let attempts = 0;
+          const maxAttempts = 3;
+          let success = false;
+          
+          while (attempts < maxAttempts && !success) {
+            try {
+              const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
+              const data = await response.json();
+              
+              if (response.ok) {
+                itemContainers.push(data.id);
+                success = true;
+              } else {
+                console.error(`Carousel item creation attempt ${attempts + 1} failed:`, data);
+                if (attempts === maxAttempts - 1) {
+                  return { success: false, error: `Failed to create carousel item after ${maxAttempts} attempts: ${JSON.stringify(data)}` };
+                }
+              }
+            } catch (error) {
+              console.error(`Carousel item creation attempt ${attempts + 1} error:`, error);
+              if (attempts === maxAttempts - 1) {
+                return { success: false, error: `Failed to create carousel item: ${error}` };
+              }
+            }
+            
+            attempts++;
+            if (!success && attempts < maxAttempts) {
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+            }
+          }
+        }
+        
+        // Create carousel container
+        const urlParams = new URLSearchParams({
+          media_type: "CAROUSEL",
+          text: content,
+          children: itemContainers.join(","),
+          reply_to_id: replyToId,
+          access_token: accessToken
+        });
+        
+        const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
+        const data = await response.json();
+        
+        if (!response.ok) {
+          return { success: false, error: `Failed to create carousel container: ${JSON.stringify(data)}` };
         }
         mediaContainerId = data.id;
       } else {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 import { createClient } from "@/lib/supabase/server";
+import { encryptToken } from "@/lib/utils/crypto";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -107,10 +108,11 @@ export async function GET(req: NextRequest) {
     if (existingAccount) {
       // 기존 계정 업데이트
       accountId = existingAccount.id;
+      const encryptedToken = encryptToken(accessToken);
       const { error: dbError } = await supabase
         .from("social_accounts")
         .update({
-          access_token: accessToken,
+          access_token: encryptedToken,
           expires_at: expiresAt,
           updated_at: new Date().toISOString(),
           is_active: true,
@@ -126,12 +128,13 @@ export async function GET(req: NextRequest) {
     } else {
       // 새 계정 생성
       isNewAccount = true;
+      const encryptedToken = encryptToken(accessToken);
       const { data: newAccount, error: dbError } = await supabase
         .from("social_accounts")
         .insert({
           owner: session.user.id,
           platform: "threads",
-          access_token: accessToken,
+          access_token: encryptedToken,
           social_id: threadsUserId,
           username: username,
           threads_profile_picture_url: profilePictureUrl,

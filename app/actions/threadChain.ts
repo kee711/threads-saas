@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth/next";
 import { postComment } from './comment';
 import { createThreadsContainer, PublishPostParams } from './schedule';
 import { getCurrentUTCISO } from '@/lib/utils/time';
+import { decryptToken } from '@/lib/utils/crypto';
 
 export interface ThreadContent {
   content: string;
@@ -64,10 +65,13 @@ async function getThreadsAccessToken(options?: AuthOptions) {
     .eq('is_active', true)
     .single();
 
-  const accessToken = account?.access_token;
-  if (!accessToken) {
+  const encryptedToken = account?.access_token;
+  if (!encryptedToken) {
     throw new Error('Threads access token이 없습니다.');
   }
+
+  // 토큰 복호화
+  const accessToken = decryptToken(encryptedToken);
   return { accessToken, selectedSocialId };
 }
 
@@ -601,7 +605,7 @@ async function postThreadChainOptimized(threads: ThreadContent[], options?: Auth
     // This is a cron job - use queue system
     const { ThreadQueue } = await import('@/lib/services/threadQueue');
     const queue = ThreadQueue.getInstance();
-    
+
     // Get user ID from social account
     const supabase = await createClient();
     const { data: account } = await supabase
