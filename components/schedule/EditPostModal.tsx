@@ -205,6 +205,7 @@ export function EditPostModal({
     }
 
     onEventUpdate(updatedEvent)
+    toast.success('Schedule updated successfully!')
     onOpenChange(false)
   }
 
