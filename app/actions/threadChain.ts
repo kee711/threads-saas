@@ -181,9 +181,17 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
             threadId: publishData.id,
             mediaContainerId
           };
+        } else {
+          // 실패한 응답의 내용을 확인
+          const errorData = await publishResponse.json();
+          console.error(`Error during publish attempt ${attempt + 1}:`, {
+            status: publishResponse.status,
+            statusText: publishResponse.statusText,
+            error: errorData
+          });
         }
       } catch (error) {
-        console.error('Error during publish attempt:', error);
+        console.error(`Error during publish attempt ${attempt + 1}:`, error);
       }
 
       // Reduced wait time: 5 seconds for text, 10 seconds for media
@@ -456,9 +464,17 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           const publishData = await publishResponse.json();
           console.log('Reply published successfully!');
           return { id: publishData.id };
+        } else {
+          // 실패한 응답의 내용을 확인
+          const errorData = await publishResponse.json();
+          console.error(`Error during reply publish attempt ${attempt + 1}:`, {
+            status: publishResponse.status,
+            statusText: publishResponse.statusText,
+            error: errorData
+          });
         }
       } catch (error) {
-        console.error('Error during reply publish attempt:', error);
+        console.error(`Error during reply publish attempt ${attempt + 1}:`, error);
       }
 
       // Reduced wait time: 5 seconds for text, 10 seconds for media
