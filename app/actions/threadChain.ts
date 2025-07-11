@@ -123,11 +123,11 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
           };
         } else {
           // 실패한 응답의 내용을 확인
-          const errorData = await publishResponse.json();
+          const errorText = await publishResponse.text();
           console.error(`Error during publish attempt ${attempt + 1}:`, {
             status: publishResponse.status,
             statusText: publishResponse.statusText,
-            error: errorData
+            error: errorText
           });
         }
       } catch (error) {
@@ -221,11 +221,13 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
       const response = await fetch(containerUrl, { method: "POST" });
-      const data = await response.json();
-
+      
       if (!response.ok) {
-        throw new Error(`댓글 이미지 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+        const errorText = await response.text();
+        throw new Error(`댓글 이미지 컨테이너 생성 실패: ${errorText}`);
       }
+      
+      const data = await response.json();
       mediaContainerId = data.id;
     }
     else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
@@ -238,11 +240,13 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
       const response = await fetch(containerUrl, { method: "POST" });
-      const data = await response.json();
-
+      
       if (!response.ok) {
-        throw new Error(`댓글 비디오 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+        const errorText = await response.text();
+        throw new Error(`댓글 비디오 컨테이너 생성 실패: ${errorText}`);
       }
+      
+      const data = await response.json();
       mediaContainerId = data.id;
     }
     else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
@@ -260,7 +264,8 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         const response = await fetch(containerUrl, { method: "POST" });
 
         if (!response.ok) {
-          throw new Error(`댓글 캐러셀 아이템 생성 실패: ${await response.text()}`);
+          const errorText = await response.text();
+          throw new Error(`댓글 캐러셀 아이템 생성 실패: ${errorText}`);
         }
 
         const data = await response.json();
@@ -277,11 +282,13 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
       const response = await fetch(containerUrl, { method: "POST" });
-      const data = await response.json();
-
+      
       if (!response.ok) {
-        throw new Error(`댓글 캐러셀 컨테이너 생성 실패: ${JSON.stringify(data)}`);
+        const errorText = await response.text();
+        throw new Error(`댓글 캐러셀 컨테이너 생성 실패: ${errorText}`);
       }
+      
+      const data = await response.json();
       mediaContainerId = data.id;
     } else {
       throw new Error("지원하지 않는 댓글 미디어 타입입니다.");
@@ -314,11 +321,11 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           return { id: publishData.id };
         } else {
           // 실패한 응답의 내용을 확인
-          const errorData = await publishResponse.json();
+          const errorText = await publishResponse.text();
           console.error(`Error during reply publish attempt ${attempt + 1}:`, {
             status: publishResponse.status,
             statusText: publishResponse.statusText,
-            error: errorData
+            error: errorText
           });
         }
       } catch (error) {
