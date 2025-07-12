@@ -8,7 +8,7 @@ async function getAccessTokenBySocialId(socialId: string): Promise<string | null
   console.log(`🔐 [route.ts:getAccessTokenBySocialId:7] Starting access token retrieval for socialId: ${socialId}`);
   console.log(`🔐 [route.ts:getAccessTokenBySocialId:8] Creating Supabase client`);
   const supabase = await createClient();
-  
+
   console.log(`🔐 [route.ts:getAccessTokenBySocialId:11] Querying social_accounts table`);
   const { data: account, error } = await supabase
     .from('social_accounts')
@@ -41,9 +41,9 @@ async function getAccessTokenBySocialId(socialId: string): Promise<string | null
 function rebuildThreadChains(records: any[]): Record<string, ThreadContent[]> {
   console.log(`🔗 [route.ts:rebuildThreadChains:27] Starting thread chain rebuild`);
   console.log(`🔗 [route.ts:rebuildThreadChains:28] Input records count: ${records.length}`);
-  
+
   const threadChains: Record<string, ThreadContent[]> = {};
-  
+
   console.log(`🔗 [route.ts:rebuildThreadChains:32] Processing records to group by parent_media_id`);
   records.forEach((record, index) => {
     const parentId = record.parent_media_id;
@@ -54,51 +54,51 @@ function rebuildThreadChains(records: any[]): Record<string, ThreadContent[]> {
       threadSequence: record.thread_sequence,
       mediaUrlsCount: record.media_urls?.length || 0
     });
-    
+
     if (!threadChains[parentId]) {
       threadChains[parentId] = [];
       console.log(`🔗 [route.ts:rebuildThreadChains:44] Created new thread chain for parentId: ${parentId}`);
     }
-    
+
     threadChains[parentId].push({
       content: record.content,
       media_urls: record.media_urls || [],
       media_type: record.media_type || 'TEXT'
     });
   });
-  
+
   console.log(`🔗 [route.ts:rebuildThreadChains:53] Grouping completed. Found ${Object.keys(threadChains).length} thread chains`);
-  
+
   // Sort each thread chain by thread_sequence
   console.log(`🔗 [route.ts:rebuildThreadChains:56] Sorting thread chains by sequence`);
   Object.keys(threadChains).forEach(parentId => {
     const chainLength = threadChains[parentId].length;
     console.log(`🔗 [route.ts:rebuildThreadChains:59] Sorting chain ${parentId} with ${chainLength} threads`);
-    
+
     threadChains[parentId].sort((a, b) => {
       const aRecord = records.find(r => r.parent_media_id === parentId && r.content === a.content);
       const bRecord = records.find(r => r.parent_media_id === parentId && r.content === b.content);
       const aSequence = aRecord?.thread_sequence || 0;
       const bSequence = bRecord?.thread_sequence || 0;
-      
+
       console.log(`🔗 [route.ts:rebuildThreadChains:66] Sorting threads:`, {
         parentId,
         aSequence,
         bSequence,
         comparison: aSequence - bSequence
       });
-      
+
       return aSequence - bSequence;
     });
-    
-    console.log(`🔗 [route.ts:rebuildThreadChains:76] Chain ${parentId} sorted with sequences:`, 
+
+    console.log(`🔗 [route.ts:rebuildThreadChains:76] Chain ${parentId} sorted with sequences:`,
       threadChains[parentId].map((_, i) => {
         const record = records.find(r => r.parent_media_id === parentId && r.content === threadChains[parentId][i].content);
         return record?.thread_sequence || 0;
       })
     );
   });
-  
+
   console.log(`✅ [route.ts:rebuildThreadChains:84] Thread chain rebuild completed:`, {
     totalChains: Object.keys(threadChains).length,
     chainSummary: Object.keys(threadChains).map(parentId => ({
@@ -106,7 +106,7 @@ function rebuildThreadChains(records: any[]): Record<string, ThreadContent[]> {
       threadCount: threadChains[parentId].length
     }))
   });
-  
+
   return threadChains;
 }
 
@@ -167,7 +167,7 @@ export async function POST() {
     console.log(`🔄 [route.ts:POST:146] Separating thread chains from single posts`);
     const threadChainRecords = scheduledList.filter(post => post.is_thread_chain);
     const singlePosts = scheduledList.filter(post => !post.is_thread_chain);
-    
+
     console.log(`🔄 [route.ts:POST:150] Separation completed:`, {
       threadChainRecords: threadChainRecords.length,
       singlePosts: singlePosts.length,
@@ -183,11 +183,11 @@ export async function POST() {
       console.log(`🔗 [route.ts:POST:161] Rebuilding thread chains from records`);
       const threadChains = rebuildThreadChains(threadChainRecords);
       console.log(`🔗 [route.ts:POST:163] Found ${Object.keys(threadChains).length} thread chains to process`);
-      
+
       for (const [parentId, threadChain] of Object.entries(threadChains)) {
         const chainIndex = Object.keys(threadChains).indexOf(parentId) + 1;
         const totalChains = Object.keys(threadChains).length;
-        
+
         console.log(`🔄 [route.ts:POST:169] Processing thread chain ${chainIndex}/${totalChains} [${parentId}]`);
         console.log(`🔄 [route.ts:POST:170] Chain details:`, {
           parentId,
@@ -199,20 +199,20 @@ export async function POST() {
             mediaUrlsCount: thread.media_urls?.length || 0
           }))
         });
-        
+
         try {
           // Get social_id from the first record of this chain
           console.log(`🔍 [route.ts:POST:182] Finding social_id for thread chain ${parentId}`);
           const chainRecord = threadChainRecords.find(r => r.parent_media_id === parentId);
           const socialId = chainRecord?.social_id;
-          
+
           console.log(`🔍 [route.ts:POST:186] Chain record lookup result:`, {
             parentId,
             hasChainRecord: !!chainRecord,
             socialId,
             recordId: chainRecord?.my_contents_id
           });
-          
+
           if (!socialId) {
             throw new Error(`No social_id found for thread chain ${parentId}`);
           }
@@ -225,7 +225,7 @@ export async function POST() {
             hasToken: !!accessToken,
             tokenLength: accessToken?.length || 0
           });
-          
+
           if (!accessToken) {
             throw new Error(`No access token found for social_id ${socialId}`);
           }
@@ -237,12 +237,12 @@ export async function POST() {
             socialId,
             hasAccessToken: !!accessToken
           });
-          
+
           const threadChainResult = await (postThreadChain as any)(
-            threadChain, 
+            threadChain,
             { accessToken, selectedSocialId: socialId }
           );
-          
+
           console.log(`🚀 [route.ts:POST:220] PostThreadChain result:`, {
             parentId,
             success: threadChainResult.success,
@@ -257,12 +257,12 @@ export async function POST() {
               parentThreadId: threadChainResult.parentThreadId,
               threadIds: threadChainResult.threadIds
             });
-            
+
             // Update all threads in this chain to 'posted' status
             console.log(`📝 [route.ts:POST:237] Updating chain records to 'posted' status`);
             const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
             console.log(`📝 [route.ts:POST:239] Found ${chainRecords.length} records to update for chain ${parentId}`);
-            
+
             await Promise.all(
               chainRecords.map(async (record, index) => {
                 const mediaId = threadChainResult.threadIds?.[index] || threadChainResult.parentThreadId;
@@ -271,7 +271,7 @@ export async function POST() {
                   mediaId,
                   threadSequence: record.thread_sequence
                 });
-                
+
                 await supabase
                   .from('my_contents')
                   .update({
@@ -281,7 +281,7 @@ export async function POST() {
                   .eq('my_contents_id', record.my_contents_id);
               })
             );
-            
+
             console.log(`📝 [route.ts:POST:259] All ${chainRecords.length} records updated successfully`);
             processedCount += chainRecords.length;
             results.push({ type: 'thread_chain', parentId, success: true });
@@ -291,19 +291,19 @@ export async function POST() {
               error: threadChainResult.error,
               threadChainLength: threadChain.length
             });
-            
+
             // Update all threads in this chain to 'failed' status
             console.log(`📝 [route.ts:POST:271] Updating chain records to 'failed' status`);
             const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
             console.log(`📝 [route.ts:POST:273] Found ${chainRecords.length} records to mark as failed`);
-            
+
             await Promise.all(
               chainRecords.map(async (record, index) => {
                 console.log(`📝 [route.ts:POST:277] Marking record ${index + 1}/${chainRecords.length} as failed:`, {
                   recordId: record.my_contents_id,
                   threadSequence: record.thread_sequence
                 });
-                
+
                 await supabase
                   .from('my_contents')
                   .update({
@@ -312,7 +312,7 @@ export async function POST() {
                   .eq('my_contents_id', record.my_contents_id);
               })
             );
-            
+
             console.log(`📝 [route.ts:POST:291] All ${chainRecords.length} records marked as failed`);
             results.push({ type: 'thread_chain', parentId, success: false, error: threadChainResult.error });
           }
@@ -324,19 +324,19 @@ export async function POST() {
             chainIndex,
             totalChains
           });
-          
+
           // Update all threads in this chain to 'failed' status on exception
           console.log(`📝 [route.ts:POST:304] Handling exception - updating records to 'failed'`);
           const chainRecords = threadChainRecords.filter(r => r.parent_media_id === parentId);
           console.log(`📝 [route.ts:POST:306] Found ${chainRecords.length} records to mark as failed due to exception`);
-          
+
           await Promise.all(
             chainRecords.map(async (record, index) => {
               console.log(`📝 [route.ts:POST:310] Exception handling - marking record ${index + 1}/${chainRecords.length} as failed:`, {
                 recordId: record.my_contents_id,
                 threadSequence: record.thread_sequence
               });
-              
+
               await supabase
                 .from('my_contents')
                 .update({
@@ -345,7 +345,7 @@ export async function POST() {
                 .eq('my_contents_id', record.my_contents_id);
             })
           );
-          
+
           console.log(`📝 [route.ts:POST:324] Exception handling completed for chain ${parentId}`);
           results.push({ type: 'thread_chain', parentId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
         }
@@ -367,11 +367,11 @@ export async function POST() {
     } else {
       console.log(`📄 [route.ts:POST:341] No single posts to process`);
     }
-    
+
     for (const post of singlePosts) {
       const postIndex = singlePosts.indexOf(post) + 1;
       const totalPosts = singlePosts.length;
-      
+
       console.log(`🔄 [route.ts:POST:347] Processing single post ${postIndex}/${totalPosts}`);
       console.log(`🔄 [route.ts:POST:348] Post details:`, {
         postId: post.my_contents_id,
@@ -380,7 +380,7 @@ export async function POST() {
         contentLength: post.content?.length || 0,
         mediaUrlsCount: post.media_urls?.length || 0
       });
-      
+
       try {
         // Fetch access token for this social account
         console.log(`🔐 [route.ts:POST:358] Fetching access token for single post`);
@@ -391,7 +391,7 @@ export async function POST() {
           hasToken: !!accessToken,
           tokenLength: accessToken?.length || 0
         });
-        
+
         if (!accessToken) {
           throw new Error(`No access token found for social_id ${post.social_id}`);
         }
@@ -403,18 +403,18 @@ export async function POST() {
           media_urls: post.media_urls || [],
           media_type: post.media_type || 'TEXT'
         };
-        
+
         console.log(`🚀 [route.ts:POST:378] Single thread content:`, {
           contentLength: singleThreadContent.content.length,
           mediaUrlsCount: singleThreadContent.media_urls.length,
           mediaType: singleThreadContent.media_type
         });
-        
+
         const threadChainResult = await (postThreadChain as any)(
-          [singleThreadContent], 
+          [singleThreadContent],
           { accessToken, selectedSocialId: post.social_id }
         );
-        
+
         console.log(`🚀 [route.ts:POST:388] PostThreadChain result for single post:`, {
           postId: post.my_contents_id,
           success: threadChainResult.success,
@@ -429,7 +429,7 @@ export async function POST() {
             postIndex,
             totalPosts
           });
-          
+
           console.log(`📝 [route.ts:POST:404] Updating single post to 'posted' status`);
           await supabase
             .from('my_contents')
@@ -438,7 +438,7 @@ export async function POST() {
               media_id: threadChainResult.parentThreadId || null
             })
             .eq('my_contents_id', post.my_contents_id);
-          
+
           console.log(`📝 [route.ts:POST:413] Single post update completed successfully`);
           processedCount++;
           results.push({ type: 'single_post', postId: post.my_contents_id, success: true });
@@ -449,7 +449,7 @@ export async function POST() {
             postIndex,
             totalPosts
           });
-          
+
           // Update single post to 'failed' status
           console.log(`📝 [route.ts:POST:425] Updating single post to 'failed' status`);
           await supabase
@@ -458,7 +458,7 @@ export async function POST() {
               publish_status: 'failed'
             })
             .eq('my_contents_id', post.my_contents_id);
-          
+
           console.log(`📝 [route.ts:POST:433] Single post failure update completed`);
           results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: threadChainResult.error });
         }
@@ -470,7 +470,7 @@ export async function POST() {
           postIndex,
           totalPosts
         });
-        
+
         // Update single post to 'failed' status on exception
         console.log(`📝 [route.ts:POST:446] Exception handling - updating single post to 'failed'`);
         await supabase
@@ -479,7 +479,7 @@ export async function POST() {
             publish_status: 'failed'
           })
           .eq('my_contents_id', post.my_contents_id);
-        
+
         console.log(`📝 [route.ts:POST:454] Exception handling completed for single post`);
         results.push({ type: 'single_post', postId: post.my_contents_id, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }
@@ -489,7 +489,7 @@ export async function POST() {
     console.log(`📊 [route.ts:POST:489] Calculating final statistics`);
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.filter(r => !r.success).length;
-    
+
     console.log(`🎯 [route.ts:POST:493] CRON job completed successfully:`, {
       successCount,
       failureCount,
@@ -498,7 +498,7 @@ export async function POST() {
       successRate: results.length > 0 ? `${((successCount / results.length) * 100).toFixed(1)}%` : '0%',
       completionTime: getCurrentUTCISO()
     });
-    
+
     console.log(`📤 [route.ts:POST:502] Preparing successful response`);
     const response = {
       success: true,
@@ -511,13 +511,13 @@ export async function POST() {
       },
       message: `Cron job completed successfully. Processed ${processedCount} items.`
     };
-    
+
     console.log(`📤 [route.ts:POST:514] Returning successful response:`, {
       processed: response.processed,
       statsTotal: response.stats.total,
       success: response.success
     });
-    
+
     return NextResponse.json(response);
 
   } catch (error) {
@@ -527,7 +527,7 @@ export async function POST() {
       errorType: typeof error,
       timestamp: getCurrentUTCISO()
     });
-    
+
     console.log(`❌ [route.ts:POST:503] Returning error response`);
     return NextResponse.json(
       { error: 'Cron job failed', details: error instanceof Error ? error.message : 'Unknown error' },

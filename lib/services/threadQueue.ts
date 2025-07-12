@@ -169,8 +169,8 @@ export class ThreadQueue {
         return;
       }
 
-      console.log(`📥 [threadQueue.ts:processQueue:169] Database query result:`, { 
-        foundItems: !!pendingItems, 
+      console.log(`📥 [threadQueue.ts:processQueue:169] Database query result:`, {
+        foundItems: !!pendingItems,
         itemCount: pendingItems?.length || 0,
         maxConcurrent: this.MAX_CONCURRENT
       });
@@ -246,7 +246,7 @@ export class ThreadQueue {
     console.log(`🔄 [threadQueue.ts:processQueueItem:219] Starting processQueueItem for item: ${item.queue_id}`);
     console.log(`🔄 [threadQueue.ts:processQueueItem:220] Creating Supabase client`);
     const supabase = await createClient();
-    
+
     console.log(`🔄 [threadQueue.ts:processQueueItem:223] Converting database item to QueuedThread object`);
     const queueItem: QueuedThread = {
       id: item.queue_id,
@@ -288,10 +288,10 @@ export class ThreadQueue {
       // 스레드 게시 처리
       console.log(`🚀 [threadQueue.ts:processQueueItem:258] Starting thread posting`);
       const result = await this.postThread(queueItem);
-      console.log(`🚀 [threadQueue.ts:processQueueItem:260] Thread posting result:`, { 
-        success: result.success, 
-        hasThreadId: !!result.threadId, 
-        hasError: !!result.error 
+      console.log(`🚀 [threadQueue.ts:processQueueItem:260] Thread posting result:`, {
+        success: result.success,
+        hasThreadId: !!result.threadId,
+        hasError: !!result.error
       });
 
       if (result.success) {
@@ -358,7 +358,7 @@ export class ThreadQueue {
       mediaUrlsCount: queueItem.mediaUrls.length,
       contentLength: queueItem.content.length
     });
-    
+
     try {
       const { accessToken, socialId, content, mediaUrls, mediaType, replyToId } = queueItem;
 
@@ -406,7 +406,7 @@ export class ThreadQueue {
       socialId,
       hasAccessToken: !!accessToken
     });
-    
+
     try {
       // Import the optimized function from schedule.ts
       console.log(`📦 [threadQueue.ts:postRegularThread:320] Importing createThreadsContainer from schedule.ts`);
@@ -426,7 +426,7 @@ export class ThreadQueue {
         hasCreationId: !!containerResult.creationId,
         hasError: !!containerResult.error
       });
-      
+
       if (!containerResult.success) {
         console.error(`❌ [threadQueue.ts:postRegularThread:339] Container creation failed:`, containerResult.error);
         return { success: false, error: containerResult.error || 'Unknown error' };
@@ -448,16 +448,16 @@ export class ThreadQueue {
       // Reduced retry attempts for queue processing
       const maxAttempts = 3;
       console.log(`🔄 [threadQueue.ts:postRegularThread:357] Starting publish attempts (max: ${maxAttempts})`);
-      
+
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         console.log(`🔄 [threadQueue.ts:postRegularThread:360] Publish attempt ${attempt + 1}/${maxAttempts}`);
         const startTime = Date.now();
-        
+
         const publishResponse = await fetch(publishUrl, {
           method: "POST",
           body: publishParams
         });
-        
+
         const responseTime = Date.now() - startTime;
         console.log(`🔄 [threadQueue.ts:postRegularThread:369] Attempt ${attempt + 1} response:`, {
           status: publishResponse.status,

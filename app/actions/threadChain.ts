@@ -30,7 +30,7 @@ export interface AuthOptions {
 async function getThreadsAccessToken(options?: AuthOptions) {
   console.log(`🔐 [threadChain.ts:getThreadsAccessToken:31] Starting token retrieval`);
   console.log(`🔐 [threadChain.ts:getThreadsAccessToken:32] Options provided:`, { hasAccessToken: !!options?.accessToken, hasSelectedSocialId: !!options?.selectedSocialId });
-  
+
   // If tokens are provided (from cron job), use them directly
   if (options?.accessToken && options?.selectedSocialId) {
     console.log(`🔐 [threadChain.ts:getThreadsAccessToken:35] Using provided tokens (cron job mode)`);
@@ -44,7 +44,7 @@ async function getThreadsAccessToken(options?: AuthOptions) {
   // Fall back to session-based authentication (for user actions)
   const session = await getServerSession(authOptions);
   console.log(`🔐 [threadChain.ts:getThreadsAccessToken:44] Session retrieved:`, { hasUser: !!session?.user, userId: session?.user?.id });
-  
+
   if (!session || !session.user?.id) {
     console.error(`❌ [threadChain.ts:getThreadsAccessToken:46] No valid session found`);
     throw new Error("로그인이 필요합니다.");
@@ -95,11 +95,11 @@ async function getThreadsAccessToken(options?: AuthOptions) {
 // Optimized version with reduced timeouts
 async function createThreadsPostOptimized(content: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
   console.log(`📝 [threadChain.ts:createThreadsPostOptimized:96] Starting thread post creation`);
-  console.log(`📝 [threadChain.ts:createThreadsPostOptimized:97] Input params:`, { 
-    contentLength: content.length, 
-    mediaUrlsCount: mediaUrls?.length || 0, 
+  console.log(`📝 [threadChain.ts:createThreadsPostOptimized:97] Input params:`, {
+    contentLength: content.length,
+    mediaUrlsCount: mediaUrls?.length || 0,
     mediaType,
-    hasOptions: !!options 
+    hasOptions: !!options
   });
 
   const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
@@ -116,10 +116,10 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
     console.log(`📝 [threadChain.ts:createThreadsPostOptimized:114] Calling createThreadsContainer with params:`, containerParams);
     const containerResult = await createThreadsContainer(selectedSocialId, accessToken, containerParams);
 
-    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:117] Container creation result:`, { 
-      success: containerResult.success, 
-      hasCreationId: !!containerResult.creationId, 
-      error: containerResult.error 
+    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:117] Container creation result:`, {
+      success: containerResult.success,
+      hasCreationId: !!containerResult.creationId,
+      error: containerResult.error
     });
 
     if (!containerResult.success) {
@@ -144,7 +144,7 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
 
     while (attempt < maxAttempts) {
       console.log(`📝 [threadChain.ts:createThreadsPostOptimized:143] Publish attempt ${attempt + 1}/${maxAttempts}`);
-      
+
       try {
         const startTime = Date.now();
         const publishResponse = await fetch(publishUrl, {
@@ -211,12 +211,12 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
 // Optimized version of createThreadsReply with reduced timeouts
 async function createThreadsReplyOptimized(content: string, replyToId: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
   console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:212] Starting reply creation`);
-  console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:213] Input params:`, { 
-    contentLength: content.length, 
-    replyToId, 
-    mediaUrlsCount: mediaUrls?.length || 0, 
+  console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:213] Input params:`, {
+    contentLength: content.length,
+    replyToId,
+    mediaUrlsCount: mediaUrls?.length || 0,
     mediaType,
-    hasOptions: !!options 
+    hasOptions: !!options
   });
 
   const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
@@ -254,18 +254,18 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
       console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:255] API request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
-      
+
       const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
       const responseTime = Date.now() - startTime;
-      
+
       console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:261] Single image container response:`, {
         status: response.status,
         statusText: response.statusText,
         responseTime: `${responseTime}ms`,
         headers: Object.fromEntries(response.headers.entries())
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:270] Single image container creation failed:`, {
@@ -278,7 +278,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         });
         throw new Error(`댓글 이미지 컨테이너 생성 실패: ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:281] Single image container created: ${data.id}`);
       mediaContainerId = data.id;
@@ -294,18 +294,18 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
       console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:295] Video API request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
-      
+
       const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
       const responseTime = Date.now() - startTime;
-      
+
       console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:301] Single video container response:`, {
         status: response.status,
         statusText: response.statusText,
         responseTime: `${responseTime}ms`,
         headers: Object.fromEntries(response.headers.entries())
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:310] Single video container creation failed:`, {
@@ -318,7 +318,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         });
         throw new Error(`댓글 비디오 컨테이너 생성 실패: ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:321] Single video container created: ${data.id}`);
       mediaContainerId = data.id;
@@ -329,13 +329,13 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       console.log(`🎠 [CAROUSEL] Media URLs:`, mediaUrls);
       console.log(`🎠 [CAROUSEL] Reply to ID: ${replyToId}`);
       console.log(`🎠 [CAROUSEL] Selected Social ID: ${selectedSocialId}`);
-      
+
       const itemContainers = [];
 
       for (let i = 0; i < mediaUrls.length; i++) {
         const imageUrl = mediaUrls[i];
         console.log(`🎠 [CAROUSEL] Creating item ${i + 1}/${mediaUrls.length} for URL: ${imageUrl}`);
-        
+
         const urlParams = new URLSearchParams();
         urlParams.append("media_type", "IMAGE");
         urlParams.append("image_url", imageUrl);
@@ -343,7 +343,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         urlParams.append("access_token", accessToken);
 
         const containerUrl = `${baseUrl}?${urlParams.toString()}`;
-        
+
         console.log(`🎠 [CAROUSEL] API Request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
         console.log(`🎠 [CAROUSEL] Request params:`, {
           media_type: "IMAGE",
@@ -351,11 +351,11 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           is_carousel_item: "true",
           access_token: '[REDACTED]'
         });
-        
+
         const startTime = Date.now();
         const response = await fetch(containerUrl, { method: "POST" });
         const responseTime = Date.now() - startTime;
-        
+
         console.log(`🎠 [CAROUSEL] Item ${i + 1} API Response:`, {
           status: response.status,
           statusText: response.statusText,
@@ -383,7 +383,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
             selectedSocialId,
             replyToId
           });
-          
+
           // 이미지 URL 유효성 검사
           try {
             const imageCheckResponse = await fetch(imageUrl, { method: 'HEAD' });
@@ -397,7 +397,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           } catch (imageError) {
             console.error(`🔍 [CAROUSEL] Image URL check failed for ${imageUrl}:`, imageError);
           }
-          
+
           throw new Error(`댓글 캐러셀 아이템 생성 실패 (아이템 ${i + 1}/${mediaUrls.length}, 상태: ${response.status}): ${errorText}`);
         }
 
@@ -408,16 +408,16 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           responseTime: `${responseTime}ms`,
           fullResponse: data
         });
-        
+
         itemContainers.push(data.id);
-        
+
         // 다음 아이템 생성 전 딜레이 (마지막 아이템 제외)
         if (i < mediaUrls.length - 1) {
           console.log(`⏳ [CAROUSEL] Waiting 1 second before creating next item...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      
+
       console.log(`🎠 [CAROUSEL] All ${mediaUrls.length} items created. Container IDs:`, itemContainers);
 
       // Create carousel container with reply_to_id
@@ -430,7 +430,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       urlParams.append("access_token", accessToken);
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
-      
+
       console.log(`🎠 [CAROUSEL] Final container request:`, {
         url: containerUrl.replace(accessToken, '[REDACTED]'),
         params: {
@@ -443,11 +443,11 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         childrenCount: itemContainers.length,
         childrenIds: itemContainers
       });
-      
+
       const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
       const responseTime = Date.now() - startTime;
-      
+
       console.log(`🎠 [CAROUSEL] Final container API Response:`, {
         status: response.status,
         statusText: response.statusText,
@@ -455,7 +455,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         headers: Object.fromEntries(response.headers.entries()),
         url: response.url
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ [CAROUSEL] Final container creation failed:`, {
@@ -476,14 +476,14 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         });
         throw new Error(`댓글 캐러셀 컨테이너 생성 실패 (상태: ${response.status}): ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log(`✅ [CAROUSEL] Final container created successfully:`, {
         containerId: data.id,
         responseTime: `${responseTime}ms`,
         fullResponse: data
       });
-      
+
       mediaContainerId = data.id;
     } else {
       throw new Error("지원하지 않는 댓글 미디어 타입입니다.");
@@ -604,8 +604,8 @@ export async function postThreadChain(threads: ThreadContent[], options: AuthOpt
 // Main function to post thread chain immediately
 export async function postThreadChain(threads: ThreadContent[], options?: AuthOptions): Promise<ThreadChainResult> {
   console.log(`🚀 [threadChain.ts:postThreadChain:515] Starting thread chain posting`);
-  console.log(`🚀 [threadChain.ts:postThreadChain:516] Input validation:`, { 
-    threadsCount: threads?.length || 0, 
+  console.log(`🚀 [threadChain.ts:postThreadChain:516] Input validation:`, {
+    threadsCount: threads?.length || 0,
     hasOptions: !!options,
     optionsType: options?.accessToken ? 'cron' : 'user'
   });
