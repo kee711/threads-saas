@@ -28,35 +28,48 @@ export interface AuthOptions {
 
 // Get Threads access token - supports both session-based and provided tokens
 async function getThreadsAccessToken(options?: AuthOptions) {
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:31] Starting token retrieval`);
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:32] Options provided:`, { hasAccessToken: !!options?.accessToken, hasSelectedSocialId: !!options?.selectedSocialId });
+
   // If tokens are provided (from cron job), use them directly
   if (options?.accessToken && options?.selectedSocialId) {
+    console.log(`🔐 [threadChain.ts:getThreadsAccessToken:35] Using provided tokens (cron job mode)`);
     return {
       accessToken: options.accessToken,
       selectedSocialId: options.selectedSocialId
     };
   }
 
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:42] Falling back to session-based authentication`);
   // Fall back to session-based authentication (for user actions)
   const session = await getServerSession(authOptions);
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:44] Session retrieved:`, { hasUser: !!session?.user, userId: session?.user?.id });
+
   if (!session || !session.user?.id) {
+    console.error(`❌ [threadChain.ts:getThreadsAccessToken:46] No valid session found`);
     throw new Error("로그인이 필요합니다.");
   }
   const userId = session.user.id;
   const supabase = await createClient();
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:51] Supabase client created for user: ${userId}`);
 
   // user_profiles에서 선택된 소셜 계정 id 가져오기
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:54] Querying user_profiles for selected_social_id`);
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('selected_social_id')
     .eq('user_id', userId)
     .single();
 
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:60] Profile query result:`, profile);
   const selectedSocialId = profile?.selected_social_id;
   if (!selectedSocialId) {
+    console.error(`❌ [threadChain.ts:getThreadsAccessToken:63] No selected social ID found for user: ${userId}`);
     throw new Error('선택된 소셜 계정이 없습니다.');
   }
 
   // social_accounts에서 access_token 가져오기
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:68] Querying social_accounts for access_token, socialId: ${selectedSocialId}`);
   const { data: account } = await supabase
     .from('social_accounts')
     .select('access_token')
@@ -65,35 +78,57 @@ async function getThreadsAccessToken(options?: AuthOptions) {
     .eq('is_active', true)
     .single();
 
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:76] Account query result:`, { hasAccount: !!account, hasToken: !!account?.access_token });
   const encryptedToken = account?.access_token;
   if (!encryptedToken) {
+    console.error(`❌ [threadChain.ts:getThreadsAccessToken:79] No access token found for socialId: ${selectedSocialId}`);
     throw new Error('Threads access token이 없습니다.');
   }
 
   // 토큰 복호화
+  console.log(`🔐 [threadChain.ts:getThreadsAccessToken:84] Decrypting access token`);
   const accessToken = decryptToken(encryptedToken);
+  console.log(`✅ [threadChain.ts:getThreadsAccessToken:86] Token retrieval successful for socialId: ${selectedSocialId}`);
   return { accessToken, selectedSocialId };
 }
 
 // Optimized version with reduced timeouts
 async function createThreadsPostOptimized(content: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
+  console.log(`📝 [threadChain.ts:createThreadsPostOptimized:96] Starting thread post creation`);
+  console.log(`📝 [threadChain.ts:createThreadsPostOptimized:97] Input params:`, {
+    contentLength: content.length,
+    mediaUrlsCount: mediaUrls?.length || 0,
+    mediaType,
+    hasOptions: !!options
+  });
+
   const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
+  console.log(`📝 [threadChain.ts:createThreadsPostOptimized:104] Token retrieved, socialId: ${selectedSocialId}`);
 
   try {
+    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:107] Building container params`);
     const containerParams: PublishPostParams = {
       content,
       mediaType: (mediaType as any) || 'TEXT',
       media_urls: mediaUrls || []
     };
 
+    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:114] Calling createThreadsContainer with params:`, containerParams);
     const containerResult = await createThreadsContainer(selectedSocialId, accessToken, containerParams);
 
+    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:117] Container creation result:`, {
+      success: containerResult.success,
+      hasCreationId: !!containerResult.creationId,
+      error: containerResult.error
+    });
+
     if (!containerResult.success) {
+      console.error(`❌ [threadChain.ts:createThreadsPostOptimized:123] Container creation failed: ${containerResult.error}`);
       throw new Error(containerResult.error || 'Failed to create thread container');
     }
 
     const mediaContainerId = containerResult.creationId;
-    console.log(`Created media container: ${mediaContainerId}`);
+    console.log(`✅ [threadChain.ts:createThreadsPostOptimized:128] Container created successfully: ${mediaContainerId}`);
 
     const publishUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads_publish`;
     const publishParams = new URLSearchParams({
@@ -101,21 +136,33 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
       access_token: accessToken,
     });
 
+    console.log(`📝 [threadChain.ts:createThreadsPostOptimized:136] Starting publish attempts with URL: ${publishUrl.replace(accessToken, '[REDACTED]')}`);
+
     // Reduced attempts and wait time for optimization
     const maxAttempts = 5;
     let attempt = 0;
 
     while (attempt < maxAttempts) {
-      console.log(`Attempt ${attempt + 1}: Publishing thread...`);
+      console.log(`📝 [threadChain.ts:createThreadsPostOptimized:143] Publish attempt ${attempt + 1}/${maxAttempts}`);
+
       try {
+        const startTime = Date.now();
         const publishResponse = await fetch(publishUrl, {
           method: "POST",
           body: publishParams
         });
+        const responseTime = Date.now() - startTime;
+
+        console.log(`📝 [threadChain.ts:createThreadsPostOptimized:152] Publish attempt ${attempt + 1} response:`, {
+          status: publishResponse.status,
+          statusText: publishResponse.statusText,
+          responseTime: `${responseTime}ms`,
+          headers: Object.fromEntries(publishResponse.headers.entries())
+        });
 
         if (publishResponse.ok) {
           const publishData = await publishResponse.json();
-          console.log('Thread published successfully!');
+          console.log(`✅ [threadChain.ts:createThreadsPostOptimized:161] Thread published successfully! ID: ${publishData.id}`);
           return {
             success: true,
             threadId: publishData.id,
@@ -124,94 +171,80 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
         } else {
           // 실패한 응답의 내용을 확인
           const errorText = await publishResponse.text();
-          console.error(`Error during publish attempt ${attempt + 1}:`, {
+          console.error(`❌ [threadChain.ts:createThreadsPostOptimized:170] Publish attempt ${attempt + 1} failed:`, {
             status: publishResponse.status,
             statusText: publishResponse.statusText,
-            error: errorText
+            errorBody: errorText,
+            responseTime: `${responseTime}ms`,
+            attempt: attempt + 1,
+            maxAttempts
           });
         }
       } catch (error) {
-        console.error(`Error during publish attempt ${attempt + 1}:`, error);
+        console.error(`❌ [threadChain.ts:createThreadsPostOptimized:180] Exception during publish attempt ${attempt + 1}:`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          attempt: attempt + 1,
+          maxAttempts
+        });
       }
 
       // Reduced wait time: 5 seconds for text, 10 seconds for media
       const hasMedia = mediaUrls && mediaUrls.length > 0;
       const waitTime = hasMedia ? 10000 : 5000;
+      console.log(`⏳ [threadChain.ts:createThreadsPostOptimized:191] Waiting ${waitTime}ms before next attempt...`);
       await new Promise((resolve) => setTimeout(resolve, waitTime));
       attempt++;
     }
 
+    console.error(`❌ [threadChain.ts:createThreadsPostOptimized:196] All ${maxAttempts} publish attempts failed`);
     throw new Error('Failed to publish thread after multiple attempts.');
   } catch (error) {
-    console.error('Error creating thread:', error);
+    console.error(`❌ [threadChain.ts:createThreadsPostOptimized:199] Error in createThreadsPostOptimized:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }
 
 // Optimized version of createThreadsReply with reduced timeouts
 async function createThreadsReplyOptimized(content: string, replyToId: string, mediaUrls?: string[], mediaType?: string, options?: AuthOptions) {
+  console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:212] Starting reply creation`);
+  console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:213] Input params:`, {
+    contentLength: content.length,
+    replyToId,
+    mediaUrlsCount: mediaUrls?.length || 0,
+    mediaType,
+    hasOptions: !!options
+  });
+
   const { accessToken, selectedSocialId } = await getThreadsAccessToken(options);
+  console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:222] Token retrieved, socialId: ${selectedSocialId}`);
 
   try {
-    // If no media, create text reply directly
+    // If no media, use the existing postComment function
+    console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:226] Checking media requirements`);
     if (!mediaUrls || mediaUrls.length === 0 || mediaType === 'TEXT') {
-      // For queue system, create text reply directly without session check
-      if (options?.accessToken && options?.selectedSocialId) {
-        const urlParams = new URLSearchParams({
-          media_type: "TEXT",
-          text: content,
-          reply_to_id: replyToId,
-          access_token: options.accessToken
-        });
-
-        const response = await fetch(`https://graph.threads.net/v1.0/${options.selectedSocialId}/threads`, {
-          method: "POST",
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: urlParams.toString()
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(`Failed to create text reply: ${JSON.stringify(data)}`);
-        }
-
-        // Publish the text reply
-        const publishUrl = `https://graph.threads.net/v1.0/${options.selectedSocialId}/threads_publish`;
-        const publishParams = new URLSearchParams({
-          creation_id: data.id,
-          access_token: options.accessToken,
-        });
-
-        const publishResponse = await fetch(publishUrl, {
-          method: "POST",
-          body: publishParams
-        });
-
-        if (publishResponse.ok) {
-          const publishData = await publishResponse.json();
-          return { id: publishData.id };
-        } else {
-          throw new Error('Failed to publish text reply');
-        }
-      } else {
-        // For regular user actions, use the existing postComment function
-        return await postComment({
-          media_type: 'TEXT_POST',
-          text: content,
-          reply_to_id: replyToId
-        });
-      }
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:228] Using postComment for text-only reply`);
+      const result = await postComment({
+        media_type: 'TEXT_POST',
+        text: content,
+        reply_to_id: replyToId
+      });
+      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:234] Text reply created successfully:`, result);
+      return result;
     }
 
     // For media replies, use createThreadsContainer with reply_to_id
+    console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:240] Creating media reply container`);
     const baseUrl = `https://graph.threads.net/v1.0/${selectedSocialId}/threads`;
     let mediaContainerId;
 
     // Handle different media types (same logic as original)
+    console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:245] Processing media type: ${mediaType}, URL count: ${mediaUrls.length}`);
     if (mediaType === "IMAGE" && mediaUrls.length === 1) {
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:247] Creating single image reply container`);
       const urlParams = new URLSearchParams();
       urlParams.append("media_type", "IMAGE");
       urlParams.append("image_url", mediaUrls[0]);
@@ -220,17 +253,38 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       urlParams.append("access_token", accessToken);
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:255] API request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
+
+      const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
-      
+      const responseTime = Date.now() - startTime;
+
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:261] Single image container response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        responseTime: `${responseTime}ms`,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:270] Single image container creation failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorText,
+          imageUrl: mediaUrls[0],
+          replyToId,
+          responseTime: `${responseTime}ms`
+        });
         throw new Error(`댓글 이미지 컨테이너 생성 실패: ${errorText}`);
       }
-      
+
       const data = await response.json();
+      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:281] Single image container created: ${data.id}`);
       mediaContainerId = data.id;
     }
     else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:286] Creating single video reply container`);
       const urlParams = new URLSearchParams();
       urlParams.append("media_type", "VIDEO");
       urlParams.append("video_url", mediaUrls[0]);
@@ -239,14 +293,34 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       urlParams.append("access_token", accessToken);
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:295] Video API request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
+
+      const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
-      
+      const responseTime = Date.now() - startTime;
+
+      console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:301] Single video container response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        responseTime: `${responseTime}ms`,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:310] Single video container creation failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorText,
+          videoUrl: mediaUrls[0],
+          replyToId,
+          responseTime: `${responseTime}ms`
+        });
         throw new Error(`댓글 비디오 컨테이너 생성 실패: ${errorText}`);
       }
-      
+
       const data = await response.json();
+      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:321] Single video container created: ${data.id}`);
       mediaContainerId = data.id;
     }
     else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
@@ -255,13 +329,13 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       console.log(`🎠 [CAROUSEL] Media URLs:`, mediaUrls);
       console.log(`🎠 [CAROUSEL] Reply to ID: ${replyToId}`);
       console.log(`🎠 [CAROUSEL] Selected Social ID: ${selectedSocialId}`);
-      
+
       const itemContainers = [];
 
       for (let i = 0; i < mediaUrls.length; i++) {
         const imageUrl = mediaUrls[i];
         console.log(`🎠 [CAROUSEL] Creating item ${i + 1}/${mediaUrls.length} for URL: ${imageUrl}`);
-        
+
         const urlParams = new URLSearchParams();
         urlParams.append("media_type", "IMAGE");
         urlParams.append("image_url", imageUrl);
@@ -269,7 +343,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         urlParams.append("access_token", accessToken);
 
         const containerUrl = `${baseUrl}?${urlParams.toString()}`;
-        
+
         console.log(`🎠 [CAROUSEL] API Request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
         console.log(`🎠 [CAROUSEL] Request params:`, {
           media_type: "IMAGE",
@@ -277,11 +351,11 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           is_carousel_item: "true",
           access_token: '[REDACTED]'
         });
-        
+
         const startTime = Date.now();
         const response = await fetch(containerUrl, { method: "POST" });
         const responseTime = Date.now() - startTime;
-        
+
         console.log(`🎠 [CAROUSEL] Item ${i + 1} API Response:`, {
           status: response.status,
           statusText: response.statusText,
@@ -309,7 +383,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
             selectedSocialId,
             replyToId
           });
-          
+
           // 이미지 URL 유효성 검사
           try {
             const imageCheckResponse = await fetch(imageUrl, { method: 'HEAD' });
@@ -323,7 +397,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           } catch (imageError) {
             console.error(`🔍 [CAROUSEL] Image URL check failed for ${imageUrl}:`, imageError);
           }
-          
+
           throw new Error(`댓글 캐러셀 아이템 생성 실패 (아이템 ${i + 1}/${mediaUrls.length}, 상태: ${response.status}): ${errorText}`);
         }
 
@@ -334,16 +408,16 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           responseTime: `${responseTime}ms`,
           fullResponse: data
         });
-        
+
         itemContainers.push(data.id);
-        
+
         // 다음 아이템 생성 전 딜레이 (마지막 아이템 제외)
         if (i < mediaUrls.length - 1) {
           console.log(`⏳ [CAROUSEL] Waiting 1 second before creating next item...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      
+
       console.log(`🎠 [CAROUSEL] All ${mediaUrls.length} items created. Container IDs:`, itemContainers);
 
       // Create carousel container with reply_to_id
@@ -356,7 +430,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       urlParams.append("access_token", accessToken);
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
-      
+
       console.log(`🎠 [CAROUSEL] Final container request:`, {
         url: containerUrl.replace(accessToken, '[REDACTED]'),
         params: {
@@ -369,11 +443,11 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         childrenCount: itemContainers.length,
         childrenIds: itemContainers
       });
-      
+
       const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
       const responseTime = Date.now() - startTime;
-      
+
       console.log(`🎠 [CAROUSEL] Final container API Response:`, {
         status: response.status,
         statusText: response.statusText,
@@ -381,7 +455,7 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         headers: Object.fromEntries(response.headers.entries()),
         url: response.url
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ [CAROUSEL] Final container creation failed:`, {
@@ -402,14 +476,14 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         });
         throw new Error(`댓글 캐러셀 컨테이너 생성 실패 (상태: ${response.status}): ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log(`✅ [CAROUSEL] Final container created successfully:`, {
         containerId: data.id,
         responseTime: `${responseTime}ms`,
         fullResponse: data
       });
-      
+
       mediaContainerId = data.id;
     } else {
       throw new Error("지원하지 않는 댓글 미디어 타입입니다.");
@@ -550,21 +624,42 @@ export async function postThreadChain(threads: ThreadContent[], options: AuthOpt
 
 // Main function to post thread chain immediately
 export async function postThreadChain(threads: ThreadContent[], options?: AuthOptions): Promise<ThreadChainResult> {
+  console.log(`🚀 [threadChain.ts:postThreadChain:515] Starting thread chain posting`);
+  console.log(`🚀 [threadChain.ts:postThreadChain:516] Input validation:`, {
+    threadsCount: threads?.length || 0,
+    hasOptions: !!options,
+    optionsType: options?.accessToken ? 'cron' : 'user'
+  });
+
   try {
     if (!threads || threads.length === 0) {
+      console.error(`❌ [threadChain.ts:postThreadChain:524] Empty thread chain provided`);
       throw new Error('Thread chain cannot be empty');
     }
 
+    console.log(`🚀 [threadChain.ts:postThreadChain:528] Thread chain details:`, threads.map((t, i) => ({
+      index: i,
+      contentLength: t.content.length,
+      mediaType: t.media_type,
+      mediaCount: t.media_urls?.length || 0
+    })));
+
     // Single thread case - process immediately
     if (threads.length === 1) {
+      console.log(`🚀 [threadChain.ts:postThreadChain:537] Single thread detected, using postSingleThread`);
       return await postSingleThread(threads[0], options);
     }
 
     // Multi-thread case - use optimized approach
+    console.log(`🚀 [threadChain.ts:postThreadChain:542] Multi-thread chain detected (${threads.length} threads), using postThreadChainOptimized`);
     return await postThreadChainOptimized(threads, options);
 
   } catch (error) {
-    console.error('Thread chain posting error:', error);
+    console.error(`❌ [threadChain.ts:postThreadChain:546] Thread chain posting error:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      threadsCount: threads?.length || 0
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

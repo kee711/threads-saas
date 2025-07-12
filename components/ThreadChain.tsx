@@ -31,7 +31,7 @@ export function ThreadChain({
   className = ''
 }: ThreadChainProps) {
   const isWriting = variant === 'writing';
-  
+
   return (
     <div className={`thread-chain ${className}`}>
       {threads.map((thread, index) => (
@@ -39,7 +39,7 @@ export function ThreadChain({
           key={`thread-${index}`}
           variant={isWriting ? "writing" : "default"}
           avatar={avatar}
-          username={username}
+          username={username || ''}
           content={thread.content}
           onContentChange={isWriting ? (content) => onThreadContentChange?.(index, content) : undefined}
           media={thread.media_urls || []}
