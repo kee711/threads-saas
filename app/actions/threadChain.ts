@@ -546,26 +546,47 @@ async function saveThreadChainToDatabase(
   threads: ThreadContent[],
   threadIds: string[],
   parentThreadId: string,
-  scheduledAt?: string
+  scheduledAt?: string,
+  options?: AuthOptions
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user?.id) {
-    throw new Error("로그인이 필요합니다.");
-  }
-
   const supabase = await createClient();
-  const userId = session.user.id;
+  let userId: string;
+  let selectedSocialId: string;
 
-  // Get selected social account
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('selected_social_id')
-    .eq('user_id', userId)
-    .single();
+  // For cron job (queue system), use provided social_id and get user_id from database
+  if (options?.accessToken && options?.selectedSocialId) {
+    selectedSocialId = options.selectedSocialId;
+    
+    // Get user_id from social_accounts table
+    const { data: account } = await supabase
+      .from('social_accounts')
+      .select('user_id')
+      .eq('social_id', selectedSocialId)
+      .single();
 
-  const selectedSocialId = profile?.selected_social_id;
-  if (!selectedSocialId) {
-    throw new Error('선택된 소셜 계정이 없습니다.');
+    if (!account?.user_id) {
+      throw new Error('User ID not found for social account');
+    }
+    userId = account.user_id;
+  } else {
+    // For regular user actions, use session-based authentication
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      throw new Error("로그인이 필요합니다.");
+    }
+    userId = session.user.id;
+
+    // Get selected social account
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('selected_social_id')
+      .eq('user_id', userId)
+      .single();
+
+    selectedSocialId = profile?.selected_social_id;
+    if (!selectedSocialId) {
+      throw new Error('선택된 소셜 계정이 없습니다.');
+    }
   }
 
   // Save each thread in the chain
@@ -732,7 +753,7 @@ async function postThreadChainOptimized(threads: ThreadContent[], options?: Auth
   }
 
   // Save to database
-  await saveThreadChainToDatabase(threads, threadIds, parentThreadId);
+  await saveThreadChainToDatabase(threads, threadIds, parentThreadId, undefined, options);
 
   return {
     success: true,
@@ -754,7 +775,7 @@ async function postSingleThread(thread: ThreadContent, options?: AuthOptions): P
     throw new Error('Failed to create thread');
   }
 
-  await saveThreadChainToDatabase([thread], [result.threadId], result.threadId);
+  await saveThreadChainToDatabase([thread], [result.threadId], result.threadId, undefined, options);
 
   return {
     success: true,
