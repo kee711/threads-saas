@@ -251,9 +251,17 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
     }
     else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
       // Create carousel reply
+      console.log(`🎠 [CAROUSEL] Starting carousel reply creation with ${mediaUrls.length} items`);
+      console.log(`🎠 [CAROUSEL] Media URLs:`, mediaUrls);
+      console.log(`🎠 [CAROUSEL] Reply to ID: ${replyToId}`);
+      console.log(`🎠 [CAROUSEL] Selected Social ID: ${selectedSocialId}`);
+      
       const itemContainers = [];
 
-      for (const imageUrl of mediaUrls) {
+      for (let i = 0; i < mediaUrls.length; i++) {
+        const imageUrl = mediaUrls[i];
+        console.log(`🎠 [CAROUSEL] Creating item ${i + 1}/${mediaUrls.length} for URL: ${imageUrl}`);
+        
         const urlParams = new URLSearchParams();
         urlParams.append("media_type", "IMAGE");
         urlParams.append("image_url", imageUrl);
@@ -261,18 +269,85 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         urlParams.append("access_token", accessToken);
 
         const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+        
+        console.log(`🎠 [CAROUSEL] API Request URL: ${containerUrl.replace(accessToken, '[REDACTED]')}`);
+        console.log(`🎠 [CAROUSEL] Request params:`, {
+          media_type: "IMAGE",
+          image_url: imageUrl,
+          is_carousel_item: "true",
+          access_token: '[REDACTED]'
+        });
+        
+        const startTime = Date.now();
         const response = await fetch(containerUrl, { method: "POST" });
+        const responseTime = Date.now() - startTime;
+        
+        console.log(`🎠 [CAROUSEL] Item ${i + 1} API Response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          responseTime: `${responseTime}ms`,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: response.url
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`댓글 캐러셀 아이템 생성 실패: ${errorText}`);
+          console.error(`❌ [CAROUSEL] Item ${i + 1} creation failed:`, {
+            imageUrl,
+            status: response.status,
+            statusText: response.statusText,
+            errorBody: errorText,
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+            requestParams: {
+              media_type: "IMAGE",
+              image_url: imageUrl,
+              is_carousel_item: "true",
+              access_token: '[REDACTED]'
+            },
+            responseTime: `${responseTime}ms`,
+            baseUrl,
+            selectedSocialId,
+            replyToId
+          });
+          
+          // 이미지 URL 유효성 검사
+          try {
+            const imageCheckResponse = await fetch(imageUrl, { method: 'HEAD' });
+            console.log(`🔍 [CAROUSEL] Image URL validation for ${imageUrl}:`, {
+              status: imageCheckResponse.status,
+              headers: Object.fromEntries(imageCheckResponse.headers.entries()),
+              contentType: imageCheckResponse.headers.get('content-type'),
+              contentLength: imageCheckResponse.headers.get('content-length'),
+              isAccessible: imageCheckResponse.ok
+            });
+          } catch (imageError) {
+            console.error(`🔍 [CAROUSEL] Image URL check failed for ${imageUrl}:`, imageError);
+          }
+          
+          throw new Error(`댓글 캐러셀 아이템 생성 실패 (아이템 ${i + 1}/${mediaUrls.length}, 상태: ${response.status}): ${errorText}`);
         }
 
         const data = await response.json();
+        console.log(`✅ [CAROUSEL] Item ${i + 1} created successfully:`, {
+          containerId: data.id,
+          imageUrl,
+          responseTime: `${responseTime}ms`,
+          fullResponse: data
+        });
+        
         itemContainers.push(data.id);
+        
+        // 다음 아이템 생성 전 딜레이 (마지막 아이템 제외)
+        if (i < mediaUrls.length - 1) {
+          console.log(`⏳ [CAROUSEL] Waiting 1 second before creating next item...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
+      
+      console.log(`🎠 [CAROUSEL] All ${mediaUrls.length} items created. Container IDs:`, itemContainers);
 
       // Create carousel container with reply_to_id
+      console.log(`🎠 [CAROUSEL] Creating final carousel container...`);
       const urlParams = new URLSearchParams();
       urlParams.append("media_type", "CAROUSEL");
       urlParams.append("text", content);
@@ -281,14 +356,60 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
       urlParams.append("access_token", accessToken);
 
       const containerUrl = `${baseUrl}?${urlParams.toString()}`;
+      
+      console.log(`🎠 [CAROUSEL] Final container request:`, {
+        url: containerUrl.replace(accessToken, '[REDACTED]'),
+        params: {
+          media_type: "CAROUSEL",
+          text: content,
+          children: itemContainers.join(","),
+          reply_to_id: replyToId,
+          access_token: '[REDACTED]'
+        },
+        childrenCount: itemContainers.length,
+        childrenIds: itemContainers
+      });
+      
+      const startTime = Date.now();
       const response = await fetch(containerUrl, { method: "POST" });
+      const responseTime = Date.now() - startTime;
+      
+      console.log(`🎠 [CAROUSEL] Final container API Response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        responseTime: `${responseTime}ms`,
+        headers: Object.fromEntries(response.headers.entries()),
+        url: response.url
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`댓글 캐러셀 컨테이너 생성 실패: ${errorText}`);
+        console.error(`❌ [CAROUSEL] Final container creation failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorText,
+          responseHeaders: Object.fromEntries(response.headers.entries()),
+          requestParams: {
+            media_type: "CAROUSEL",
+            text: content,
+            children: itemContainers.join(","),
+            reply_to_id: replyToId,
+            access_token: '[REDACTED]'
+          },
+          responseTime: `${responseTime}ms`,
+          childrenIds: itemContainers,
+          childrenCount: itemContainers.length
+        });
+        throw new Error(`댓글 캐러셀 컨테이너 생성 실패 (상태: ${response.status}): ${errorText}`);
       }
       
       const data = await response.json();
+      console.log(`✅ [CAROUSEL] Final container created successfully:`, {
+        containerId: data.id,
+        responseTime: `${responseTime}ms`,
+        fullResponse: data
+      });
+      
       mediaContainerId = data.id;
     } else {
       throw new Error("지원하지 않는 댓글 미디어 타입입니다.");

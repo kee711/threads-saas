@@ -154,7 +154,7 @@ export class ThreadQueue {
           console.error(`[QUEUE] Item processing failed:`, error);
           results.push({ status: 'rejected', error });
         }
-        
+
         // 아이템 간 간격 (API 제한 방지)
         if (pendingItems.indexOf(item) < pendingItems.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -375,12 +375,12 @@ export class ThreadQueue {
         });
 
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           return { success: false, error: `Failed to create image container: ${errorText}` };
         }
-        
+
         const data = await response.json();
         mediaContainerId = data.id;
       } else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
@@ -393,61 +393,141 @@ export class ThreadQueue {
         });
 
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           return { success: false, error: `Failed to create video container: ${errorText}` };
         }
-        
+
         const data = await response.json();
         mediaContainerId = data.id;
       } else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
         // Handle carousel replies with retry logic
+        console.log(`🎠 [QUEUE-CAROUSEL] Starting carousel reply creation with ${mediaUrls.length} items`);
+        console.log(`🎠 [QUEUE-CAROUSEL] Media URLs:`, mediaUrls);
+        console.log(`🎠 [QUEUE-CAROUSEL] Reply to ID: ${replyToId}`);
+        console.log(`🎠 [QUEUE-CAROUSEL] Social ID: ${socialId}`);
+
         const itemContainers = [];
-        
-        for (const imageUrl of mediaUrls) {
+
+        for (let itemIndex = 0; itemIndex < mediaUrls.length; itemIndex++) {
+          const imageUrl = mediaUrls[itemIndex];
+          console.log(`🎠 [QUEUE-CAROUSEL] Processing item ${itemIndex + 1}/${mediaUrls.length}: ${imageUrl}`);
+
           const urlParams = new URLSearchParams({
             media_type: "IMAGE",
             image_url: imageUrl,
             is_carousel_item: "true",
             access_token: accessToken
           });
-          
+
           let attempts = 0;
           const maxAttempts = 3;
           let success = false;
-          
+
           while (attempts < maxAttempts && !success) {
+            console.log(`🎠 [QUEUE-CAROUSEL] Item ${itemIndex + 1} attempt ${attempts + 1}/${maxAttempts}`);
+
             try {
+              const startTime = Date.now();
               const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-              
+              const responseTime = Date.now() - startTime;
+
+              console.log(`🎠 [QUEUE-CAROUSEL] Item ${itemIndex + 1} attempt ${attempts + 1} response:`, {
+                status: response.status,
+                statusText: response.statusText,
+                responseTime: `${responseTime}ms`,
+                headers: Object.fromEntries(response.headers.entries()),
+                url: response.url.replace(accessToken, '[REDACTED]')
+              });
+
               if (response.ok) {
                 const data = await response.json();
+                console.log(`✅ [QUEUE-CAROUSEL] Item ${itemIndex + 1} created successfully:`, {
+                  containerId: data.id,
+                  imageUrl,
+                  attempt: attempts + 1,
+                  responseTime: `${responseTime}ms`,
+                  fullResponse: data
+                });
                 itemContainers.push(data.id);
                 success = true;
               } else {
                 const errorText = await response.text();
-                console.error(`Carousel item creation attempt ${attempts + 1} failed:`, errorText);
+                console.error(`❌ [QUEUE-CAROUSEL] Item ${itemIndex + 1} attempt ${attempts + 1} failed:`, {
+                  imageUrl,
+                  status: response.status,
+                  statusText: response.statusText,
+                  errorBody: errorText,
+                  responseHeaders: Object.fromEntries(response.headers.entries()),
+                  requestParams: {
+                    media_type: "IMAGE",
+                    image_url: imageUrl,
+                    is_carousel_item: "true",
+                    access_token: '[REDACTED]'
+                  },
+                  responseTime: `${responseTime}ms`,
+                  attempt: attempts + 1,
+                  maxAttempts
+                });
+
+                // 이미지 URL 검증 (첫 번째 실패 시에만)
+                if (attempts === 0) {
+                  try {
+                    console.log(`🔍 [QUEUE-CAROUSEL] Validating image URL: ${imageUrl}`);
+                    const imageCheckResponse = await fetch(imageUrl, { method: 'HEAD' });
+                    console.log(`🔍 [QUEUE-CAROUSEL] Image URL validation result:`, {
+                      imageUrl,
+                      status: imageCheckResponse.status,
+                      headers: Object.fromEntries(imageCheckResponse.headers.entries()),
+                      contentType: imageCheckResponse.headers.get('content-type'),
+                      contentLength: imageCheckResponse.headers.get('content-length'),
+                      isAccessible: imageCheckResponse.ok
+                    });
+                  } catch (imageError) {
+                    console.error(`🔍 [QUEUE-CAROUSEL] Image URL validation failed:`, {
+                      imageUrl,
+                      error: imageError instanceof Error ? imageError.message : 'Unknown error'
+                    });
+                  }
+                }
+
                 if (attempts === maxAttempts - 1) {
-                  return { success: false, error: `Failed to create carousel item after ${maxAttempts} attempts: ${errorText}` };
+                  return { success: false, error: `Failed to create carousel item ${itemIndex + 1}/${mediaUrls.length} after ${maxAttempts} attempts (${response.status}): ${errorText}` };
                 }
               }
             } catch (error) {
-              console.error(`Carousel item creation attempt ${attempts + 1} error:`, error);
+              console.error(`❌ [QUEUE-CAROUSEL] Item ${itemIndex + 1} attempt ${attempts + 1} exception:`, {
+                imageUrl,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                stack: error instanceof Error ? error.stack : undefined,
+                attempt: attempts + 1,
+                maxAttempts
+              });
               if (attempts === maxAttempts - 1) {
-                return { success: false, error: `Failed to create carousel item: ${error}` };
+                return { success: false, error: `Failed to create carousel item ${itemIndex + 1}/${mediaUrls.length}: ${error instanceof Error ? error.message : 'Unknown error'}` };
               }
             }
-            
+
             attempts++;
             if (!success && attempts < maxAttempts) {
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+              const waitTime = 1000 * Math.pow(2, attempts);
+              console.log(`⏳ [QUEUE-CAROUSEL] Item ${itemIndex + 1} waiting ${waitTime}ms before retry ${attempts + 1}...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
             }
           }
+
+          // 아이템 간 딜레이 (마지막 아이템 제외)
+          if (itemIndex < mediaUrls.length - 1) {
+            console.log(`⏳ [QUEUE-CAROUSEL] Waiting 1 second before next item...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
-        
+
+        console.log(`🎠 [QUEUE-CAROUSEL] All ${mediaUrls.length} items created. Container IDs:`, itemContainers);
+
         // Create carousel container
+        console.log(`🎠 [QUEUE-CAROUSEL] Creating final carousel container...`);
         const urlParams = new URLSearchParams({
           media_type: "CAROUSEL",
           text: content,
@@ -455,15 +535,60 @@ export class ThreadQueue {
           reply_to_id: replyToId,
           access_token: accessToken
         });
-        
+
+        console.log(`🎠 [QUEUE-CAROUSEL] Final container request:`, {
+          url: `${baseUrl}?${urlParams.toString()}`.replace(accessToken, '[REDACTED]'),
+          params: {
+            media_type: "CAROUSEL",
+            text: content,
+            children: itemContainers.join(","),
+            reply_to_id: replyToId,
+            access_token: '[REDACTED]'
+          },
+          childrenCount: itemContainers.length,
+          childrenIds: itemContainers
+        });
+
+        const startTime = Date.now();
         const response = await fetch(`${baseUrl}?${urlParams.toString()}`, { method: "POST" });
-        
+        const responseTime = Date.now() - startTime;
+
+        console.log(`🎠 [QUEUE-CAROUSEL] Final container API Response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          responseTime: `${responseTime}ms`,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: response.url.replace(accessToken, '[REDACTED]')
+        });
+
         if (!response.ok) {
           const errorText = await response.text();
-          return { success: false, error: `Failed to create carousel container: ${errorText}` };
+          console.error(`❌ [QUEUE-CAROUSEL] Final container creation failed:`, {
+            status: response.status,
+            statusText: response.statusText,
+            errorBody: errorText,
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+            requestParams: {
+              media_type: "CAROUSEL",
+              text: content,
+              children: itemContainers.join(","),
+              reply_to_id: replyToId,
+              access_token: '[REDACTED]'
+            },
+            responseTime: `${responseTime}ms`,
+            childrenIds: itemContainers,
+            childrenCount: itemContainers.length
+          });
+          return { success: false, error: `Failed to create carousel container (${response.status}): ${errorText}` };
         }
-        
+
         const data = await response.json();
+        console.log(`✅ [QUEUE-CAROUSEL] Final container created successfully:`, {
+          containerId: data.id,
+          responseTime: `${responseTime}ms`,
+          fullResponse: data
+        });
+
         mediaContainerId = data.id;
       } else {
         return { success: false, error: 'Unsupported media type for replies' };
