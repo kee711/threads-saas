@@ -161,8 +161,27 @@ async function createThreadsPostOptimized(content: string, mediaUrls?: string[],
         });
 
         if (publishResponse.ok) {
-          const publishData = await publishResponse.json();
-          console.log(`✅ [threadChain.ts:createThreadsPostOptimized:161] Thread published successfully! ID: ${publishData.id}`);
+          let publishData;
+          try {
+            const responseText = await publishResponse.text();
+            console.log(`📝 [threadChain.ts:createThreadsPostOptimized:164] Raw response text:`, responseText);
+            
+            if (!responseText.trim()) {
+              throw new Error('Empty response body');
+            }
+            
+            publishData = JSON.parse(responseText);
+          } catch (jsonError) {
+            console.error(`❌ [threadChain.ts:createThreadsPostOptimized:172] JSON parsing error:`, {
+              error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+              responseHeaders: Object.fromEntries(publishResponse.headers.entries()),
+              status: publishResponse.status,
+              statusText: publishResponse.statusText
+            });
+            throw new Error(`Invalid JSON response: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+          }
+          
+          console.log(`✅ [threadChain.ts:createThreadsPostOptimized:181] Thread published successfully! ID: ${publishData.id}`);
           return {
             success: true,
             threadId: publishData.id,
@@ -279,8 +298,22 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         throw new Error(`댓글 이미지 컨테이너 생성 실패: ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:281] Single image container created: ${data.id}`);
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText.trim()) {
+          throw new Error('Empty response body');
+        }
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:282] JSON parsing error for single image:`, {
+          error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+          responseHeaders: Object.fromEntries(response.headers.entries())
+        });
+        throw new Error(`Invalid JSON response: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+      }
+      
+      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:294] Single image container created: ${data.id}`);
       mediaContainerId = data.id;
     }
     else if (mediaType === "VIDEO" && mediaUrls.length === 1) {
@@ -319,8 +352,22 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         throw new Error(`댓글 비디오 컨테이너 생성 실패: ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:321] Single video container created: ${data.id}`);
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText.trim()) {
+          throw new Error('Empty response body');
+        }
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:340] JSON parsing error for single video:`, {
+          error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+          responseHeaders: Object.fromEntries(response.headers.entries())
+        });
+        throw new Error(`Invalid JSON response: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+      }
+      
+      console.log(`✅ [threadChain.ts:createThreadsReplyOptimized:351] Single video container created: ${data.id}`);
       mediaContainerId = data.id;
     }
     else if ((mediaType === "IMAGE" || mediaType === "CAROUSEL") && mediaUrls.length > 1) {
@@ -401,7 +448,22 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
           throw new Error(`댓글 캐러셀 아이템 생성 실패 (아이템 ${i + 1}/${mediaUrls.length}, 상태: ${response.status}): ${errorText}`);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          const responseText = await response.text();
+          if (!responseText.trim()) {
+            throw new Error('Empty response body');
+          }
+          data = JSON.parse(responseText);
+        } catch (jsonError) {
+          console.error(`❌ [CAROUSEL] JSON parsing error for item ${i + 1}:`, {
+            error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+            imageUrl
+          });
+          throw new Error(`Invalid JSON response for carousel item: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+        }
+        
         console.log(`✅ [CAROUSEL] Item ${i + 1} created successfully:`, {
           containerId: data.id,
           imageUrl,
@@ -477,7 +539,21 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         throw new Error(`댓글 캐러셀 컨테이너 생성 실패 (상태: ${response.status}): ${errorText}`);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText.trim()) {
+          throw new Error('Empty response body');
+        }
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`❌ [CAROUSEL] JSON parsing error for final container:`, {
+          error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+          responseHeaders: Object.fromEntries(response.headers.entries())
+        });
+        throw new Error(`Invalid JSON response for final carousel: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+      }
+      
       console.log(`✅ [CAROUSEL] Final container created successfully:`, {
         containerId: data.id,
         responseTime: `${responseTime}ms`,
@@ -511,7 +587,26 @@ async function createThreadsReplyOptimized(content: string, replyToId: string, m
         });
 
         if (publishResponse.ok) {
-          const publishData = await publishResponse.json();
+          let publishData;
+          try {
+            const responseText = await publishResponse.text();
+            console.log(`💬 [threadChain.ts:createThreadsReplyOptimized:514] Raw response text:`, responseText);
+            
+            if (!responseText.trim()) {
+              throw new Error('Empty response body');
+            }
+            
+            publishData = JSON.parse(responseText);
+          } catch (jsonError) {
+            console.error(`❌ [threadChain.ts:createThreadsReplyOptimized:522] JSON parsing error:`, {
+              error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error',
+              responseHeaders: Object.fromEntries(publishResponse.headers.entries()),
+              status: publishResponse.status,
+              statusText: publishResponse.statusText
+            });
+            throw new Error(`Invalid JSON response: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+          }
+          
           console.log('Reply published successfully!');
           return { id: publishData.id };
         } else {
